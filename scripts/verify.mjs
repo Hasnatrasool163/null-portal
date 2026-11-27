@@ -1397,7 +1397,8 @@ async function lifecycleSlice() {
     "rescore with stale updatedAt rejected (409)",
     (await ex1.post(`/api/exams/${liveId}/rescore`, { questionId: q1.data.id, correctOptionIds: [wrongOpt.id], reason: "Stale", updatedAt: afterTitle.updatedAt })).status === 409,
   );
-  const liveAudit = (await ex1.get(`/api/exams/${liveId}/audit`)).data.items.map((a) => a.action);
+  const liveAuditItems = (await ex1.get(`/api/exams/${liveId}/audit`)).data.items;
+  const liveAudit = liveAuditItems.map((a) => a.action);
   check(
     "ongoing & completed actions all audited",
     liveAudit.includes("EXAM_UPDATED") &&
@@ -1405,6 +1406,89 @@ async function lifecycleSlice() {
       liveAudit.includes("ANNOUNCEMENT_POSTED") &&
       liveAudit.includes("EXAM_RESCORED"),
   );
+  // EXM-143: audit summaries use clean UTF-8 arrow, never garbled â†’
+  const rescoreAudit = liveAuditItems.find((a) => a.action === "EXAM_RESCORED");
+  const upAuditItems = (await admin.get(`/api/exams/${upId}/audit`)).data.items;
+  const qChangedAudit = upAuditItems.find((a) => a.action === "EXAM_QUESTIONS_CHANGED");
+  check(
+    "EXM-143: audit arrows render as → (not garbled)",
+    rescoreAudit?.summary.includes("→") &&
+      !rescoreAudit.summary.includes("â†’") &&
+      qChangedAudit?.summary.includes("→") &&
+      !qChangedAudit.summary.includes("â†’"),
+  );
+
+  // CAN-120 / NET-120: closing or cancelling finalizes IN_PROGRESS attempts and rejects saves/syncs
+  const closeTest = await ex1.post("/api/exams", {
+    title: `Close Guard ${now}`,
+    instructions: "Close test",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3_600_000).toISOString(),
+    durationMinutes: 20,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const ctId = closeTest.data.id;
+  await ex1.req("PUT", `/api/exams/${ctId}/questions`, { items: [{ questionId: q1.data.id, marks: 2 }] });
+  await ex1.post(`/api/exams/${ctId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${ctId}/publish`);
+  const ctAtt = await cand1.post(`/api/exams/${ctId}/start`);
+  const ctAq = ctAtt.data.questions[0];
+
+  await admin.post(`/api/admin/exams/${ctId}/close`, { action: "CANCEL", reason: "Emergency cancellation" });
+  const ctAfter = await cand1.get(`/api/attempts/${ctAtt.data.id}`);
+  check("CAN-120: admin cancel finalizes in-progress attempt", ctAfter.status === 200 && ctAfter.data.status === "SUBMITTED");
+  const ctSave = await cand1.req("PUT", `/api/attempts/${ctAtt.data.id}/answers`, {
+    attemptQuestionId: ctAq.id,
+    selectedOptionIds: [ctAq.options[0].id],
+    seq: 1,
+  });
+  check("CAN-120: save answer after cancel rejected (409)", ctSave.status === 409);
+  const ctSync = await cand1.post(`/api/attempts/${ctAtt.data.id}/sync`, {
+    items: [{ attemptQuestionId: ctAq.id, selectedOptionIds: [ctAq.options[0].id], seq: 1, capturedElapsedMs: 1000 }],
+  });
+  check(
+    "NET-120: sync after cancel rejects items",
+    ctSync.status === 200 && ctSync.data.accepted === 0 && ctSync.data.rejected === 1 && ctSync.data.results[0].reason === "EXAM_CANCELLED",
+  );
+
+  // SECFEAT-123: cancelling an exam revokes previously issued certificates and blocks candidate results
+  const certExam = await ex1.post("/api/exams", {
+    title: `Cert Revoke ${now}`,
+    instructions: "Cert test",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3_600_000).toISOString(),
+    durationMinutes: 20,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 60,
+  });
+  const ceId = certExam.data.id;
+  await ex1.req("PUT", `/api/exams/${ceId}/questions`, { items: [{ questionId: q1.data.id, marks: 2 }] });
+  await ex1.post(`/api/exams/${ceId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${ceId}/publish`);
+  const ceAtt = await cand1.post(`/api/exams/${ceId}/start`);
+  await cand1.post(`/api/attempts/${ceAtt.data.id}/submit`);
+  await ex1.post(`/api/exams/${ceId}/results/publish`);
+  const pdfRes = await fetch(`${BASE}/api/attempts/${ceAtt.data.id}/report.pdf`, {
+    headers: { cookie: cand1.cookie },
+  });
+  const verifyCode = pdfRes.headers.get("x-verification-code");
+  const verBefore = await new Client().get(`/api/verify/${verifyCode}`);
+  check("SECFEAT-123: certificate verifies VALID before cancel", verBefore.status === 200 && verBefore.data.status === "VALID");
+
+  await admin.post(`/api/admin/exams/${ceId}/close`, { action: "CANCEL", reason: "Integrity breach" });
+  const verAfter = await new Client().get(`/api/verify/${verifyCode}`);
+  check("SECFEAT-123: certificate verifies REVOKED after cancel", verAfter.status === 200 && verAfter.data.status === "REVOKED");
+  check("SECFEAT-123: candidate cannot view result of cancelled exam (403)", (await cand1.get(`/api/attempts/${ceAtt.data.id}/result`)).status === 403);
+  check("SECFEAT-123: cannot re-publish results of cancelled exam (409)", (await ex1.post(`/api/exams/${ceId}/results/publish`)).status === 409);
 }
 
 async function passwordSlice() {

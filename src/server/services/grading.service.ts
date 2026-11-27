@@ -312,6 +312,9 @@ export const gradingService = {
     const examId = assertUuid(examIdRaw, "Exam");
     const exam = await examRepo.findById(examId, user.id);
     if (!exam) throw Errors.notFound("Exam not found");
+    if (exam.cancelled) {
+      throw Errors.conflict("Cannot publish results for a cancelled exam.");
+    }
 
     await finalizeExpiredForExam(exam.id);
 
@@ -454,11 +457,13 @@ export const gradingService = {
       total_score: number | null;
       show_answers: boolean;
       results_published_at: Date | null;
+      exam_cancelled: boolean;
     }>(
       `SELECT a.id, a.exam_id, e.title AS exam_title, e.owner_id,
               a.candidate_id, u.name AS candidate_name, a.is_sandbox,
               a.status, a.grading_status, a.submitted_at, a.submit_reason,
-              a.total_score, a.show_answers, e.results_published_at
+              a.total_score, a.show_answers, e.results_published_at,
+              e.cancelled AS exam_cancelled
        FROM attempts a
        JOIN exams e ON e.id = a.exam_id
        JOIN users u ON u.id = a.candidate_id
@@ -476,6 +481,11 @@ export const gradingService = {
     }
     if (a.status !== "SUBMITTED") {
       throw Errors.conflict("This attempt has not been submitted yet.");
+    }
+    if (user.role === "CANDIDATE" && a.exam_cancelled) {
+      throw Errors.forbidden(
+        "This exam was cancelled and its results are not available.",
+      );
     }
     if (user.role === "CANDIDATE" && !a.results_published_at) {
       throw Errors.forbidden(

@@ -34,6 +34,8 @@ export type AttemptRow = {
   server_now: Date;
   exam_title: string;
   exam_instructions: string;
+  exam_status: "DRAFT" | "PUBLISHED" | "CLOSED";
+  exam_cancelled: boolean;
   duration_minutes: number | null;
   instructions_snapshot: string | null;
 };
@@ -50,7 +52,9 @@ export type AttemptQuestionRow = {
 };
 
 const ATTEMPT_SELECT = `
-  SELECT a.*, now() AS server_now, e.title AS exam_title, COALESCE(a.instructions_snapshot, e.instructions) AS exam_instructions
+  SELECT a.*, now() AS server_now, e.title AS exam_title,
+         COALESCE(a.instructions_snapshot, e.instructions) AS exam_instructions,
+         e.status AS exam_status, e.cancelled AS exam_cancelled
   FROM attempts a
   JOIN exams e ON e.id = a.exam_id
 `;
@@ -125,7 +129,9 @@ export const attemptRepo = {
     attemptId: string,
   ): Promise<AttemptRow | null> {
     const r = await c.query<AttemptRow>(
-      `SELECT a.*, now() AS server_now, e.title AS exam_title, COALESCE(a.instructions_snapshot, e.instructions) AS exam_instructions
+      `SELECT a.*, now() AS server_now, e.title AS exam_title,
+              COALESCE(a.instructions_snapshot, e.instructions) AS exam_instructions,
+              e.status AS exam_status, e.cancelled AS exam_cancelled
        FROM attempts a JOIN exams e ON e.id = a.exam_id
        WHERE a.id = $1 FOR UPDATE OF a`,
       [attemptId],

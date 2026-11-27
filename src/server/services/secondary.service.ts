@@ -331,12 +331,14 @@ export const secondaryService = {
       issued_at: Date;
       score_at_issue: number;
       revoked: boolean;
+      exam_cancelled: boolean;
       current_score: number | null;
       exam_title: string;
       candidate_name: string;
       total_marks: number;
     }>(
       `SELECT rv.code, rv.issued_at, rv.score_at_issue, rv.revoked,
+              e.cancelled AS exam_cancelled,
               a.total_score AS current_score, e.title AS exam_title,
               u.name AS candidate_name,
               COALESCE((SELECT SUM(marks) FROM attempt_questions WHERE attempt_id = a.id), 0)::numeric AS total_marks
@@ -358,7 +360,7 @@ export const secondaryService = {
       totalMarks > 0 ? Math.round((issuedScore / totalMarks) * 1000) / 10 : 0;
 
     let status: "VALID" | "REVOKED" | "SUPERSEDED" = "VALID";
-    if (r.revoked) status = "REVOKED";
+    if (r.revoked || r.exam_cancelled) status = "REVOKED";
     else if (Math.abs(currentScore - issuedScore) > 0.001) status = "SUPERSEDED";
 
     return {
