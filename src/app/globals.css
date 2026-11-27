@@ -248,3 +248,9 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
     repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
   background-position: 0 0, 0 1.25rem;
 }
+
+/* Hide browser-native password reveal/clear buttons (Edge) so our custom toggle isn't duplicated. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
