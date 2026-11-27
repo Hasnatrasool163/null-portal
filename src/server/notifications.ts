@@ -95,6 +95,30 @@ export async function clearExamNotifications(c: Db, examId: string, userId: stri
   await run(c, "DELETE FROM notifications WHERE exam_id = $1 AND user_id = $2", [examId, userId]);
 }
 
+/** Direct notification to specific users (dispute updates etc.). dedupeKey must be unique per event. */
+export async function notifyUsers(
+  c: Db,
+  userIds: string[],
+  n: {
+    type: "DISPUTE_FILED" | "DISPUTE_UPDATED" | "DISPUTE_ESCALATED";
+    title: string;
+    body: string;
+    link: string;
+    examId: string;
+    dedupeKey: string;
+  },
+) {
+  if (userIds.length === 0) return;
+  await run(
+    c,
+    `INSERT INTO notifications (user_id, type, title, body, link, exam_id, dedupe_key)
+     SELECT u, $2, left($3, 200), left($4, 1000), $5, $6, $7
+     FROM unnest($1::uuid[]) AS u
+     ON CONFLICT (user_id, dedupe_key) DO NOTHING`,
+    [userIds, n.type, n.title, n.body, n.link, n.examId, n.dedupeKey],
+  );
+}
+
 /** Lazily creates time-based reminders for this user. Idempotent; cheap enough to run on each read. */
 async function generateReminders(userId: string) {
   // Candidate: an ongoing exam closes within 24h / 1h and they haven't submitted yet.

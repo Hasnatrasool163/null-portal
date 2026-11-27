@@ -1,4 +1,5 @@
 import "server-only";
+import type { PoolClient } from "pg";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
@@ -37,6 +38,140 @@ export async function finalizeExpiredForExam(examId: string) {
       if (a) await finalizeIfExpiredInTx(c, a);
     }
   });
+}
+
+/**
+ * Awards 0..question.marks (0.5 steps) to a WRITTEN answer inside the caller's transaction,
+ * recomputes the attempt total and writes a GRADE_CHANGED audit row. Shared by normal grading
+ * and dispute resolution (which passes its disputeId so the audit trail links the two).
+ */
+export async function gradeWrittenInTx(
+  c: PoolClient,
+  user: SessionUser,
+  attemptId: string,
+  aqId: string,
+  input: GradeAnswerInput,
+  opts: { disputeId?: string } = {},
+) {
+    const attempt = await attemptRepo.findByIdForUpdate(c, attemptId);
+    if (!attempt || attempt.is_sandbox) {
+      throw Errors.notFound("Attempt not found");
+    }
+    const examCheck = await c.query<{
+      owner_id: string;
+      results_published_at: Date | null;
+    }>("SELECT owner_id, results_published_at FROM exams WHERE id = $1", [
+      attempt.exam_id,
+    ]);
+    // Owner examiner always; an admin only when deciding an escalated dispute.
+    const allowed =
+      examCheck.rows[0] &&
+      (examCheck.rows[0].owner_id === user.id ||
+        (user.role === "ADMIN" && opts.disputeId !== undefined));
+    if (!allowed) throw Errors.notFound("Attempt not found");
+
+    const checked = await finalizeIfExpiredInTx(c, attempt);
+    if (checked.status !== "SUBMITTED") {
+      throw Errors.conflict(
+        "Cannot grade an attempt that is still in progress.",
+      );
+    }
+
+    const aqRes = await c.query<{
+      id: string;
+      type: string;
+      marks: number;
+      position: number;
+      old_score: number | null;
+      candidate_name: string;
+    }>(
+      `SELECT aq.id, aq.type, aq.marks, aq.position, ans.score AS old_score,
+              u.name AS candidate_name
+       FROM attempt_questions aq
+       JOIN attempts a ON a.id = aq.attempt_id
+       JOIN users u ON u.id = a.candidate_id
+       LEFT JOIN answers ans ON ans.attempt_question_id = aq.id
+       WHERE aq.id = $1 AND aq.attempt_id = $2`,
+      [aqId, attemptId],
+    );
+    const aq = aqRes.rows[0];
+    if (!aq) throw Errors.notFound("Question not found in this attempt");
+    if (aq.type !== "WRITTEN") {
+      throw Errors.badRequest("Only written questions are graded manually.");
+    }
+    const maxMarks = Number(aq.marks);
+    if (input.score > maxMarks) {
+      throw Errors.badRequest(
+        `Score cannot exceed the question maximum (${maxMarks})`,
+        { score: `Maximum is ${maxMarks}` },
+      );
+    }
+
+    await c.query(
+      `INSERT INTO answers (
+         attempt_question_id, attempt_id, selected_option_ids, seq,
+         score, graded_by, graded_at, feedback
+       ) VALUES ($1, $2, '{}', 0, $3, $4, now(), $5)
+       ON CONFLICT (attempt_question_id) DO UPDATE SET
+         score = EXCLUDED.score,
+         graded_by = EXCLUDED.graded_by,
+         graded_at = EXCLUDED.graded_at,
+         feedback = EXCLUDED.feedback`,
+      [aq.id, attemptId, input.score, user.id, input.feedback ?? null],
+    );
+
+    // Recompute attempt total in one SQL statement (clamped >= 0).
+    const totalScore = await attemptRepo.recomputeTotalScore(c, attemptId);
+
+    const oldScore = aq.old_score !== null ? Number(aq.old_score) : null;
+    if (oldScore !== input.score) {
+      await audit(c, user, {
+        action: "GRADE_CHANGED",
+        examId: attempt.exam_id,
+        targetType: "attempt",
+        targetId: attemptId,
+        summary:
+          oldScore === null
+            ? `Graded Q${aq.position + 1} for ${aq.candidate_name}: ${input.score}/${maxMarks}`
+            : `Changed Q${aq.position + 1} for ${aq.candidate_name}: ${oldScore} → ${input.score}/${maxMarks}`,
+        details: {
+          attemptQuestionId: aq.id,
+          questionNumber: aq.position + 1,
+          from: oldScore,
+          to: input.score,
+          maxMarks,
+          afterResultsPublished:
+            examCheck.rows[0].results_published_at !== null,
+          ...(opts.disputeId ? { disputeId: opts.disputeId } : {}),
+        },
+      });
+    }
+
+    // Check if any written question in this attempt is still ungraded.
+    const ungraded = (
+      await c.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+         FROM attempt_questions aq
+         LEFT JOIN answers ans ON ans.attempt_question_id = aq.id
+         WHERE aq.attempt_id = $1 AND aq.type = 'WRITTEN' AND ans.score IS NULL`,
+        [attemptId],
+      )
+    ).rows[0].n;
+
+    const gradingStatus: GradingStatus =
+      ungraded === 0 ? "GRADED" : "NEEDS_REVIEW";
+    await c.query("UPDATE attempts SET grading_status = $2 WHERE id = $1", [
+      attemptId,
+      gradingStatus,
+    ]);
+
+    return {
+      attemptId,
+      attemptQuestionId: aq.id,
+      score: input.score,
+      totalScore,
+      gradingStatus,
+    };
 }
 
 export const gradingService = {
@@ -196,125 +331,9 @@ export const gradingService = {
     if (user.role !== "EXAMINER") throw Errors.forbidden();
     const attemptId = assertUuid(attemptIdRaw, "Attempt");
     const aqId = assertUuid(aqIdRaw, "Question");
-
-    return tx(async (c) => {
-      const attempt = await attemptRepo.findByIdForUpdate(c, attemptId);
-      if (!attempt || attempt.is_sandbox) {
-        throw Errors.notFound("Attempt not found");
-      }
-      const examCheck = await c.query<{
-        owner_id: string;
-        results_published_at: Date | null;
-      }>("SELECT owner_id, results_published_at FROM exams WHERE id = $1", [
-        attempt.exam_id,
-      ]);
-      if (!examCheck.rows[0] || examCheck.rows[0].owner_id !== user.id) {
-        throw Errors.notFound("Attempt not found");
-      }
-
-      const checked = await finalizeIfExpiredInTx(c, attempt);
-      if (checked.status !== "SUBMITTED") {
-        throw Errors.conflict(
-          "Cannot grade an attempt that is still in progress.",
-        );
-      }
-
-      const aqRes = await c.query<{
-        id: string;
-        type: string;
-        marks: number;
-        position: number;
-        old_score: number | null;
-        candidate_name: string;
-      }>(
-        `SELECT aq.id, aq.type, aq.marks, aq.position, ans.score AS old_score,
-                u.name AS candidate_name
-         FROM attempt_questions aq
-         JOIN attempts a ON a.id = aq.attempt_id
-         JOIN users u ON u.id = a.candidate_id
-         LEFT JOIN answers ans ON ans.attempt_question_id = aq.id
-         WHERE aq.id = $1 AND aq.attempt_id = $2`,
-        [aqId, attemptId],
-      );
-      const aq = aqRes.rows[0];
-      if (!aq) throw Errors.notFound("Question not found in this attempt");
-      if (aq.type !== "WRITTEN") {
-        throw Errors.badRequest("Only written questions are graded manually.");
-      }
-      const maxMarks = Number(aq.marks);
-      if (input.score > maxMarks) {
-        throw Errors.badRequest(
-          `Score cannot exceed the question maximum (${maxMarks})`,
-          { score: `Maximum is ${maxMarks}` },
-        );
-      }
-
-      await c.query(
-        `INSERT INTO answers (
-           attempt_question_id, attempt_id, selected_option_ids, seq,
-           score, graded_by, graded_at, feedback
-         ) VALUES ($1, $2, '{}', 0, $3, $4, now(), $5)
-         ON CONFLICT (attempt_question_id) DO UPDATE SET
-           score = EXCLUDED.score,
-           graded_by = EXCLUDED.graded_by,
-           graded_at = EXCLUDED.graded_at,
-           feedback = EXCLUDED.feedback`,
-        [aq.id, attemptId, input.score, user.id, input.feedback ?? null],
-      );
-
-      // Recompute attempt total in one SQL statement (clamped >= 0).
-      const totalScore = await attemptRepo.recomputeTotalScore(c, attemptId);
-
-      const oldScore = aq.old_score !== null ? Number(aq.old_score) : null;
-      if (oldScore !== input.score) {
-        await audit(c, user, {
-          action: "GRADE_CHANGED",
-          examId: attempt.exam_id,
-          targetType: "attempt",
-          targetId: attemptId,
-          summary:
-            oldScore === null
-              ? `Graded Q${aq.position + 1} for ${aq.candidate_name}: ${input.score}/${maxMarks}`
-              : `Changed Q${aq.position + 1} for ${aq.candidate_name}: ${oldScore} → ${input.score}/${maxMarks}`,
-          details: {
-            attemptQuestionId: aq.id,
-            questionNumber: aq.position + 1,
-            from: oldScore,
-            to: input.score,
-            maxMarks,
-            afterResultsPublished:
-              examCheck.rows[0].results_published_at !== null,
-          },
-        });
-      }
-
-      // Check if any written question in this attempt is still ungraded.
-      const ungraded = (
-        await c.query<{ n: number }>(
-          `SELECT count(*)::int AS n
-           FROM attempt_questions aq
-           LEFT JOIN answers ans ON ans.attempt_question_id = aq.id
-           WHERE aq.attempt_id = $1 AND aq.type = 'WRITTEN' AND ans.score IS NULL`,
-          [attemptId],
-        )
-      ).rows[0].n;
-
-      const gradingStatus: GradingStatus =
-        ungraded === 0 ? "GRADED" : "NEEDS_REVIEW";
-      await c.query("UPDATE attempts SET grading_status = $2 WHERE id = $1", [
-        attemptId,
-        gradingStatus,
-      ]);
-
-      return {
-        attemptId,
-        attemptQuestionId: aq.id,
-        score: input.score,
-        totalScore,
-        gradingStatus,
-      };
-    });
+    return tx((c) => gradeWrittenInTx(c, user, attemptId, aqId, input));
   },
+
 
   /** Explicit per-exam results publish; blocked if any submitted attempt still needs review. */
   async publishResults(user: SessionUser, examIdRaw: string) {
