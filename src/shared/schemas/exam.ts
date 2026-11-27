@@ -261,7 +261,7 @@ export type AdminOverview = {
   live: OverviewExam[];
   upcoming: OverviewExam[];
   sitting: number;
-  /** Submitted attempts per day, last 14 days, and the 14 days before that. */
+  /** Submitted attempts per day, last 30 days, and the 30 days before that. */
   trend: { series: { day: string; n: number }[]; previous: number };
 };
 

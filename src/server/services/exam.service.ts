@@ -195,7 +195,7 @@ export const examService = {
   /** Admin dashboard: platform-wide oversight (read-only). */
   async adminOverview(user: SessionUser): Promise<AdminOverview> {
     if (user.role !== "ADMIN") throw Errors.forbidden();
-    const [exams, trend] = await Promise.all([examRepo.overview(), examRepo.submissionTrend(14)]);
+    const [exams, trend] = await Promise.all([examRepo.overview(), examRepo.submissionTrend(30)]);
     const attention: OversightItem[] = [];
     for (const e of exams) {
       const base = { examId: e.id, examTitle: e.title, ownerName: e.ownerName };

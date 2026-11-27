@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-/** Platform usage at a glance: submissions per day for the last 14 days vs the 14 before. */
+/** Platform usage at a glance: submissions per day for the last 30 days vs the 30 before. */
 export function SubmissionsChart({
   series,
   previous,
@@ -27,27 +27,27 @@ export function SubmissionsChart({
         <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
           <div>
             <p className="text-3xl font-semibold tracking-tight tabular-nums">{total}</p>
-            <p className="text-muted-foreground text-xs">in the last 14 days</p>
+            <p className="text-muted-foreground text-xs">in the last 30 days</p>
           </div>
           {change !== null ? (
             <p className={cn("flex items-center gap-1 text-xs font-medium", up ? "text-success" : "text-warning")}>
               {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
               {up ? "+" : ""}
-              {change}% vs previous 2 weeks
+              {change}% vs previous 30 days
             </p>
           ) : (
             <p className="text-muted-foreground text-xs">No earlier data to compare</p>
           )}
         </div>
-        <div className="h-44 w-full" role="img" aria-label={`${total} submissions over the last 14 days`}>
+        <div className="h-44 w-full" role="img" aria-label={`${total} submissions over the last 30 days`}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -24 }} barCategoryGap="22%">
+            <BarChart data={data} margin={{ top: 4, right: 0, bottom: 0, left: -24 }} barCategoryGap="18%">
               <CartesianGrid vertical={false} stroke="var(--border)" />
               <XAxis
                 dataKey="label"
                 tickLine={false}
                 axisLine={false}
-                interval={3}
+                interval={6}
                 tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 dy={6}
               />
@@ -73,7 +73,7 @@ export function SubmissionsChart({
                   ) : null
                 }
               />
-              <Bar dataKey="n" radius={[3, 3, 0, 0]} maxBarSize={18}>
+              <Bar dataKey="n" radius={[3, 3, 0, 0]} maxBarSize={14}>
                 {data.map((d, i) => (
                   <Cell
                     key={d.day}

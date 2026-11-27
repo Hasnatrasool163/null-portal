@@ -376,7 +376,7 @@ export const examRepo = {
    * Submitted real attempts per day for the last `days` days (zero-filled), plus the
    * total for the equally long period before it, for a trend comparison.
    */
-  async submissionTrend(days = 14): Promise<{ series: { day: string; n: number }[]; previous: number }> {
+  async submissionTrend(days = 30): Promise<{ series: { day: string; n: number }[]; previous: number }> {
     const series = await query<{ day: string; n: number }>(
       `SELECT to_char(d, 'YYYY-MM-DD') AS day, count(a.id)::int AS n
          FROM generate_series((now() - ($1::int - 1) * interval '1 day')::date, now()::date, interval '1 day') d
