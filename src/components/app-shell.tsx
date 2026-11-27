@@ -14,6 +14,7 @@ import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/misc";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
@@ -64,8 +65,9 @@ export function AppShell({
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Link
             href="/dashboard"
-            className="text-lg font-semibold tracking-tight"
+            className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight"
           >
+            <BrandLogo className="h-7 w-7" />
             null-portal
           </Link>
           <nav className="flex flex-1 items-center gap-1" aria-label="Main">
