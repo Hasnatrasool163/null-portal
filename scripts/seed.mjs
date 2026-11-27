@@ -261,6 +261,136 @@ try {
     }
     console.log(`seeded ${DEMO_EXAMS.length} demo exams`);
   }
+
+  // ---- Seed completed attempts on "Mathematics Diagnostic (Completed)" so results/analytics/PDF have real data ----
+  const compExam = (
+    await client.query(
+      "SELECT * FROM exams WHERE owner_id = $1 AND title = 'Mathematics Diagnostic (Completed)' LIMIT 1",
+      [ex1Id],
+    )
+  ).rows[0];
+  if (compExam) {
+    const existingAtt = (
+      await client.query("SELECT count(*)::int AS n FROM real_attempts WHERE exam_id = $1", [compExam.id])
+    ).rows[0].n;
+    if (existingAtt === 0) {
+      const eqs = (
+        await client.query(
+          `SELECT eq.question_id, eq.position, eq.marks, q.type, q.body
+           FROM exam_questions eq JOIN questions q ON q.id = eq.question_id
+           WHERE eq.exam_id = $1 ORDER BY eq.position`,
+          [compExam.id],
+        )
+      ).rows;
+      const optRows = (
+        await client.query(
+          `SELECT id, question_id, body, is_correct, position
+           FROM question_options WHERE question_id = ANY($1::uuid[]) ORDER BY question_id, position`,
+          [eqs.map((q) => q.question_id)],
+        )
+      ).rows;
+      const optsByQ = new Map();
+      for (const o of optRows) {
+        const list = optsByQ.get(o.question_id) ?? [];
+        list.push({ id: o.id, body: o.body, isCorrect: o.is_correct, position: o.position });
+        optsByQ.set(o.question_id, list);
+      }
+
+      const profiles = [
+        { accuracy: 0.95, writtenPct: 0.9, feedback: "Clear, rigorous proof and strong examples." },
+        { accuracy: 0.85, writtenPct: 0.8, feedback: "Good structure; minor gap in final step." },
+        { accuracy: 0.75, writtenPct: 0.7, feedback: "Solid understanding of core concepts." },
+        { accuracy: 0.65, writtenPct: 0.6, feedback: "Correct direction but needs more justification." },
+        { accuracy: 0.55, writtenPct: 0.5, feedback: "Partial explanation; review definitions." },
+        { accuracy: 0.45, writtenPct: 0.4, feedback: "Incomplete proof; examples were mixed up." },
+        { accuracy: 0.8, writtenPct: 0.85, feedback: "Well written and concise." },
+        { accuracy: 0.35, writtenPct: 0.25, feedback: "Please revisit foundational algebra and calculus." },
+      ];
+
+      for (const [ci, cand] of candRows.slice(0, 8).entries()) {
+        const prof = profiles[ci % profiles.length];
+        const started = new Date(compExam.starts_at.getTime() + (ci + 1) * 3600_000);
+        const deadline = new Date(started.getTime() + compExam.duration_minutes * 60_000);
+        const submitted = new Date(started.getTime() + Math.floor(compExam.duration_minutes * 0.75) * 60_000);
+
+        const attRes = await client.query(
+          `INSERT INTO attempts (
+             exam_id, candidate_id, is_sandbox, seed, status, grading_status,
+             started_at, deadline_at, submitted_at, submit_reason,
+             multi_scoring, negative_marking, show_answers, recovery_window_seconds
+           ) VALUES ($1,$2,false,$3,'SUBMITTED','GRADED',$4,$5,$6,'USER',$7,$8,$9,$10)
+           RETURNING id`,
+          [
+            compExam.id,
+            cand.id,
+            1000 + ci,
+            started.toISOString(),
+            deadline.toISOString(),
+            submitted.toISOString(),
+            compExam.multi_scoring,
+            compExam.negative_marking,
+            compExam.show_answers,
+            compExam.recovery_window_seconds,
+          ],
+        );
+        const attId = attRes.rows[0].id;
+
+        for (const [pos, q] of eqs.entries()) {
+          const opts = optsByQ.get(q.question_id) ?? [];
+          const aqRes = await client.query(
+            `INSERT INTO attempt_questions (attempt_id, position, question_id, type, body, marks, options)
+             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb) RETURNING id`,
+            [attId, pos, q.question_id, q.type, q.body, q.marks, JSON.stringify(opts)],
+          );
+          const aqId = aqRes.rows[0].id;
+          const marks = Number(q.marks);
+
+          if (q.type === "WRITTEN") {
+            const awarded = Math.round(marks * prof.writtenPct * 2) / 2;
+            await client.query(
+              `INSERT INTO answers (attempt_question_id, attempt_id, text_answer, seq, score, graded_by, graded_at, feedback)
+               VALUES ($1,$2,$3,1,$4,$5,now(),$6)`,
+              [
+                aqId,
+                attId,
+                `Candidate ${cand.email.split("@")[0]} response explaining the mathematical reasoning step by step.`,
+                awarded,
+                ex1Id,
+                prof.feedback,
+              ],
+            );
+          } else {
+            const correctOpts = opts.filter((o) => o.isCorrect);
+            const wrongOpts = opts.filter((o) => !o.isCorrect);
+            const deterministicRoll = ((ci * 7 + pos * 13) % 10) / 10;
+            let picked = [];
+            let score = 0;
+            if (deterministicRoll < prof.accuracy) {
+              picked = correctOpts.map((o) => o.id);
+              score = marks;
+            } else if (deterministicRoll < 0.9 && wrongOpts.length > 0) {
+              picked = [wrongOpts[0].id];
+              score = 0;
+            }
+            await client.query(
+              `INSERT INTO answers (attempt_question_id, attempt_id, selected_option_ids, seq, score)
+               VALUES ($1,$2,$3::int[],1,$4)`,
+              [aqId, attId, picked, score],
+            );
+          }
+        }
+        await client.query(
+          `UPDATE attempts a SET total_score = GREATEST(0, COALESCE((SELECT SUM(score) FROM answers WHERE attempt_id = a.id), 0)) WHERE a.id = $1`,
+          [attId],
+        );
+      }
+      await client.query(
+        "UPDATE exams SET results_published_at = now() - interval '1 day' WHERE id = $1",
+        [compExam.id],
+      );
+      console.log("seeded 8 graded attempts and published results for Mathematics Diagnostic");
+    }
+  }
 } finally {
   await client.end();
 }

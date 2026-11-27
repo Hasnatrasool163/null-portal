@@ -400,13 +400,63 @@ async function slice3() {
   check("autosave after submit rejected with ATTEMPT_CLOSED (409)", afterClose.status === 409 && afterClose.error.code === "ATTEMPT_CLOSED");
 
   check("cannot re-start submitted exam (409)", (await cand1.post(`/api/exams/${examId}/start`)).status === 409);
+
+  return { examId, attemptId, aqWrittenId: aqWritten.id };
+}
+
+async function slice4(ctx) {
+  console.log("S4 grading and results");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const cand2 = await login("candidate2@demo.test");
+  const { examId, attemptId, aqWrittenId } = ctx;
+
+  check(
+    "unpublished result hidden from candidate (403)",
+    (await cand1.get(`/api/attempts/${attemptId}/result`)).status === 403,
+  );
+  check(
+    "publish results blocked while written ungraded (409)",
+    (await ex1.post(`/api/exams/${examId}/results/publish`)).status === 409,
+  );
+
+  const g1 = await ex1.get(`/api/exams/${examId}/grading`);
+  check("grading overview shows 1 attempt needing review", g1.status === 200 && !g1.data.canPublishResults && g1.data.attempts.length === 1);
+
+  const overMax = await ex1.req("PUT", `/api/attempts/${attemptId}/grade/${aqWrittenId}`, { score: 99 });
+  check("written grade exceeding max marks rejected (400)", overMax.status === 400);
+
+  const badStep = await ex1.req("PUT", `/api/attempts/${attemptId}/grade/${aqWrittenId}`, { score: 2.3 });
+  check("written grade not in 0.5 steps rejected (400)", badStep.status === 400);
+
+  const graded = await ex1.req("PUT", `/api/attempts/${attemptId}/grade/${aqWrittenId}`, {
+    score: 4.5,
+    feedback: "Strong distinction between process and thread.",
+  });
+  check("valid written grade transitions attempt to GRADED", graded.status === 200 && graded.data.gradingStatus === "GRADED");
+
+  const pub = await ex1.post(`/api/exams/${examId}/results/publish`);
+  check("publish results succeeds once all attempts graded", pub.status === 200 && !!pub.data.resultsPublishedAt);
+
+  const res1 = await cand1.get(`/api/attempts/${attemptId}/result`);
+  check(
+    "candidate1 views own published result with answer key",
+    res1.status === 200 &&
+      res1.data.totalScore >= 0 &&
+      res1.data.questions.some((q) => q.options.some((o) => typeof o.isCorrect === "boolean")),
+  );
+  check(
+    "candidate2 cannot view candidate1 result (404)",
+    (await cand2.get(`/api/attempts/${attemptId}/result`)).status === 404,
+  );
 }
 
 try {
   await slice0();
   await slice1();
   await slice2();
-  await slice3();
+  const s3 = await slice3();
+  await slice4(s3);
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

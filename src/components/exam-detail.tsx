@@ -26,6 +26,7 @@ import { EmptyState, PageHeader, StatCard } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ExamForm } from "@/components/exam-form";
 import { CandidateImportDialog } from "@/components/candidate-import-dialog";
+import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { phaseBadgeClass } from "@/components/exams-manager";
 import { api } from "@/lib/api-client";
 import {
@@ -43,7 +44,7 @@ import {
   type QuestionList,
 } from "@/shared/schemas/question";
 
-type Tab = "review" | "settings" | "questions" | "enrollments";
+type Tab = "review" | "settings" | "questions" | "enrollments" | "grading";
 
 function QuestionsTab({
   exam,
@@ -610,6 +611,7 @@ export function ExamDetailView({
     { id: "settings", label: "Settings" },
     { id: "questions", label: `Questions (${exam.questionCount})` },
     { id: "enrollments", label: `Enrollments (${exam.enrollmentCount})` },
+    { id: "grading", label: "Grading & Results" },
   ];
 
   return (
@@ -789,6 +791,10 @@ export function ExamDetailView({
 
       {tab === "enrollments" && (
         <EnrollmentsTab examId={exam.id} readOnly={isAdmin} />
+      )}
+
+      {tab === "grading" && (
+        <ExamGradingTab examId={exam.id} readOnly={isAdmin} />
       )}
 
       <Dialog
