@@ -57,10 +57,7 @@ export default async function VerifyReportPage({
     <VerifyFrame>
       <div className="flex justify-center pt-2 sm:pt-6">
         <div className="animate-page-in w-full max-w-lg space-y-3">
-          <div className="flex flex-wrap gap-2">
-            <BackButton href="/" label="Back to home" />
-            <BackButton href="/verify" label="Verify another code" />
-          </div>
+          <BackButton href="/verify" label="Verify another code" />
           <Card className="p-5 sm:p-6">
             <div className="flex items-start gap-4">
               <span
@@ -134,6 +131,9 @@ export default async function VerifyReportPage({
             Only the exam, score and masked initials are shown. Never emails or
             answers.
           </p>
+          <div className="flex justify-center pt-1">
+            <BackButton href="/" label="Back to home" />
+          </div>
         </div>
       </div>
     </VerifyFrame>
