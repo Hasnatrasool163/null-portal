@@ -35,7 +35,9 @@ import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { AuditLogView } from "@/components/audit-log-view";
 import { phaseBadgeClass } from "@/components/exams-manager";
+import { AdminExamActions, RescorePanel } from "@/components/exam-lifecycle-panels";
 import { api } from "@/lib/api-client";
+import { editLevel } from "@/shared/exam-lifecycle";
 import {
   MULTI_LABEL,
   PHASE_LABEL,
@@ -69,7 +71,7 @@ function QuestionsTab({
   readOnly: boolean;
 }) {
   const qc = useQueryClient();
-  const locked = readOnly || exam.status !== "DRAFT";
+  const locked = readOnly || editLevel(exam) !== "FULL";
   const [items, setItems] = useState(
     exam.questions.map((q) => ({
       questionId: q.questionId,
@@ -103,6 +105,7 @@ function QuestionsTab({
             questionId: x.questionId,
             marks: x.marks,
           })),
+          updatedAt: exam.updatedAt,
         },
       }),
     onSuccess: (updated) => {
@@ -333,9 +336,12 @@ function QuestionsTab({
 function EnrollmentsTab({
   examId,
   readOnly,
+  canRemove,
 }: {
   examId: string;
   readOnly: boolean;
+  /** Candidates can only be removed before the exam goes live. */
+  canRemove: boolean;
 }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -435,7 +441,7 @@ function EnrollmentsTab({
               <TH>Name</TH>
               <TH>Email</TH>
               <TH>Enrolled</TH>
-              {!readOnly && <TH className="text-right">Remove</TH>}
+              {!readOnly && canRemove && <TH className="text-right">Remove</TH>}
             </TR>
           </THead>
           <TBody>
@@ -446,7 +452,7 @@ function EnrollmentsTab({
                 <TD className="text-muted-foreground text-xs">
                   {format(new Date(c.enrolledAt), "PP p")}
                 </TD>
-                {!readOnly && (
+                {!readOnly && canRemove && (
                   <TD className="text-right">
                     <Button
                       size="icon"
@@ -602,6 +608,11 @@ export function ExamDetailView({
       toast.success("Exam updated");
       qc.setQueryData(["exam", examId], updated);
       qc.invalidateQueries({ queryKey: ["exams"] });
+    },
+    onError: (e) => {
+      // A stale updatedAt (409) means someone else changed the exam: reload it.
+      void e;
+      qc.invalidateQueries({ queryKey: ["exam", examId] });
     },
   });
 
@@ -846,11 +857,19 @@ export function ExamDetailView({
         </div>
       )}
 
+      {exam.status === "CLOSED" && exam.closeReason && (
+        <p className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
+          {exam.cancelled ? "Cancelled" : "Closed"} by an administrator: {exam.closeReason}
+        </p>
+      )}
+      {isAdmin && <AdminExamActions exam={exam} />}
+      <RescorePanel exam={exam} readOnly={isAdmin} />
+
       {tab === "settings" && (
         <Card>
           <CardContent className="pt-6">
             <ExamForm
-              key={`${exam.id}-${exam.status}`}
+              key={`${exam.id}-${exam.updatedAt}`}
               exam={exam}
               readOnly={isAdmin}
               onSubmit={async (v) => {
@@ -870,7 +889,11 @@ export function ExamDetailView({
       )}
 
       {tab === "enrollments" && (
-        <EnrollmentsTab examId={exam.id} readOnly={isAdmin} />
+        <EnrollmentsTab
+          examId={exam.id}
+          readOnly={isAdmin || editLevel(exam) === "TITLE_ONLY"}
+          canRemove={editLevel(exam) === "FULL"}
+        />
       )}
 
       {tab === "monitor" && (

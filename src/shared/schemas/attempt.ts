@@ -98,6 +98,10 @@ export type MyExamItem = {
   submittedAt: string | null;
   totalScore: number | null;
   receiptCode: string | null;
+  /** Set when the examiner changed a published exam you have not started yet. */
+  changedAt: string | null;
+  /** Reason shown when an admin cancelled the exam. */
+  cancelReason: string | null;
 };
 
 export type SubmitResult = {

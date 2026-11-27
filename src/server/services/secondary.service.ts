@@ -129,10 +129,11 @@ export const secondaryService = {
       const ins = await c.query<{ id: string }>(
         `INSERT INTO attempts (
            exam_id, candidate_id, is_sandbox, seed, deadline_at,
-           multi_scoring, negative_marking, show_answers, recovery_window_seconds
+           multi_scoring, negative_marking, show_answers, recovery_window_seconds,
+           duration_minutes, instructions_snapshot
          ) VALUES (
            $1, $2, true, $3, now() + ($4 || ' minutes')::interval,
-           $5, $6, $7, $8
+           $5, $6, $7, $8, $9::int, $10
          ) RETURNING id`,
         [
           exam.id,
@@ -143,6 +144,8 @@ export const secondaryService = {
           exam.negativeMarking,
           exam.showAnswers,
           exam.recoveryWindowSeconds,
+          exam.durationMinutes,
+          exam.instructions,
         ],
       );
       const attemptId = ins.rows[0].id;
