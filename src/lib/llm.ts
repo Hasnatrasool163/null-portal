@@ -64,7 +64,7 @@ export function getProviders(): Provider[] {
       ]),
     },
   };
-  return list(process.env.LLM_PROVIDER_ORDER, ["groq", "gemini", "openrouter"])
+  return list(process.env.LLM_PROVIDER_ORDER, ["openrouter", "gemini", "groq"])
     .map((n) => all[n])
     .filter((p): p is Provider => !!p && !!p.apiKey);
 }
@@ -152,19 +152,26 @@ export function extractJson(text: string): unknown {
   }
 }
 
-/** Ask for JSON that matches a zod schema. Retries once with the validation error. */
-export async function structured<T>(
+/** Ask for JSON that matches a zod schema, returning provider/model metadata. Retries once with the validation error. */
+export async function structuredWithMeta<T>(
   schema: ZodType<T>,
   messages: ChatMessage[],
   o: Omit<ChatOptions, "json"> = {},
-): Promise<T & {}> {
+): Promise<{ data: T & {}; provider: string; model: string; cached?: boolean }> {
   let msgs = messages;
   let lastErr = "";
   for (let attempt = 0; attempt < 2; attempt++) {
     const r = await chat(msgs, { ...o, json: true });
     try {
       const parsed = schema.safeParse(extractJson(r.text));
-      if (parsed.success) return parsed.data as T & {};
+      if (parsed.success) {
+        return {
+          data: parsed.data as T & {},
+          provider: r.provider,
+          model: r.model,
+          cached: r.cached,
+        };
+      }
       lastErr = parsed.error.message;
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
@@ -179,4 +186,14 @@ export async function structured<T>(
     ];
   }
   throw new Error("Model did not return valid JSON: " + lastErr);
+}
+
+/** Ask for JSON that matches a zod schema. Retries once with the validation error. */
+export async function structured<T>(
+  schema: ZodType<T>,
+  messages: ChatMessage[],
+  o: Omit<ChatOptions, "json"> = {},
+): Promise<T & {}> {
+  const res = await structuredWithMeta(schema, messages, o);
+  return res.data;
 }
