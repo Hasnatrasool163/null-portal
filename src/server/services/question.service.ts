@@ -88,22 +88,25 @@ export const questionService = {
   importValidate: (_user: SessionUser, p: ImportPayload) =>
     validateQuestionImport(p).preview,
 
-  /** Step 2: re-validate server-side (never trust the preview) and insert valid rows atomically. */
+  /** Step 2: re-validate server-side (never trust the preview) and insert valid rows atomically in bulk. */
   async importCommit(user: SessionUser, p: ImportPayload) {
     const { preview, valid } = validateQuestionImport(p);
     if (valid.length === 0)
       throw Errors.badRequest("No valid rows to import");
     await tx(async (c) => {
-      const topicIds = new Map<string, string>();
-      for (const row of valid) {
-        const key = row.topicName.toLowerCase();
-        let topicId = topicIds.get(key);
-        if (!topicId) {
-          topicId = await topicRepo.ensureByName(c, user.id, row.topicName);
-          topicIds.set(key, topicId);
-        }
-        await questionRepo.insert(c, user.id, { ...row, topicId });
-      }
+      const topicIds = await topicRepo.ensureManyByNames(
+        c,
+        user.id,
+        valid.map((r) => r.topicName),
+      );
+      await questionRepo.insertMany(
+        c,
+        user.id,
+        valid.map((row) => ({
+          ...row,
+          topicId: topicIds.get(row.topicName.toLowerCase())!,
+        })),
+      );
     });
     return { imported: valid.length, skipped: preview.total - valid.length };
   },
