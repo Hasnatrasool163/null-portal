@@ -4,6 +4,7 @@ import { query } from "./db";
 import type {
   NotificationItem,
   NotificationList,
+  NotificationType,
 } from "@/shared/schemas/notification";
 
 /**
@@ -100,11 +101,11 @@ export async function notifyUsers(
   c: Db,
   userIds: string[],
   n: {
-    type: "DISPUTE_FILED" | "DISPUTE_UPDATED" | "DISPUTE_ESCALATED";
+    type: NotificationType;
     title: string;
     body: string;
     link: string;
-    examId: string;
+    examId: string | null;
     dedupeKey: string;
   },
 ) {
@@ -117,6 +118,92 @@ export async function notifyUsers(
      ON CONFLICT (user_id, dedupe_key) DO NOTHING`,
     [userIds, n.type, n.title, n.body, n.link, n.examId, n.dedupeKey],
   );
+}
+
+/**
+ * Every active, enrolled candidate of an exam. `onlyNotSubmitted` skips candidates who already
+ * submitted (e.g. a schedule change no longer matters to them).
+ */
+export async function notifyEnrolled(
+  c: Db,
+  examId: string,
+  n: { type: NotificationType; title: string; body: string; link: string; dedupeKey: string },
+  onlyNotSubmitted = false,
+) {
+  await run(
+    c,
+    `INSERT INTO notifications (user_id, type, title, body, link, exam_id, dedupe_key)
+     SELECT en.candidate_id, $2, left($3, 200), left($4, 1000), $5, $1, $6
+     FROM enrollments en
+     JOIN users u ON u.id = en.candidate_id AND u.is_active
+     WHERE en.exam_id = $1
+       AND (NOT $7 OR NOT EXISTS (
+         SELECT 1 FROM real_attempts a
+         WHERE a.exam_id = $1 AND a.candidate_id = en.candidate_id AND a.status = 'SUBMITTED'))
+     ON CONFLICT (user_id, dedupe_key) DO NOTHING`,
+    [examId, n.type, n.title, n.body, n.link, n.dedupeKey, onlyNotSubmitted],
+  );
+}
+
+/**
+ * A published result changed (regrade, answer-key correction, discarded late answer).
+ * Tells the candidate old → new and why, and, if they hold a certificate that no longer
+ * matches, that it now verifies as superseded and a fresh PDF is available.
+ * Nothing is sent while results are unpublished (the candidate can't see scores yet).
+ */
+export async function notifyScoreChanged(
+  c: PoolClient,
+  attemptId: string,
+  change: { from: number | null; to: number; reason: string },
+  opts: { skipScoreNotice?: boolean } = {},
+) {
+  const a = (
+    await c.query<{
+      candidate_id: string;
+      exam_id: string;
+      title: string;
+      published: boolean;
+      cancelled: boolean;
+      total_marks: number;
+    }>(
+      `SELECT a.candidate_id, a.exam_id, e.title, e.results_published_at IS NOT NULL AS published, e.cancelled,
+              COALESCE((SELECT sum(marks) FROM attempt_questions WHERE attempt_id = a.id), 0)::numeric AS total_marks
+       FROM attempts a JOIN exams e ON e.id = a.exam_id
+       WHERE a.id = $1 AND NOT a.is_sandbox`,
+      [attemptId],
+    )
+  ).rows[0];
+  if (!a || !a.published || a.cancelled || change.from === change.to) return;
+  const link = `/attempts/${attemptId}/result`;
+  const out = `${change.from ?? 0} → ${change.to} / ${Number(a.total_marks)}`;
+  if (!opts.skipScoreNotice) {
+    await c.query(
+      `INSERT INTO notifications (user_id, type, title, body, link, exam_id, dedupe_key)
+       VALUES ($1, 'SCORE_CHANGED', left($2, 200), left($3, 1000), $4, $5, 'score:' || $6 || ':' || gen_random_uuid())`,
+      [a.candidate_id, `Your score changed: ${a.title}`, `Your score changed from ${out} because ${change.reason}.`, link, a.exam_id, attemptId],
+    );
+  }
+  const certs = await c.query(
+    `SELECT 1 FROM report_verifications
+     WHERE attempt_id = $1 AND NOT revoked AND abs(score_at_issue - $2) > 0.001 LIMIT 1`,
+    [attemptId, change.to],
+  );
+  if (certs.rowCount) {
+    await c.query(
+      `INSERT INTO notifications (user_id, type, title, body, link, exam_id, dedupe_key)
+       VALUES ($1, 'CERTIFICATE_SUPERSEDED', left($2, 200), $3, $4, $5, 'cert:' || $6 || ':' || $7)
+       ON CONFLICT (user_id, dedupe_key) DO NOTHING`,
+      [
+        a.candidate_id,
+        `Download your updated certificate: ${a.title}`,
+        "Your score changed, so the PDF you downloaded earlier now verifies as superseded. Download the updated report from your result page.",
+        link,
+        a.exam_id,
+        attemptId,
+        String(change.to),
+      ],
+    );
+  }
 }
 
 /** Lazily creates time-based reminders for this user. Idempotent; cheap enough to run on each read. */

@@ -10,10 +10,10 @@ export const metadata = { title: "Verify a report" };
 export default function VerifyLandingPage() {
   return (
     <VerifyFrame>
-      <div className="flex min-h-[calc(100dvh-10rem)] items-center justify-center">
-        <div className="animate-page-in w-full max-w-lg space-y-4">
-          <Card className="p-6 sm:p-8">
-            <div className="mb-6 flex items-start gap-4">
+      <div className="flex justify-center pt-2 sm:pt-6">
+        <div className="animate-page-in w-full max-w-lg space-y-3">
+          <Card className="p-5 sm:p-6">
+            <div className="mb-5 flex items-start gap-4">
               <span className="bg-accent text-accent-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">
                 <ShieldCheck className="h-5 w-5" aria-hidden="true" />
               </span>
@@ -29,7 +29,7 @@ export default function VerifyLandingPage() {
             </div>
             <VerifyLookup />
 
-            <div className="mt-6 space-y-6 border-t pt-6">
+            <div className="mt-5 space-y-5 border-t pt-5">
               <section aria-labelledby="where-heading" className="space-y-3">
                 <h2 id="where-heading" className="text-sm font-semibold">
                   Where to find the code

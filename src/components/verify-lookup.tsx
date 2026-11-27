@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, ScanLine } from "lucide-react";
+import { ScanLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/misc";
 import { fieldClass } from "@/components/ui/input";
@@ -54,11 +54,19 @@ export function VerifyLookup({
             placeholder="e.g. 7F3A9C21B0D4"
             aria-invalid={!!error}
             aria-describedby={error ? "verify-error" : undefined}
-            className={cn(fieldClass, "h-11 pl-9 font-mono tracking-wider uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
+            className={cn(
+              fieldClass,
+              "h-11 pl-9 font-mono tracking-wider uppercase placeholder:font-sans placeholder:tracking-normal placeholder:normal-case",
+            )}
           />
         </div>
-        <Button type="submit" size="lg" disabled={pending} className="w-full min-[420px]:w-auto">
-          {pending ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
+        <Button
+          type="submit"
+          size="lg"
+          disabled={pending}
+          className="w-full min-[420px]:w-auto"
+        >
+          {pending ? <Spinner /> : <ShieldCheck className="h-4 w-4" />}
           {buttonLabel}
         </Button>
       </div>

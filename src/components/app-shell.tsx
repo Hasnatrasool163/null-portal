@@ -12,7 +12,7 @@ import {
   LogOut,
   Menu,
   Scale,
-  Settings2,
+  Settings,
   ScrollText,
   ShieldCheck,
   Users,
@@ -150,6 +150,7 @@ function SidebarBody({
 }) {
   const pathname = usePathname();
   const settingsActive = pathname === "/settings";
+  const accountActive = pathname === "/account";
   const muted = "text-muted-foreground hover:bg-muted hover:text-foreground";
 
   return (
@@ -193,12 +194,21 @@ function SidebarBody({
             <button
               type="button"
               aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-              className={cn(row, muted, "relative")}
-            >
-              <Bell className={icon} aria-hidden="true" />
-              {collapsed && (
-                <UnreadBadge count={unread} className="absolute top-1 left-7" />
+              className={cn(
+                row,
+                muted,
+                "data-[state=open]:bg-muted data-[state=open]:text-foreground w-full",
               )}
+            >
+              <span className="relative shrink-0">
+                <Bell className={icon} aria-hidden="true" />
+                {collapsed && unread > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="bg-destructive ring-sidebar absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2"
+                  />
+                )}
+              </span>
               <Label collapsed={collapsed}>Notifications</Label>
               {!collapsed && <UnreadBadge count={unread} className="ml-auto" />}
             </button>
@@ -218,7 +228,7 @@ function SidebarBody({
                 : muted,
             )}
           >
-            <Settings2 className={icon} aria-hidden="true" />
+            <Settings className={icon} aria-hidden="true" />
             <Label collapsed={collapsed}>Settings</Label>
           </Link>
         </Tooltip>
@@ -233,11 +243,17 @@ function SidebarBody({
           side="right"
           disabled={!collapsed}
         >
-          <div
-            tabIndex={collapsed ? 0 : -1}
+          <Link
+            href="/account"
+            onClick={onNavigate}
+            aria-current={accountActive ? "page" : undefined}
+            aria-label={collapsed ? `Account: ${user.name}` : undefined}
             className={cn(
-              "flex h-12 items-center gap-2.5 rounded-md border px-[7px] whitespace-nowrap transition-colors duration-150",
-              collapsed ? "border-transparent" : "bg-card",
+              "focus-visible:ring-ring flex h-12 items-center gap-2.5 rounded-md border px-[7px] whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none",
+              collapsed
+                ? "hover:bg-muted border-transparent"
+                : "bg-card hover:border-primary/40",
+              accountActive && "border-primary ring-primary/20 ring-2",
             )}
           >
             <span className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
@@ -256,7 +272,7 @@ function SidebarBody({
                 {user.email}
               </span>
             </span>
-          </div>
+          </Link>
         </Tooltip>
 
         <Tooltip content="Log out" side="right" disabled={!collapsed}>
@@ -275,6 +291,24 @@ function SidebarBody({
         </Tooltip>
       </div>
     </>
+  );
+}
+
+/** Top-right bell (desktop top bar and mobile header share it). */
+function TopBell() {
+  return (
+    <NotificationBell
+      trigger={(unread) => (
+        <button
+          type="button"
+          aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+          className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <Bell className="h-5 w-5" />
+          <UnreadBadge count={unread} className="absolute top-1 right-1" />
+        </button>
+      )}
+    />
   );
 }
 
@@ -361,21 +395,7 @@ export function AppShell({
       <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
         <Brand role={user.role} />
         <div className="flex items-center gap-1">
-          <NotificationBell
-            trigger={(unread) => (
-              <button
-                type="button"
-                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-                className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <Bell className="h-5 w-5" />
-                <UnreadBadge
-                  count={unread}
-                  className="absolute top-1 right-1"
-                />
-              </button>
-            )}
-          />
+          <TopBell />
           <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
             <D.Trigger
               className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"

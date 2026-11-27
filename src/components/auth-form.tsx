@@ -15,11 +15,11 @@ import {
   KeyRound,
   Lock,
   Mail,
-  MonitorX,
+  AlertCircle,
   QrCode,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
+  UserRound,
   UserCog,
   Users,
   type LucideIcon,
@@ -288,7 +288,7 @@ export function AuthForm() {
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
-      if (e instanceof ApiClientError && e.code === "SESSION_ACTIVE") {
+      if (e instanceof ApiClientError && e.code === "SIGN_IN_FAILED") {
         setSessionActive(e.message);
         return;
       }
@@ -415,14 +415,14 @@ export function AuthForm() {
               {sessionActive && (
                 <div
                   role="alert"
-                  className="animate-page-in border-warning/40 bg-warning/10 flex gap-2.5 rounded-md border p-3 text-sm"
+                  className="animate-page-in border-destructive/30 bg-destructive/5 flex gap-2.5 rounded-md border p-3 text-sm"
                 >
-                  <MonitorX
-                    className="text-warning mt-0.5 h-4 w-4 shrink-0"
+                  <AlertCircle
+                    className="text-destructive mt-0.5 h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
                   <div className="space-y-0.5">
-                    <p className="font-medium">Already signed in elsewhere</p>
+                    <p className="font-medium">Sign-in failed</p>
                     <p className="text-muted-foreground text-xs leading-relaxed">
                       {sessionActive}
                     </p>
@@ -444,10 +444,7 @@ export function AuthForm() {
               onClick={fillDemo}
               className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors"
             >
-              <Sparkles
-                className="text-primary h-3.5 w-3.5"
-                aria-hidden="true"
-              />
+              <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
               Fill demo {tab.label.toLowerCase()}
               <span className="font-mono">({tab.demo})</span>
             </button>

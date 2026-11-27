@@ -4,7 +4,15 @@ import { useTheme } from "next-themes";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, Eye, EyeOff, Laptop, Moon, Sun, type LucideIcon } from "lucide-react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  Laptop,
+  Moon,
+  Sun,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,9 +23,17 @@ import { PageHeader } from "@/components/ui/blocks";
 import { WorkspacePreferencesForm } from "@/components/preferences-dialog";
 import { api, applyFieldErrors } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { passwordSchema, ROLE_LABEL, type SessionUser } from "@/shared/schemas/auth";
+import {
+  passwordSchema,
+  ROLE_LABEL,
+  type SessionUser,
+} from "@/shared/schemas/auth";
 
-const THEMES: { value: "light" | "dark" | "system"; label: string; icon: LucideIcon }[] = [
+const THEMES: {
+  value: "light" | "dark" | "system";
+  label: string;
+  icon: LucideIcon;
+}[] = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
   { value: "system", label: "System", icon: Laptop },
@@ -26,17 +42,37 @@ const THEMES: { value: "light" | "dark" | "system"; label: string; icon: LucideI
 // Mini window mock used as the theme preview.
 function ThemePreview({ mode }: { mode: "light" | "dark" | "system" }) {
   const pane = (dark: boolean) => (
-    <div className={cn("flex h-full flex-1 gap-1.5 p-2", dark ? "bg-[#15181d]" : "bg-[#f6f7f9]")}>
-      <div className={cn("w-1/4 rounded-sm", dark ? "bg-[#1c2027]" : "bg-white")} />
+    <div
+      className={cn(
+        "flex h-full flex-1 gap-1.5 p-2",
+        dark ? "bg-[#15181d]" : "bg-[#f6f7f9]",
+      )}
+    >
+      <div
+        className={cn("w-1/4 rounded-sm", dark ? "bg-[#1c2027]" : "bg-white")}
+      />
       <div className="flex flex-1 flex-col gap-1.5">
-        <div className={cn("h-2 w-2/3 rounded-full", dark ? "bg-[#303642]" : "bg-[#d5dae1]")} />
-        <div className={cn("h-2 w-1/2 rounded-full", dark ? "bg-[#303642]" : "bg-[#d5dae1]")} />
+        <div
+          className={cn(
+            "h-2 w-2/3 rounded-full",
+            dark ? "bg-[#303642]" : "bg-[#d5dae1]",
+          )}
+        />
+        <div
+          className={cn(
+            "h-2 w-1/2 rounded-full",
+            dark ? "bg-[#303642]" : "bg-[#d5dae1]",
+          )}
+        />
         <div className="mt-auto h-3 w-8 rounded-sm bg-[#0f6b6e]" />
       </div>
     </div>
   );
   return (
-    <div className="flex h-20 overflow-hidden rounded-md border" aria-hidden="true">
+    <div
+      className="flex h-20 overflow-hidden rounded-md border"
+      aria-hidden="true"
+    >
       {mode === "system" ? (
         <>
           {pane(false)}
@@ -101,7 +137,9 @@ function PasswordField({
   autoComplete: string;
   error?: string;
   hint?: string;
-  registerProps: ReturnType<ReturnType<typeof useForm<PasswordFormValues>>["register"]>;
+  registerProps: ReturnType<
+    ReturnType<typeof useForm<PasswordFormValues>>["register"]
+  >;
 }) {
   const [show, setShow] = useState(false);
   return (
@@ -137,7 +175,11 @@ function ChangePasswordForm() {
     formState: { errors, isSubmitting },
   } = useForm<PasswordFormValues>({
     resolver: zodResolver(passwordFormSchema),
-    defaultValues: { currentPassword: "", newPassword: "", confirmPassword: "" },
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
   });
 
   async function onSubmit(values: PasswordFormValues) {
@@ -150,16 +192,24 @@ function ChangePasswordForm() {
         },
       });
       reset();
-      toast.success("Password updated. Other active sessions have been signed out.");
+      toast.success(
+        "Password updated. Other active sessions have been signed out.",
+      );
     } catch (e) {
       if (!applyFieldErrors(e, setError)) {
-        toast.error(e instanceof Error ? e.message : "Could not update password");
+        toast.error(
+          e instanceof Error ? e.message : "Could not update password",
+        );
       }
     }
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="max-w-md space-y-4" noValidate>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="max-w-md space-y-4"
+      noValidate
+    >
       <PasswordField
         id="pw-current"
         label="Current password"
@@ -195,16 +245,34 @@ function ChangePasswordForm() {
 export function SettingsView({ user }: { user: SessionUser }) {
   const { theme, setTheme } = useTheme();
   // Theme is only known on the client; avoid a hydration mismatch on the selected card.
-  const mounted = useSyncExternalStore(noop, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  );
   const current = mounted ? (theme ?? "system") : null;
 
   return (
     <>
-      <PageHeader title="Settings" subtitle="Appearance, exam workspace and account details." />
+      <PageHeader
+        title="Settings"
+        subtitle={
+          user.role === "CANDIDATE"
+            ? "Appearance and exam workspace preferences."
+            : "Appearance preferences for this device."
+        }
+      />
 
       <Card className="space-y-6 p-5 sm:p-6">
-        <Section title="Appearance" description="Theme for the whole app on this device.">
-          <div role="radiogroup" aria-label="Theme" className="grid gap-3 sm:grid-cols-3">
+        <Section
+          title="Appearance"
+          description="Theme for the whole app on this device."
+        >
+          <div
+            role="radiogroup"
+            aria-label="Theme"
+            className="grid gap-3 sm:grid-cols-3"
+          >
             {THEMES.map((t) => {
               const on = current === t.value;
               return (
@@ -224,7 +292,10 @@ export function SettingsView({ user }: { user: SessionUser }) {
                 >
                   <ThemePreview mode={t.value} />
                   <span className="flex items-center gap-2 px-0.5 text-sm font-medium">
-                    <t.icon className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+                    <t.icon
+                      className="text-muted-foreground h-4 w-4"
+                      aria-hidden="true"
+                    />
                     {t.label}
                     <span
                       className={cn(
@@ -249,15 +320,49 @@ export function SettingsView({ user }: { user: SessionUser }) {
             <WorkspacePreferencesForm />
           </Section>
         )}
+      </Card>
+    </>
+  );
+}
 
-        <Section title="Account" description="Managed by your institution.">
+/** Account page: who you are and how you sign in. */
+export function AccountView({ user }: { user: SessionUser }) {
+  const initials = user.name
+    .split(/\s+/)
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return (
+    <>
+      <PageHeader
+        title="Account"
+        subtitle="Your profile and sign-in security."
+      />
+
+      <Card className="space-y-6 p-5 sm:p-6">
+        <Section title="Profile" description="Managed by your institution.">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="bg-foreground text-background flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold">
+              {initials}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{user.name}</p>
+              <p className="text-muted-foreground truncate text-sm">
+                {ROLE_LABEL[user.role]}
+              </p>
+            </div>
+          </div>
           <dl className="divide-y rounded-lg border text-sm">
             {[
               ["Name", user.name],
               ["Email", user.email],
               ["Role", ROLE_LABEL[user.role]],
             ].map(([k, v]) => (
-              <div key={k} className="flex items-center justify-between gap-4 px-4 py-3">
+              <div
+                key={k}
+                className="grid grid-cols-[5rem_1fr] items-center gap-4 px-4 py-3"
+              >
                 <dt className="text-muted-foreground">{k}</dt>
                 <dd className="truncate font-medium">{v}</dd>
               </div>
@@ -270,7 +375,7 @@ export function SettingsView({ user }: { user: SessionUser }) {
 
         <Section
           title="Password"
-          description="Update your password. Other active sessions will be signed out."
+          description="Choose a strong password you don't use elsewhere. Other active sessions will be signed out."
         >
           <ChangePasswordForm />
         </Section>

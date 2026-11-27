@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/misc";
 import { EmptyState } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { ExamAnalyticsAiSummaryCard } from "@/components/ai-summary-card";
 import { api } from "@/lib/api-client";
 import { DIFFICULTY_LABEL, TYPE_LABEL } from "@/shared/schemas/question";
 import type { ExamAnalyticsResponse } from "@/shared/schemas/secondary";
@@ -89,6 +90,9 @@ export function ExamAnalyticsTab({ examId }: { examId: string }) {
           </div>
         ))}
       </Card>
+
+      {/* AI Cohort Summary */}
+      <ExamAnalyticsAiSummaryCard examId={examId} />
 
       {/* Chart */}
       <Card className="p-5">

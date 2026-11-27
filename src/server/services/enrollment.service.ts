@@ -80,7 +80,24 @@ export const enrollmentService = {
       );
     }
     const cid = assertUuid(candidateId, "Candidate");
-    await enrollmentRepo.remove(exam.id, cid);
+    await tx(async (c) => {
+      // Lock the exam so two concurrent removals can't both pass the "last candidate" check.
+      await c.query("SELECT 1 FROM exams WHERE id = $1 FOR UPDATE", [exam.id]);
+      if (exam.status !== "DRAFT") {
+        const r = await c.query<{ n: number; enrolled: boolean }>(
+          `SELECT count(*)::int AS n, bool_or(candidate_id = $2) AS enrolled
+           FROM enrollments WHERE exam_id = $1`,
+          [exam.id, cid],
+        );
+        // Publishing requires at least one candidate; a published exam must keep that true.
+        if (r.rows[0].enrolled && r.rows[0].n <= 1) {
+          throw Errors.conflict(
+            "A published exam must keep at least 1 candidate. Enroll someone else first, or ask an administrator to cancel the exam.",
+          );
+        }
+      }
+      await c.query("DELETE FROM enrollments WHERE exam_id = $1 AND candidate_id = $2", [exam.id, cid]);
+    });
     await clearExamNotifications(null, exam.id, cid);
     if (exam.status !== "DRAFT") {
       await audit(null, user, {

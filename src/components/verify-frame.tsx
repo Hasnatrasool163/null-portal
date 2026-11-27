@@ -18,7 +18,7 @@ export async function VerifyFrame({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-6xl flex-col px-4 sm:px-6">
       <PublicHeader />
-      <main className="flex flex-1 flex-col justify-center py-8 sm:py-12">{children}</main>
+      <main className="flex flex-1 flex-col py-4 sm:py-8">{children}</main>
     </div>
   );
 }

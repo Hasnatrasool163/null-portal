@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/misc";
 import { EmptyState } from "@/components/ui/blocks";
 import { Button } from "@/components/ui/button";
+import { AttemptAiSummaryCard } from "@/components/ai-summary-card";
 import {
   DisputeDialog,
   DisputeStatusBadge,
@@ -40,8 +41,16 @@ function outcomeOf(q: CandidateResultQuestion): Outcome {
 const OUTCOME: Record<Outcome, { label: string; text: string; bar: string }> = {
   full: { label: "Full marks", text: "text-success", bar: "bg-success" },
   partial: { label: "Partial credit", text: "text-warning", bar: "bg-warning" },
-  wrong: { label: "Incorrect", text: "text-destructive", bar: "bg-destructive" },
-  skipped: { label: "Not answered", text: "text-muted-foreground", bar: "bg-border" },
+  wrong: {
+    label: "Incorrect",
+    text: "text-destructive",
+    bar: "bg-destructive",
+  },
+  skipped: {
+    label: "Not answered",
+    text: "text-muted-foreground",
+    bar: "bg-border",
+  },
   pending: { label: "Being graded", text: "text-primary", bar: "bg-primary" },
 };
 
@@ -62,7 +71,8 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
   const [openDispute, setOpenDispute] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["attempt-result", attemptId],
-    queryFn: () => api<CandidateResultView>(`/api/attempts/${attemptId}/result`),
+    queryFn: () =>
+      api<CandidateResultView>(`/api/attempts/${attemptId}/result`),
   });
   const disputes = useQuery({
     queryKey: ["disputes", "attempt", attemptId],
@@ -72,7 +82,9 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
   const canFile = disputes.data?.canFile ?? false;
   const liveDisputeFor = new Set(
     (disputes.data?.disputes ?? [])
-      .filter((d) => ["OPEN", "UNDER_REVIEW", "RESOLVED", "ESCALATED"].includes(d.status))
+      .filter((d) =>
+        ["OPEN", "UNDER_REVIEW", "RESOLVED", "ESCALATED"].includes(d.status),
+      )
       .map((d) => d.questionNumber),
   );
 
@@ -97,11 +109,16 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
   const r = query.data;
   const outcomes = r.questions.map(outcomeOf);
   const tally = (o: Outcome) => outcomes.filter((x) => x === o).length;
-  const shown = r.questions.filter((_, i) => filter === "all" || outcomes[i] === filter);
+  const shown = r.questions.filter(
+    (_, i) => filter === "all" || outcomes[i] === filter,
+  );
 
   // Score bar segments: marks earned on full-credit vs partial-credit questions.
   const earned = (o: Outcome) =>
-    r.questions.reduce((n, q, i) => (outcomes[i] === o ? n + (q.score ?? 0) : n), 0);
+    r.questions.reduce(
+      (n, q, i) => (outcomes[i] === o ? n + (q.score ?? 0) : n),
+      0,
+    );
   const fullPct = (earned("full") / Math.max(1, r.totalMarks)) * 100;
   const partialPct = (earned("partial") / Math.max(1, r.totalMarks)) * 100;
 
@@ -109,21 +126,48 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <BackButton href="/dashboard" label="Dashboard" />
-        <DownloadButton
-          href={`/api/attempts/${r.attemptId}/report.pdf`}
-          fallbackName="result-report.pdf"
-        >
-          Download verifiable PDF
-        </DownloadButton>
+        <div className="flex flex-wrap items-center gap-2">
+          {(disputes.data?.disputes.length ?? 0) > 0 && (
+            <Button variant="ghost" asChild>
+              <a href="#disputes">
+                <Scale className="h-4 w-4" />
+                Disputes ({disputes.data!.disputes.length})
+              </a>
+            </Button>
+          )}
+          {canFile && (
+            <Button
+              variant="outline"
+              tooltip={
+                disputes.data?.fileBy
+                  ? `Open until ${format(new Date(disputes.data.fileBy), "MMM d, p")}`
+                  : undefined
+              }
+              onClick={() => setFileFor("")}
+            >
+              <Scale className="h-4 w-4" />
+              Raise a dispute
+            </Button>
+          )}
+          <DownloadButton
+            href={`/api/attempts/${r.attemptId}/report.pdf`}
+            fallbackName="result-report.pdf"
+          >
+            Download verifiable PDF
+          </DownloadButton>
+        </div>
       </div>
 
       {/* Summary */}
       <Card className="animate-page-in p-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-balance">{r.examTitle}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">
+            {r.examTitle}
+          </h1>
           <p className="text-muted-foreground text-sm">
-            {r.candidateName} · Submitted {format(new Date(r.submittedAt), "MMM d, yyyy, p")} ·
-            Published {format(new Date(r.resultsPublishedAt), "MMM d, yyyy")}
+            {r.candidateName} · Submitted{" "}
+            {format(new Date(r.submittedAt), "MMM d, yyyy, p")} · Published{" "}
+            {format(new Date(r.resultsPublishedAt), "MMM d, yyyy")}
           </p>
         </div>
 
@@ -131,14 +175,21 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           <div>
             <p className="text-muted-foreground text-xs font-medium">Score</p>
             <p className="mt-1 leading-none">
-              <span className="text-5xl font-semibold tracking-tight tabular-nums">{fmt(r.totalScore)}</span>
-              <span className="text-muted-foreground text-xl tabular-nums"> / {fmt(r.totalMarks)}</span>
+              <span className="text-5xl font-semibold tracking-tight tabular-nums">
+                {fmt(r.totalScore)}
+              </span>
+              <span className="text-muted-foreground text-xl tabular-nums">
+                {" "}
+                / {fmt(r.totalMarks)}
+              </span>
             </p>
           </div>
 
           <div className="space-y-3">
             <div className="flex items-baseline justify-between text-sm">
-              <span className="text-2xl font-semibold tabular-nums">{r.percentage}%</span>
+              <span className="text-2xl font-semibold tabular-nums">
+                {r.percentage}%
+              </span>
               <span className="text-muted-foreground tabular-nums">
                 {tally("full")} of {r.questions.length} questions at full marks
               </span>
@@ -148,25 +199,43 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
               role="img"
               aria-label={`${r.percentage}% scored`}
             >
-              <div className="bg-success h-full transition-[width] duration-700" style={{ width: `${fullPct}%` }} />
-              <div className="bg-warning h-full transition-[width] duration-700" style={{ width: `${partialPct}%` }} />
+              <div
+                className="bg-success h-full transition-[width] duration-700"
+                style={{ width: `${fullPct}%` }}
+              />
+              <div
+                className="bg-warning h-full transition-[width] duration-700"
+                style={{ width: `${partialPct}%` }}
+              />
             </div>
             <div className="text-muted-foreground flex flex-wrap gap-x-5 gap-y-1 text-xs">
               <span className="flex items-center gap-1.5">
-                <span className="bg-success h-2 w-2 rounded-sm" aria-hidden="true" />
+                <span
+                  className="bg-success h-2 w-2 rounded-sm"
+                  aria-hidden="true"
+                />
                 Full marks {tally("full")}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="bg-warning h-2 w-2 rounded-sm" aria-hidden="true" />
+                <span
+                  className="bg-warning h-2 w-2 rounded-sm"
+                  aria-hidden="true"
+                />
                 Partial {tally("partial")}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="bg-destructive h-2 w-2 rounded-sm" aria-hidden="true" />
+                <span
+                  className="bg-destructive h-2 w-2 rounded-sm"
+                  aria-hidden="true"
+                />
                 Incorrect {tally("wrong")}
               </span>
               {tally("skipped") > 0 && (
                 <span className="flex items-center gap-1.5">
-                  <span className="bg-border h-2 w-2 rounded-sm" aria-hidden="true" />
+                  <span
+                    className="bg-border h-2 w-2 rounded-sm"
+                    aria-hidden="true"
+                  />
                   Not answered {tally("skipped")}
                 </span>
               )}
@@ -175,10 +244,16 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
         </div>
       </Card>
 
+      {/* AI Quick Summary */}
+      <AttemptAiSummaryCard attemptId={r.attemptId} />
+
       {/* Breakdown */}
       <section className="space-y-4" aria-labelledby="breakdown-heading">
         <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-          <h2 id="breakdown-heading" className="pb-2.5 text-lg font-semibold tracking-tight">
+          <h2
+            id="breakdown-heading"
+            className="pb-2.5 text-lg font-semibold tracking-tight"
+          >
             Question breakdown
           </h2>
         </div>
@@ -186,10 +261,13 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           label="Filter questions"
           value={filter}
           onChange={setFilter}
-          tabs={FILTERS.filter((f) => f.key === "all" || tally(f.key as Outcome) > 0).map((f) => ({
+          tabs={FILTERS.filter(
+            (f) => f.key === "all" || tally(f.key as Outcome) > 0,
+          ).map((f) => ({
             id: f.key,
             label: f.label,
-            count: f.key === "all" ? r.questions.length : tally(f.key as Outcome),
+            count:
+              f.key === "all" ? r.questions.length : tally(f.key as Outcome),
           }))}
         />
 
@@ -199,30 +277,43 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
             return (
               <li key={q.attemptQuestionId}>
                 <Card className="relative overflow-hidden">
-                  <span className={cn("absolute inset-y-0 left-0 w-[3px]", o.bar)} aria-hidden="true" />
+                  <span
+                    className={cn("absolute inset-y-0 left-0 w-[3px]", o.bar)}
+                    aria-hidden="true"
+                  />
                   <div className="space-y-4 p-5 pl-6">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 space-y-1">
                         <p className="text-muted-foreground text-xs">
-                          Question {q.position + 1} · {TYPE_LABEL[q.type]} · {q.marks} mark{q.marks === 1 ? "" : "s"}
+                          Question {q.position + 1} · {TYPE_LABEL[q.type]} ·{" "}
+                          {q.marks} mark{q.marks === 1 ? "" : "s"}
                         </p>
-                        <p className="font-medium leading-relaxed">{q.body}</p>
+                        <p className="leading-relaxed font-medium">{q.body}</p>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-lg leading-none font-semibold tabular-nums">
                           {q.score === null ? "–" : fmt(q.score)}
-                          <span className="text-muted-foreground text-sm font-normal"> / {fmt(q.marks)}</span>
+                          <span className="text-muted-foreground text-sm font-normal">
+                            {" "}
+                            / {fmt(q.marks)}
+                          </span>
                         </p>
-                        <p className={cn("mt-1 text-xs font-medium", o.text)}>{o.label}</p>
+                        <p className={cn("mt-1 text-xs font-medium", o.text)}>
+                          {o.label}
+                        </p>
                       </div>
                     </div>
 
                     {q.type === "WRITTEN" ? (
                       <div className="border-l-2 pl-4">
-                        <p className="text-muted-foreground mb-1 text-xs">Your answer</p>
+                        <p className="text-muted-foreground mb-1 text-xs">
+                          Your answer
+                        </p>
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">
                           {q.textAnswer?.trim() || (
-                            <span className="text-muted-foreground italic">No answer provided.</span>
+                            <span className="text-muted-foreground italic">
+                              No answer provided.
+                            </span>
                           )}
                         </p>
                       </div>
@@ -241,23 +332,46 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
                                 wrongPick && "bg-destructive/5",
                               )}
                             >
-                              <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden="true">
+                              <span
+                                className="flex h-4 w-4 shrink-0 items-center justify-center"
+                                aria-hidden="true"
+                              >
                                 {right ? (
-                                  <Check className="text-success h-4 w-4" strokeWidth={2.75} />
+                                  <Check
+                                    className="text-success h-4 w-4"
+                                    strokeWidth={2.75}
+                                  />
                                 ) : wrongPick ? (
-                                  <X className="text-destructive h-4 w-4" strokeWidth={2.75} />
+                                  <X
+                                    className="text-destructive h-4 w-4"
+                                    strokeWidth={2.75}
+                                  />
                                 ) : (
                                   <span
                                     className={cn(
                                       "h-3 w-3 rounded-full border-[1.5px]",
-                                      picked ? "border-primary bg-primary" : "border-muted-foreground/40",
+                                      picked
+                                        ? "border-primary bg-primary"
+                                        : "border-muted-foreground/40",
                                     )}
                                   />
                                 )}
                               </span>
-                              <span className={cn("flex-1", right && "font-medium")}>{opt.body}</span>
-                              {picked && <span className="text-muted-foreground text-xs">Your answer</span>}
-                              {right && !picked && <span className="text-success text-xs">Correct answer</span>}
+                              <span
+                                className={cn("flex-1", right && "font-medium")}
+                              >
+                                {opt.body}
+                              </span>
+                              {picked && (
+                                <span className="text-muted-foreground text-xs">
+                                  Your answer
+                                </span>
+                              )}
+                              {right && !picked && (
+                                <span className="text-success text-xs">
+                                  Correct answer
+                                </span>
+                              )}
                             </li>
                           );
                         })}
@@ -266,7 +380,9 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
 
                     {q.feedback && (
                       <div className="bg-muted/60 rounded-md px-3.5 py-3 text-sm">
-                        <p className="text-muted-foreground mb-0.5 text-xs font-medium">Examiner feedback</p>
+                        <p className="text-muted-foreground mb-0.5 text-xs font-medium">
+                          Examiner feedback
+                        </p>
                         <p className="leading-relaxed">{q.feedback}</p>
                       </div>
                     )}
@@ -292,16 +408,25 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
       </section>
 
       {/* Disputes */}
-      <section id="disputes" className="scroll-mt-20 space-y-3" aria-labelledby="disputes-heading">
+      <section
+        id="disputes"
+        className="scroll-mt-20 space-y-3"
+        aria-labelledby="disputes-heading"
+      >
         <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-2.5">
           <div>
-            <h2 id="disputes-heading" className="text-lg font-semibold tracking-tight">
+            <h2
+              id="disputes-heading"
+              className="text-lg font-semibold tracking-tight"
+            >
               Disputes
             </h2>
             <p className="text-muted-foreground text-xs">
               {canFile && disputes.data?.fileBy
                 ? `Think a mark is wrong, a question was flawed, or a technical problem affected you? You can raise a dispute until ${format(new Date(disputes.data.fileBy), "MMM d, p")}.`
-                : disputes.data?.cannotFileReason && disputes.data.cannotFileReason !== "Only the candidate can file a dispute."
+                : disputes.data?.cannotFileReason &&
+                    disputes.data.cannotFileReason !==
+                      "Only the candidate can file a dispute."
                   ? disputes.data.cannotFileReason
                   : "Every dispute gets a written decision and a visible timeline."}
             </p>
@@ -314,7 +439,9 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           )}
         </div>
         {(disputes.data?.disputes.length ?? 0) === 0 ? (
-          <p className="text-muted-foreground py-2 text-sm">No disputes for this result.</p>
+          <p className="text-muted-foreground py-2 text-sm">
+            No disputes for this result.
+          </p>
         ) : (
           <ul className="divide-y rounded-md border">
             {disputes.data!.disputes.map((d) => (
@@ -325,15 +452,20 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
                   className="hover:bg-muted flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left text-sm"
                 >
                   <span className="font-medium">
-                    {d.questionNumber ? `Question ${d.questionNumber}` : "Overall result"}
+                    {d.questionNumber
+                      ? `Question ${d.questionNumber}`
+                      : "Overall result"}
                   </span>
-                  <span className="text-muted-foreground text-xs">{CATEGORY_LABEL[d.category]}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {CATEGORY_LABEL[d.category]}
+                  </span>
                   <span className="ml-auto flex items-center gap-3">
-                    {d.scoreAfter !== null && d.scoreAfter !== d.scoreAtFiling && (
-                      <span className="text-xs tabular-nums">
-                        {fmt(d.scoreAtFiling)} → <b>{fmt(d.scoreAfter)}</b>
-                      </span>
-                    )}
+                    {d.scoreAfter !== null &&
+                      d.scoreAfter !== d.scoreAtFiling && (
+                        <span className="text-xs tabular-nums">
+                          {fmt(d.scoreAtFiling)} → <b>{fmt(d.scoreAfter)}</b>
+                        </span>
+                      )}
                     <DisputeStatusBadge status={d.status} outcome={d.outcome} />
                   </span>
                 </button>
@@ -349,12 +481,18 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           open
           onOpenChange={(o) => !o && setFileFor(undefined)}
           attemptId={r.attemptId}
-          questions={r.questions.map((q) => ({ attemptQuestionId: q.attemptQuestionId, position: q.position }))}
+          questions={r.questions.map((q) => ({
+            attemptQuestionId: q.attemptQuestionId,
+            position: q.position,
+          }))}
           initialQuestionId={fileFor || undefined}
           fileBy={disputes.data?.fileBy ?? null}
         />
       )}
-      <DisputeDialog disputeId={openDispute} onOpenChange={(o) => !o && setOpenDispute(null)} />
+      <DisputeDialog
+        disputeId={openDispute}
+        onOpenChange={(o) => !o && setOpenDispute(null)}
+      />
     </div>
   );
 }
