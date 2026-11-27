@@ -158,22 +158,6 @@ function SidebarBody({
       </nav>
 
       <div className="space-y-1 overflow-x-hidden border-t px-3 py-3">
-        <NotificationBell
-          side="right"
-          trigger={(unread) => (
-            <button
-              type="button"
-              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-              className={cn(row, muted, "relative")}
-            >
-              <Bell className={icon} aria-hidden="true" />
-              {collapsed && <UnreadBadge count={unread} className="absolute top-1 left-7" />}
-              <Label collapsed={collapsed}>Notifications</Label>
-              {!collapsed && <UnreadBadge count={unread} className="ml-auto" />}
-            </button>
-          )}
-        />
-
         <Tooltip content="Settings" side="right" disabled={!collapsed}>
           <Link
             href="/settings"
@@ -235,6 +219,24 @@ function SidebarBody({
         </Tooltip>
       </div>
     </>
+  );
+}
+
+/** Top-right bell (desktop top bar and mobile header share it). */
+function TopBell() {
+  return (
+    <NotificationBell
+      trigger={(unread) => (
+        <button
+          type="button"
+          aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+          className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <Bell className="h-5 w-5" />
+          <UnreadBadge count={unread} className="absolute top-1 right-1" />
+        </button>
+      )}
+    />
   );
 }
 
@@ -316,18 +318,7 @@ export function AppShell({
       <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
         <Brand role={user.role} />
         <div className="flex items-center gap-1">
-          <NotificationBell
-            trigger={(unread) => (
-              <button
-                type="button"
-                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
-                className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <Bell className="h-5 w-5" />
-                <UnreadBadge count={unread} className="absolute top-1 right-1" />
-              </button>
-            )}
-          />
+          <TopBell />
         <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
           <D.Trigger
             className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
@@ -367,6 +358,9 @@ export function AppShell({
           collapsed ? "lg:pl-[72px]" : "lg:pl-60",
         )}
       >
+        <header className="bg-background/95 sticky top-0 z-20 hidden h-14 items-center justify-end border-b px-8 backdrop-blur lg:flex">
+          <TopBell />
+        </header>
         <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
