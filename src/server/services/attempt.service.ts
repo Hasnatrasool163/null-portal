@@ -212,14 +212,16 @@ export const attemptService = {
         : rows;
 
     return fresh.map((r) => {
-      const resultsPublished = r.results_published_at !== null;
+      const resultsPublished = !r.cancelled && r.results_published_at !== null;
       let accessStatus: AccessStatus;
       let accessReason: string;
       if (r.attempt_status === "SUBMITTED") {
         accessStatus = "SUBMITTED";
-        accessReason = resultsPublished
-          ? "Submitted · Results published"
-          : "Submitted · Results pending";
+        accessReason = r.cancelled
+          ? "Exam was cancelled"
+          : resultsPublished
+            ? "Submitted · Results published"
+            : "Submitted · Results pending";
       } else if (r.attempt_status === "IN_PROGRESS") {
         accessStatus = "IN_PROGRESS";
         accessReason = "Attempt in progress";
@@ -437,16 +439,28 @@ export const attemptService = {
 
     return tx(async (c) => {
       const locked = (await attemptRepo.findByIdForUpdate(c, attemptId))!;
+      const examClosed =
+        !locked.is_sandbox &&
+        (locked.exam_status === "CLOSED" || locked.exam_cancelled);
       if (
+        examClosed ||
         locked.status !== "IN_PROGRESS" ||
         locked.server_now.getTime() >
           locked.deadline_at.getTime() + AUTOSAVE_GRACE_MS
       ) {
-        await finalizeIfExpiredInTx(c, locked);
+        if (examClosed && locked.status === "IN_PROGRESS") {
+          await finalizeAttemptInTx(c, locked, "EXAMINER");
+        } else {
+          await finalizeIfExpiredInTx(c, locked);
+        }
         throw new ApiError(
           409,
           "ATTEMPT_CLOSED",
-          "This attempt is closed and can no longer accept answers.",
+          locked.exam_cancelled
+            ? "This exam has been cancelled and can no longer accept answers."
+            : examClosed
+              ? "This exam has been closed and can no longer accept answers."
+              : "This attempt is closed and can no longer accept answers.",
         );
       }
 

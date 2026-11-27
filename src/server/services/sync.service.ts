@@ -7,7 +7,7 @@ import {
   type AttemptQuestionRow,
 } from "../repositories/attempt.repo";
 import { scoreObjectiveAnswer } from "../exam/scoring";
-import { finalizeIfExpiredInTx } from "./attempt.service";
+import { finalizeAttemptInTx, finalizeIfExpiredInTx } from "./attempt.service";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type {
   SyncBatchInput,
@@ -44,20 +44,29 @@ export const syncService = {
       const recoveryCutoffMs =
         deadlineMs + attempt.recovery_window_seconds * 1000;
 
-      // Normal window: IN_PROGRESS and within deadline + 2s in-flight grace.
-      const isNormalWindow =
-        attempt.status === "IN_PROGRESS" && nowMs <= deadlineMs + GRACE_MS;
+      const examClosed =
+        !attempt.is_sandbox &&
+        (attempt.exam_status === "CLOSED" || attempt.exam_cancelled);
 
-      // Late recovery window: past deadline, recovery enabled, within cutoff, and NOT manually submitted by user/examiner.
+      // Normal window: exam still open, IN_PROGRESS, and within deadline + 2s in-flight grace.
+      const isNormalWindow =
+        !examClosed &&
+        attempt.status === "IN_PROGRESS" &&
+        nowMs <= deadlineMs + GRACE_MS;
+
+      // Late recovery window: exam still open, past deadline, recovery enabled, within cutoff, and NOT manually submitted by user/examiner.
       const isLateWindow =
+        !examClosed &&
         !isNormalWindow &&
         attempt.recovery_window_seconds > 0 &&
         nowMs <= recoveryCutoffMs &&
         (attempt.status === "IN_PROGRESS" ||
           attempt.submit_reason === "TIMEOUT");
 
-      // Lazily finalize if past deadline so status is consistent.
-      if (!isNormalWindow && attempt.status === "IN_PROGRESS") {
+      // Lazily finalize if exam closed/cancelled or past deadline so status is consistent.
+      if (examClosed && attempt.status === "IN_PROGRESS") {
+        attempt = await finalizeAttemptInTx(c, attempt, "EXAMINER");
+      } else if (!isNormalWindow && attempt.status === "IN_PROGRESS") {
         attempt = await finalizeIfExpiredInTx(c, attempt);
       }
 
@@ -110,10 +119,13 @@ export const syncService = {
 
         if (!isNormalWindow && !isLateWindow) {
           rejected++;
-          const reason =
-            attempt.submit_reason === "USER"
-              ? "ALREADY_SUBMITTED"
-              : "RECOVERY_WINDOW_CLOSED";
+          const reason = attempt.exam_cancelled
+            ? "EXAM_CANCELLED"
+            : examClosed
+              ? "EXAM_CLOSED"
+              : attempt.submit_reason === "USER"
+                ? "ALREADY_SUBMITTED"
+                : "RECOVERY_WINDOW_CLOSED";
           results.push({
             attemptQuestionId: item.attemptQuestionId,
             seq: item.seq,

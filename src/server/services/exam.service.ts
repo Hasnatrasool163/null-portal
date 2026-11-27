@@ -12,7 +12,7 @@ import {
   editLevel,
   levelReason,
 } from "../exam/lifecycle";
-import { finalizeIfExpiredInTx } from "./attempt.service";
+import { finalizeAttemptInTx, finalizeIfExpiredInTx } from "./attempt.service";
 import type { QuestionType } from "@/shared/schemas/question";
 import {
   windowErrors,
@@ -350,7 +350,7 @@ export const examService = {
           examId: ex.id,
           targetType: "exam",
           targetId: ex.id,
-          summary: `Changed question set of \"${ex.title}\" (${before.length} â†’ ${input.items.length} questions)`,
+          summary: `Changed question set of \"${ex.title}\" (${before.length} → ${input.items.length} questions)`,
           details: { before, after: input.items },
         });
       }
@@ -399,12 +399,27 @@ export const examService = {
         status: "CLOSED",
         closed_by: user.id,
       });
+      const inProgress = await c.query<{ id: string }>(
+        `SELECT id FROM real_attempts
+         WHERE exam_id = $1 AND status = 'IN_PROGRESS'
+         ORDER BY id`,
+        [existing.id],
+      );
+      let finalizedAttempts = 0;
+      for (const row of inProgress.rows) {
+        const a = await attemptRepo.findByIdForUpdate(c, row.id);
+        if (a && a.status === "IN_PROGRESS") {
+          await finalizeAttemptInTx(c, a, "EXAMINER");
+          finalizedAttempts++;
+        }
+      }
       await audit(c, user, {
         action: "EXAM_CLOSED",
         examId: existing.id,
         targetType: "exam",
         targetId: existing.id,
         summary: `Closed \"${existing.title}\" early`,
+        details: { finalizedAttempts },
       });
       return existing.id;
     });
@@ -436,7 +451,33 @@ export const examService = {
         close_reason: input.reason,
         closed_by: user.id,
         cancelled: cancel,
+        ...(cancel ? { results_published_at: null } : {}),
       });
+      const inProgress = await c.query<{ id: string }>(
+        `SELECT id FROM real_attempts
+         WHERE exam_id = $1 AND status = 'IN_PROGRESS'
+         ORDER BY id`,
+        [ex.id],
+      );
+      let finalizedAttempts = 0;
+      for (const row of inProgress.rows) {
+        const a = await attemptRepo.findByIdForUpdate(c, row.id);
+        if (a && a.status === "IN_PROGRESS") {
+          await finalizeAttemptInTx(c, a, "EXAMINER");
+          finalizedAttempts++;
+        }
+      }
+      let revokedCertificates = 0;
+      if (cancel) {
+        const rev = await c.query(
+          `UPDATE report_verifications rv
+           SET revoked = true
+           FROM attempts a
+           WHERE rv.attempt_id = a.id AND a.exam_id = $1 AND NOT rv.revoked`,
+          [ex.id],
+        );
+        revokedCertificates = rev.rowCount ?? 0;
+      }
       await audit(c, user, {
         action: cancel ? "EXAM_CANCELLED" : "EXAM_CLOSED",
         examId: ex.id,
@@ -448,6 +489,8 @@ export const examService = {
           previousStatus: ex.status,
           phase: ex.phase,
           startedAttempts: ex.startedAttempts,
+          finalizedAttempts,
+          revokedCertificates,
           ownerId: ex.ownerId,
         },
       });
@@ -652,7 +695,7 @@ export const examService = {
         examId: ex.id,
         targetType: "question",
         targetId: input.questionId,
-        summary: `Rescored \"${ex.title}\": key ${oldIds.join(",")} â†’ ${newIds.join(",")}, ${changed} answer(s) changed`,
+        summary: `Rescored \"${ex.title}\": key ${oldIds.join(",")} → ${newIds.join(",")}, ${changed} answer(s) changed`,
         details: {
           rescoreId,
           reason: input.reason,
