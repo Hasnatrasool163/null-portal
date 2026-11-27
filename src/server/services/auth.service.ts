@@ -3,7 +3,13 @@ import { userRepo } from "../repositories/user.repo";
 import { hashPassword, verifyPassword } from "../auth/password";
 import { createSession, destroySession, readSession } from "../auth/session";
 import { checkRateLimit, Errors } from "../http";
-import type { LoginInput, RegisterInput } from "@/shared/schemas/auth";
+import { audit } from "../audit";
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  RegisterInput,
+  SessionUser,
+} from "@/shared/schemas/auth";
 
 export const authService = {
   /** Public registration always creates a CANDIDATE (privileged roles are admin-created). */
@@ -48,5 +54,39 @@ export const authService = {
       await userRepo.bumpSessionVersion(sess.userId);
     }
     await destroySession();
+  },
+
+  /**
+   * Self-service password change for any authenticated role (ADMIN, EXAMINER, CANDIDATE).
+   * Verifies current password, revokes all other sessions via session_version bump, and
+   * re-issues a fresh session cookie for the caller.
+   */
+  async changePassword(user: SessionUser, input: ChangePasswordInput) {
+    await checkRateLimit(`change-pw:${user.id}`, 10, 60_000);
+
+    const found = await userRepo.findWithHashById(user.id);
+    if (
+      !found ||
+      !(await verifyPassword(input.currentPassword, found.passwordHash))
+    ) {
+      throw Errors.unauthorized("Current password is incorrect");
+    }
+
+    const newHash = await hashPassword(input.newPassword);
+    const nextVersion = await userRepo.updatePasswordAndBumpSession(
+      user.id,
+      newHash,
+    );
+    if (nextVersion === null) throw Errors.notFound("User not found");
+
+    await createSession(user.id, user.role, nextVersion);
+    await audit(null, user, {
+      action: "PASSWORD_CHANGED",
+      targetType: "user",
+      targetId: user.id,
+      summary: `${user.name} changed their password`,
+      details: { email: user.email, role: user.role },
+    });
+    return { changed: true };
   },
 };

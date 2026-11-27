@@ -1407,6 +1407,64 @@ async function lifecycleSlice() {
   );
 }
 
+async function passwordSlice() {
+  console.log("Password change & admin reset (all roles)");
+  const admin = await login("admin@demo.test");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const anon = new Client();
+
+  check("anonymous cannot change password (401)", (await anon.post("/api/auth/change-password", { currentPassword: "x", newPassword: "NewPassword1" })).status === 401);
+  check("anonymous cannot admin-reset password (401)", (await anon.post("/api/admin/users/00000000-0000-0000-0000-000000000000/reset-password")).status === 401);
+
+  const adminMe = (await admin.get("/api/auth/me")).data;
+  check("examiner cannot admin-reset password (403)", (await ex1.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 403);
+  check("candidate cannot admin-reset password (403)", (await cand1.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 403);
+  check("admin cannot self-reset via admin endpoint (409)", (await admin.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 409);
+
+  // Test self-service change-password + admin reset across throwaway CANDIDATE, EXAMINER, ADMIN accounts
+  // (kept to 2 logins per role so we stay well within the /api/auth/login 10/min rate limit).
+  for (const role of ["CANDIDATE", "EXAMINER", "ADMIN"]) {
+    const email = `verify.pw.${role.toLowerCase()}.${Date.now()}@demo.test`;
+    const created = await admin.post("/api/admin/users", { name: `PW ${role}`, email, role });
+    const uId = created.data.user.id;
+    const pw1 = created.data.tempPassword;
+
+    const sA = await login(email, pw1);
+    const sB = role === "CANDIDATE" ? await login(email, pw1) : null;
+
+    check(`${role}: wrong currentPassword rejected (401)`, (await sA.post("/api/auth/change-password", { currentPassword: "WrongPassword1", newPassword: "NewPassword1" })).status === 401);
+    check(`${role}: same password rejected (400)`, (await sA.post("/api/auth/change-password", { currentPassword: pw1, newPassword: pw1 })).status === 400);
+
+    const pw2 = "UpdatedPass99";
+    const ch = await sA.post("/api/auth/change-password", { currentPassword: pw1, newPassword: pw2 });
+    check(`${role}: self-service change-password succeeds`, ch.status === 200 && ch.data.changed === true);
+    check(`${role}: caller session stays valid after change-password`, (await sA.get("/api/auth/me")).status === 200);
+    if (sB) {
+      check(`${role}: other session revoked after change-password (401)`, (await sB.get("/api/auth/me")).status === 401);
+    }
+
+    // Admin reset password revokes active session and returns one-time temp password
+    const rst = await admin.post(`/api/admin/users/${uId}/reset-password`);
+    check(`${role}: admin reset-password returns one-time tempPassword`, rst.status === 200 && typeof rst.data.tempPassword === "string" && rst.data.tempPassword.length >= 10);
+    check(`${role}: active session revoked after admin reset (401)`, (await sA.get("/api/auth/me")).status === 401);
+    if (role === "ADMIN") {
+      const sC = await login(email, rst.data.tempPassword);
+      check(`${role}: new temp password logs in`, (await sC.get("/api/auth/me")).status === 200);
+    }
+
+    // Audit entries recorded without leaking password/hash
+    const auditRes = await admin.get("/api/admin/audit?pageSize=20");
+    const pwChanged = auditRes.data.items.find((i) => i.action === "PASSWORD_CHANGED" && i.targetId === uId);
+    const pwReset = auditRes.data.items.find((i) => i.action === "PASSWORD_RESET" && i.targetId === uId);
+    const serialized = JSON.stringify({ pwChanged, pwReset });
+    check(
+      `${role}: password change & reset audited without leaking secrets`,
+      !!pwChanged && !!pwReset && !serialized.includes(pw1) && !serialized.includes(pw2) && !serialized.includes(rst.data.tempPassword),
+    );
+  }
+}
+
 try {
   await slice0();
   await slice1();
@@ -1420,6 +1478,7 @@ try {
   const h = await hardening();
   await featureSlice(h);
   await lifecycleSlice();
+  await passwordSlice();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);
