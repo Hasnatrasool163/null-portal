@@ -87,13 +87,6 @@ export const enrollmentRepo = {
     return (r.rowCount ?? 0) > 0;
   },
 
-  async remove(examId: string, candidateId: string) {
-    await query(
-      "DELETE FROM enrollments WHERE exam_id = $1 AND candidate_id = $2",
-      [examId, candidateId],
-    );
-  },
-
   async findUsersByEmails(emails: string[]) {
     if (emails.length === 0) return new Map<string, { id: string; role: string; isActive: boolean }>();
     const lower = emails.map((e) => e.toLowerCase());
