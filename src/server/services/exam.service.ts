@@ -5,7 +5,13 @@ import { examRepo } from "../repositories/exam.repo";
 import { attemptRepo } from "../repositories/attempt.repo";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
-import { notifyExamAvailable, notifyExamCancelled } from "../notifications";
+import {
+  notifyEnrolled,
+  notifyExamAvailable,
+  notifyExamCancelled,
+  notifyScoreChanged,
+  notifyUsers,
+} from "../notifications";
 import { scoreObjectiveAnswer, type SnapshotOption } from "../exam/scoring";
 import {
   LEVEL_ALLOWED,
@@ -99,6 +105,17 @@ async function lockAny(c: PoolClient, id: string): Promise<ExamSummary> {
   if (!exam) throw Errors.notFound("Exam not found");
   return exam;
 }
+
+/** "Dec 01, 09:00 UTC" — matches the server-generated notification wording. */
+const fmtUtc = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  }) + " UTC";
 
 const FIELD_COLUMN: Record<string, string> = {
   title: "title",
@@ -298,6 +315,34 @@ export const examService = {
           summary: `Edited \"${ex.title}\" (${ex.phase.toLowerCase()}): ${keys.join(", ")}`,
           details: { level, phase: ex.phase, changes },
         });
+      }
+      // Candidates who still have to sit it hear about schedule / duration / instruction changes.
+      const LABEL: Record<string, string> = {
+        startsAt: "start time",
+        endsAt: "end time",
+        durationMinutes: "duration",
+        instructions: "instructions",
+      };
+      const relevant = keys.filter((k) => k in LABEL);
+      if (ex.status === "PUBLISHED" && relevant.length > 0) {
+        const what = relevant.map((k) => LABEL[k]);
+        const sched = [
+          changes.startsAt && `starts ${fmtUtc(String(changes.startsAt.to))}`,
+          changes.endsAt && `ends ${fmtUtc(String(changes.endsAt.to))}`,
+          changes.durationMinutes && `${changes.durationMinutes.to} min`,
+        ].filter(Boolean);
+        await notifyEnrolled(
+          c,
+          ex.id,
+          {
+            type: "EXAM_UPDATED",
+            title: `Exam changed: ${ex.title}`,
+            body: `The examiner changed the ${what.join(", ")}.${sched.length ? ` Now: ${sched.join(", ")}.` : ""}${changes.instructions ? " Read the updated instructions before you start." : ""}`,
+            link: "/dashboard",
+            dedupeKey: `exam-updated:${ex.id}:${Date.now()}`,
+          },
+          true,
+        );
       }
       return ex.id;
     });
@@ -537,6 +582,23 @@ export const examService = {
           reason: input.reason ?? null,
         },
       });
+      const key = `reassigned:${ex.id}:${Date.now()}`;
+      await notifyUsers(c, [target.id], {
+        type: "EXAM_REASSIGNED",
+        title: `You now own: ${ex.title}`,
+        body: `An administrator handed this exam to you from ${ex.ownerName}.${input.reason ? ` Reason: ${input.reason}` : ""}`,
+        link: `/exams/${ex.id}`,
+        examId: ex.id,
+        dedupeKey: key,
+      });
+      await notifyUsers(c, [ex.ownerId], {
+        type: "EXAM_REASSIGNED",
+        title: `Exam reassigned: ${ex.title}`,
+        body: `An administrator handed this exam to ${target.name}. You no longer manage it.${input.reason ? ` Reason: ${input.reason}` : ""}`,
+        link: "/exams",
+        examId: ex.id,
+        dedupeKey: key,
+      });
       return ex.id;
     });
     return this.get(user, examId);
@@ -587,6 +649,7 @@ export const examService = {
       const rows = await c.query<{
         id: string;
         attempt_id: string;
+        position: number;
         type: QuestionType;
         marks: number;
         options: SnapshotOption[];
@@ -594,7 +657,7 @@ export const examService = {
         negative_marking: number;
         total_score: number | null;
       }>(
-        `SELECT aq.id, aq.attempt_id, aq.type, aq.marks, aq.options,
+        `SELECT aq.id, aq.attempt_id, aq.position, aq.type, aq.marks, aq.options,
                 a.multi_scoring, a.negative_marking, a.total_score
          FROM attempt_questions aq
          JOIN real_attempts a ON a.id = aq.attempt_id
@@ -642,6 +705,7 @@ export const examService = {
       let changed = 0;
       let skipped = 0;
       const touched = new Set<string>();
+      const totals = new Map<string, { from: number | null; to: number; position: number }>();
       for (const aq of rows.rows) {
         if (!newIds.every((n) => aq.options.some((o) => o.id === n))) {
           skipped++;
@@ -686,7 +750,20 @@ export const examService = {
           [rescoreId, aq.attempt_id, aq.id, oldScore, newScore, oldTotal, newTotal],
         );
         touched.add(aq.attempt_id);
+        totals.set(aq.attempt_id, {
+          from: totals.has(aq.attempt_id) ? totals.get(aq.attempt_id)!.from : oldTotal,
+          to: Number(newTotal),
+          position: aq.position,
+        });
         changed++;
+      }
+      // Everyone whose published score moved is told, not only whoever disputed it.
+      for (const [attemptId, t] of totals) {
+        await notifyScoreChanged(c, attemptId, {
+          from: t.from,
+          to: t.to,
+          reason: `the answer key for Q${t.position + 1} was corrected (${input.reason})`,
+        });
       }
       await c.query("UPDATE exam_rescores SET attempts_affected = $2 WHERE id = $1", [
         rescoreId,

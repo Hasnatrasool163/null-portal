@@ -4,6 +4,7 @@ import { hashPassword } from "../auth/password";
 import { generateTempPassword } from "../auth/temp-password";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { notifyUsers } from "../notifications";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type {
   CreateUserInput,
@@ -116,6 +117,15 @@ export const userService = {
       targetId: target.id,
       summary: `Reset password for ${target.name} (${target.email})`,
       details: { email: target.email, role: target.role },
+    });
+    // Seen at their next sign-in (with the temporary password): a clear trail if it wasn't expected.
+    await notifyUsers(null, [target.id], {
+      type: "PASSWORD_RESET",
+      title: "Your password was reset by an administrator",
+      body: `${actor.name} reset your password. Change it from Settings now. If you did not ask for this, contact your administrator.`,
+      link: "/settings",
+      examId: null,
+      dedupeKey: `password-reset:${Date.now()}`,
     });
 
     // Returned once over HTTPS/JSON with Cache-Control: no-store; never stored in clear text.

@@ -3,7 +3,7 @@ import type { PoolClient } from "pg";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
-import { notifyResultsPublished } from "../notifications";
+import { notifyResultsPublished, notifyScoreChanged } from "../notifications";
 import { toCsv } from "../csv";
 import { examRepo } from "../repositories/exam.repo";
 import {
@@ -107,6 +107,13 @@ export async function gradeWrittenInTx(
       );
     }
 
+    const prevTotal = (
+      await c.query<{ total_score: number | null }>(
+        "SELECT total_score FROM attempts WHERE id = $1",
+        [attemptId],
+      )
+    ).rows[0]?.total_score;
+
     await c.query(
       `INSERT INTO answers (
          attempt_question_id, attempt_id, selected_option_ids, seq,
@@ -125,6 +132,18 @@ export async function gradeWrittenInTx(
 
     const oldScore = aq.old_score !== null ? Number(aq.old_score) : null;
     if (oldScore !== input.score) {
+      // After results are out the candidate hears about it. A dispute sends its own message,
+      // but the certificate notice still applies.
+      await notifyScoreChanged(
+        c,
+        attemptId,
+        {
+          from: prevTotal === null || prevTotal === undefined ? null : Number(prevTotal),
+          to: Number(totalScore),
+          reason: `Q${aq.position + 1} was regraded`,
+        },
+        { skipScoreNotice: opts.disputeId !== undefined },
+      );
       await audit(c, user, {
         action: "GRADE_CHANGED",
         examId: attempt.exam_id,
