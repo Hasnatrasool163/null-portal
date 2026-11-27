@@ -8,18 +8,35 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 
 const g = globalThis as unknown as { __pgPool?: Pool };
 
-function createPool(): Pool {
-  const raw = process.env.DATABASE_URL;
-  if (!raw)
-    throw new Error("DATABASE_URL is not set. Copy .env.example to .env.local");
+function resolveDbConfig(): { connectionString: string; useSsl: boolean } {
+  const preferFallback = process.env.USE_FALLBACK_DB === "true";
+  const raw = preferFallback
+    ? process.env.DATABASE_FALLBACK_URL || process.env.DATABASE_URL
+    : process.env.DATABASE_URL || process.env.DATABASE_FALLBACK_URL;
+
+  if (!raw) {
+    throw new Error(
+      "DATABASE_URL (or DATABASE_FALLBACK_URL) is not set. Copy .env.example to .env.local",
+    );
+  }
   const url = new URL(raw);
+  const sslParam = url.searchParams.get("sslmode");
   url.searchParams.delete("sslmode");
+
+  const usingFallback = raw === process.env.DATABASE_FALLBACK_URL;
+  const sslFlag = usingFallback
+    ? process.env.DATABASE_FALLBACK_SSL === "true"
+    : process.env.DATABASE_SSL === "true";
+  const useSsl = sslFlag || sslParam === "require" || sslParam === "verify-full";
+
+  return { connectionString: url.toString(), useSsl };
+}
+
+function createPool(): Pool {
+  const { connectionString, useSsl } = resolveDbConfig();
   return new Pool({
-    connectionString: url.toString(),
-    ssl:
-      process.env.DATABASE_SSL === "true"
-        ? { rejectUnauthorized: false }
-        : undefined,
+    connectionString,
+    ssl: useSsl ? { rejectUnauthorized: false } : undefined,
     max: 5,
     idleTimeoutMillis: 20_000,
   });
