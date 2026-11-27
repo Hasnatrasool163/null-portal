@@ -8,6 +8,7 @@ Full-stack web application for institutions to create, schedule, conduct, monito
 
 - **Live URL**: https://null-portal.vercel.app/
 - **Repository**: https://github.com/Hasnatrasool163/null-portal
+- **Docker Image**: https://hub.docker.com/r/hasnat163/null-portal (`hasnat163/null-portal:latest`)
 - **Team**: Muhammad Hasnat Rasool, Muhammad Hamad Jamal, Syed-Muhammad-Hussnain-Raza
 - **Final Commit SHA / Deploy Time**: See Releases/Deployments (documentation prepared on branch `docs/submission-release-hygiene` from `dev` commit `9bb37ca`)
 
@@ -195,6 +196,32 @@ npm run seed:reset-demo # Reset live/upcoming demo windows and remove verify.* t
   - Serverless cold starts and free-tier managed PostgreSQL wake-ups may add a brief delay on the first request after idle periods.
   - Because single-active-session enforcement is enabled, sign out of a demo account before logging into the same account in another browser (or wait 2 minutes).
   - See [docs/DEPLOY.md](docs/DEPLOY.md) for full deployment instructions.
+
+### Docker
+
+A prebuilt production image is published on Docker Hub at [`hasnat163/null-portal:latest`](https://hub.docker.com/r/hasnat163/null-portal). The container automatically applies idempotent PostgreSQL migrations (`node scripts/migrate.mjs`) before starting Next.js.
+
+```bash
+# Pull the prebuilt image
+docker pull hasnat163/null-portal:latest
+
+# Run against an existing PostgreSQL database
+docker run -d --name null-portal -p 3000:3000 \
+  -e DATABASE_URL="postgres://postgres:postgres@host.docker.internal:5432/app" \
+  -e DATABASE_SSL="false" \
+  -e SESSION_SECRET="$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" \
+  hasnat163/null-portal:latest
+
+# Optional: seed demo data into a fresh database
+docker exec null-portal node scripts/seed.mjs
+```
+
+Or build and run the full stack (PostgreSQL + app) locally with Docker Compose:
+
+```bash
+docker compose --profile full up --build -d
+docker compose --profile full exec app node scripts/seed.mjs
+```
 
 ---
 
