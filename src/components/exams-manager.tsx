@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Pagination, usePaged } from "@/components/ui/pagination";
-import { Badge, Skeleton } from "@/components/ui/misc";
+import { Skeleton } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -25,17 +25,26 @@ import {
   type Phase,
 } from "@/shared/schemas/exam";
 
-export function phaseBadgeClass(phase: Phase) {
-  switch (phase) {
-    case "ONGOING":
-      return "bg-success/15 text-success";
-    case "UPCOMING":
-      return "bg-warning/15 text-warning";
-    case "COMPLETED":
-      return "bg-muted text-muted-foreground";
-    default:
-      return "";
-  }
+const PHASE_DOT: Record<Phase, string> = {
+  ONGOING: "bg-success",
+  UPCOMING: "bg-warning",
+  DRAFT: "bg-muted-foreground/50",
+  COMPLETED: "bg-primary/60",
+};
+
+/** Phase as a status dot + label (live exams pulse). Used in the list and the exam header. */
+export function PhaseStatus({ phase, className }: { phase: Phase; className?: string }) {
+  return (
+    <span className={`inline-flex items-center gap-2 text-sm whitespace-nowrap ${className ?? ""}`}>
+      <span className="relative flex h-2 w-2" aria-hidden="true">
+        {phase === "ONGOING" && (
+          <span className="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-50" />
+        )}
+        <span className={`relative inline-flex h-2 w-2 rounded-full ${PHASE_DOT[phase]}`} />
+      </span>
+      {PHASE_LABEL[phase]}
+    </span>
+  );
 }
 
 export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
@@ -188,9 +197,7 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
                 </TD>
                 {isAdmin && <TD>{e.ownerName}</TD>}
                 <TD>
-                  <Badge className={phaseBadgeClass(e.phase)}>
-                    {PHASE_LABEL[e.phase]}
-                  </Badge>
+                  <PhaseStatus phase={e.phase} />
                 </TD>
                 <TD className="text-xs whitespace-nowrap">
                   <div>{format(new Date(e.startsAt), "PP p")}</div>
