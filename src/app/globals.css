@@ -15,14 +15,14 @@
   --secondary: #eef0f3;
   --secondary-foreground: #14171c;
   --muted: #f0f2f5;
-  --muted-foreground: #5b6370;
+  --muted-foreground: #4b5361;
   --accent: #e8f2f1;
   --accent-foreground: #0b4f51;
   --destructive: #c0352b;
   --success: #17744a;
   --warning: #9a6400;
-  --border: #e4e7ec;
-  --input: #d5dae1;
+  --border: #dfe3e9;
+  --input: #c9d0da;
   --ring: #0f6b6e;
   --radius: 0.5rem;
   --sidebar: #ffffff;

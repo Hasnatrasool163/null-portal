@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { getCurrentUser } from "@/server/auth/current-user";
+import { getSidebarCollapsed } from "@/server/ui-prefs";
 
 // Guard for every page inside (app): not logged in -> /login.
 export default async function AppLayout({
@@ -10,5 +11,9 @@ export default async function AppLayout({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  return <AppShell user={user}>{children}</AppShell>;
+  return (
+    <AppShell user={user} initialCollapsed={await getSidebarCollapsed()}>
+      {children}
+    </AppShell>
+  );
 }

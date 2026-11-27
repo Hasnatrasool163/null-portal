@@ -68,7 +68,7 @@ async function writeOptions(
 
 export const questionRepo = {
   async list(ownerId: string, q: QuestionListQuery) {
-    const where = ["q.owner_id = $1", "NOT q.archived"];
+    const where = ["q.owner_id = $1", q.status === "archived" ? "q.archived" : "NOT q.archived"];
     const params: unknown[] = [ownerId];
     const add = (sql: string, v: unknown) => {
       params.push(v);
@@ -134,6 +134,15 @@ export const questionRepo = {
       [id, f.topicId, f.type, f.difficulty, f.body, f.defaultMarks],
     );
     await writeOptions(c, id, f.options);
+  },
+
+  /** Owner check is in the WHERE clause; returns false if not found or not archived. */
+  async restore(ownerId: string, id: string) {
+    const rows = await query<{ id: string }>(
+      "UPDATE questions SET archived = false, updated_at = now() WHERE id = $1 AND owner_id = $2 AND archived RETURNING id",
+      [id, ownerId],
+    );
+    return rows.length > 0;
   },
 
   async archive(id: string) {
