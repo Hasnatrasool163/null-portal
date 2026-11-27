@@ -1324,7 +1324,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       {prefs.palettePosition === "bottom" && (
         <nav
           aria-label="Question navigation"
-          className="bg-card/95 shadow-elev-3 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur"
+          className="bg-card shadow-elev-3 fixed inset-x-0 bottom-0 z-30 border-t"
         >
           <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
             <div className="flex flex-1 gap-1.5 overflow-x-auto py-1">
@@ -1418,7 +1418,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
 
       {timeUp && (
-        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div className="bg-background/90 fixed inset-0 z-50 flex items-center justify-center p-4">
           <Card
             className="animate-page-in max-w-md space-y-3 p-6 text-center"
             role="alertdialog"

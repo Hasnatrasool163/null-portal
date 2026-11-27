@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   ArrowRight,
   BookOpenCheck,
   Check,
@@ -23,14 +23,14 @@ import {
   User,
   UserCog,
   Users,
-  Activity,
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/misc";
-import { cn } from "@/lib/utils";
+import { fieldClass } from "@/components/ui/input";
 import { PaletteBackdrop } from "@/components/palette-backdrop";
+import { cn } from "@/lib/utils";
 import { api, applyFieldErrors } from "@/lib/api-client";
 import {
   loginSchema,
@@ -47,25 +47,20 @@ const ROLE_TABS: { key: RoleKey; label: string; demo: string }[] = [
 ];
 const DEMO_PASSWORD = "Demo1234";
 
-const COPY: Record<
-  RoleKey,
-  { headline: string; features: { icon: LucideIcon; text: string }[] }
-> = {
+const COPY: Record<RoleKey, { headline: string; features: { icon: LucideIcon; text: string }[] }> = {
   candidate: {
     headline: "Sit your exam calmly. Every answer is saved as you go.",
     features: [
-      { icon: CloudOff, text: "Answers are kept on your device first, so a dropped connection loses nothing." },
-      { icon: RefreshCw, text: "The timer runs on the server, so refreshing or reconnecting never costs you time." },
-      { icon: BookOpenCheck, text: "Flag questions, review everything, and use a private scratchpad." },
+      { icon: CloudOff, text: "Answers are kept on your device first. A dropped connection loses nothing." },
+      { icon: RefreshCw, text: "The timer runs on the server. Refreshing never costs you time." },
       { icon: QrCode, text: "Results come with a QR code anyone can verify." },
     ],
   },
   examiner: {
     headline: "Create, run and grade exams from one workspace.",
     features: [
-      { icon: BookOpenCheck, text: "Reuse a private question bank and shuffle each paper." },
-      { icon: Activity, text: "Watch live attempts. Flags are advisory and never penalise anyone automatically." },
-      { icon: CircleCheck, text: "Auto-grade multiple choice, then mark written answers in half points." },
+      { icon: BookOpenCheck, text: "Reuse a private question bank and shuffle every paper." },
+      { icon: Activity, text: "Watch attempts live. Flags are advisory, never automatic penalties." },
       { icon: ShieldCheck, text: "Publish results as verifiable PDF reports." },
     ],
   },
@@ -73,22 +68,19 @@ const COPY: Record<
     headline: "Manage people and roles with clear permissions.",
     features: [
       { icon: Users, text: "Create examiners and admins with a one-time password." },
-      { icon: UserCog, text: "Change roles or deactivate accounts. Sessions end immediately." },
-      { icon: Lock, text: "Each role sees only what it needs. Other examiners' records are hidden." },
-      { icon: Activity, text: "Oversee every exam in read-only mode." },
+      { icon: UserCog, text: "Change roles or deactivate accounts. Access ends immediately." },
+      { icon: Lock, text: "Each role sees only what it needs." },
     ],
   },
 };
 
-const STEPS = ["Create", "Conduct", "Monitor", "Grade", "Verify"];
-
-/* ---------------- Left showcase ---------------- */
-
 const SAVE_STATES = [
   { icon: CircleCheck, title: "All answers saved", sub: "Synced to the server.", tone: "text-success" },
-  { icon: CloudOff, title: "Offline · 3 answers kept on this device", sub: "The timer keeps running. Keep working.", tone: "text-warning" },
+  { icon: CloudOff, title: "Offline · 3 answers on this device", sub: "The timer keeps running. Keep working.", tone: "text-warning" },
   { icon: RefreshCw, title: "Back online · syncing 3 answers", sub: "Nothing is lost.", tone: "text-primary" },
 ] as const;
+
+/* ---------------- Left showcase ---------------- */
 
 function SaveStatusDemo() {
   const [i, setI] = useState(0);
@@ -99,24 +91,13 @@ function SaveStatusDemo() {
   }, []);
   const s = SAVE_STATES[i];
   return (
-    <div className="bg-card shadow-elev-2 relative max-w-sm overflow-hidden rounded-lg border p-4">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.25 }}
-          className="flex items-center gap-3"
-        >
-          <s.icon className={cn("h-5 w-5 shrink-0", s.tone, i === 2 && "animate-spin [animation-duration:2s]")} aria-hidden="true" />
-          <div className="min-w-0">
-            <p className="text-sm font-medium">{s.title}</p>
-            <p className="text-muted-foreground text-xs">{s.sub}</p>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-      <span className="text-muted-foreground absolute top-2 right-3 font-mono text-[10px] tracking-wider uppercase">
+    <div className="bg-card shadow-elev-2 flex max-w-sm items-center gap-3 rounded-lg border px-4 py-3">
+      <s.icon key={`i${i}`} className={cn("animate-page-in h-5 w-5 shrink-0", s.tone)} aria-hidden="true" />
+      <div key={i} className="animate-page-in min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{s.title}</p>
+        <p className="text-muted-foreground truncate text-xs">{s.sub}</p>
+      </div>
+      <span className="text-muted-foreground self-start font-mono text-[10px] tracking-wider uppercase">
         preview
       </span>
     </div>
@@ -125,18 +106,12 @@ function SaveStatusDemo() {
 
 function ProcessStrip() {
   return (
-    <ol className="grid max-w-md grid-cols-5 gap-2">
-      {STEPS.map((s, i) => (
-        <motion.li
-          key={s}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08 * i }}
-          className="border-foreground border-t-2 pt-2"
-        >
+    <ol className="stagger grid max-w-md grid-cols-5 gap-2">
+      {["Create", "Conduct", "Monitor", "Grade", "Verify"].map((s, i) => (
+        <li key={s} className="border-primary/70 border-t-2 pt-2">
           <span className="text-muted-foreground block font-mono text-[11px]">0{i + 1}</span>
           <span className="text-sm font-medium">{s}</span>
-        </motion.li>
+        </li>
       ))}
     </ol>
   );
@@ -145,66 +120,49 @@ function ProcessStrip() {
 function Showcase({ role }: { role: RoleKey }) {
   const copy = COPY[role];
   return (
-    <aside className="bg-sidebar relative hidden w-[46%] max-w-[720px] shrink-0 flex-col justify-between gap-10 overflow-hidden border-r p-10 lg:flex xl:p-12">
+    <aside className="bg-sidebar relative hidden w-[46%] max-w-[680px] shrink-0 flex-col justify-between gap-6 overflow-hidden border-r px-10 py-8 lg:flex xl:px-12">
       <PaletteBackdrop />
-      <Link href="/" className="relative flex w-fit items-center gap-3 text-[17px] font-semibold tracking-tight">
-        <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-lg font-mono text-sm">
+      <Link href="/" className="relative flex w-fit items-center gap-2.5 font-semibold tracking-tight">
+        <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-md font-mono text-xs">
           n/
         </span>
         null-portal
       </Link>
 
-      <div className="relative max-w-[540px] space-y-8">
-        <div className="space-y-4">
-          <p className="text-primary font-mono text-[13px]">create → conduct → verify</p>
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.h1
-              key={role}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
-              className="text-[44px] leading-[1.05] font-semibold tracking-tight text-balance xl:text-5xl"
-            >
-              {copy.headline}
-            </motion.h1>
-          </AnimatePresence>
+      <div className="relative max-w-[520px] space-y-6">
+        <div className="space-y-3">
+          <p className="text-primary font-mono text-xs">create → conduct → verify</p>
+          <h1
+            key={role}
+            className="animate-page-in text-[2.1rem] leading-[1.1] font-semibold tracking-tight text-balance xl:text-[2.5rem]"
+          >
+            {copy.headline}
+          </h1>
         </div>
 
         {role === "candidate" && <SaveStatusDemo />}
         {role === "examiner" && <ProcessStrip />}
 
-        <ul className="space-y-4">
+        <ul key={role} className="stagger space-y-3">
           {copy.features.map((f, i) => (
-            <motion.li
-              key={`${role}-${i}`}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.05 * i, duration: 0.3 }}
-              className="flex items-center gap-4"
-            >
-              <span
-                className={cn(
-                  "bg-card shadow-elev-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border",
-                  i === 1 ? "text-primary" : "text-foreground",
-                )}
-              >
-                <f.icon className="h-5 w-5" aria-hidden="true" />
+            <li key={i} className="flex items-center gap-3">
+              <span className="bg-card shadow-elev-1 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-md border">
+                <f.icon className="h-[18px] w-[18px]" aria-hidden="true" />
               </span>
-              <span className="text-muted-foreground text-[15px] leading-snug">{f.text}</span>
-            </motion.li>
+              <span className="text-muted-foreground text-sm leading-snug">{f.text}</span>
+            </li>
           ))}
         </ul>
 
-        <p className="text-muted-foreground flex items-center gap-2 border-t pt-4 text-sm">
-          <KeyRound className="h-4 w-4" aria-hidden="true" />
+        <p className="text-muted-foreground flex items-center gap-2 border-t pt-4 text-xs">
+          <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
           Answer keys never reach the browser before results are published.
         </p>
       </div>
 
-      <p className="text-muted-foreground relative flex flex-wrap items-center justify-between gap-2 text-[13px]">
-        <span>null-portal · Secure examination management</span>
-        <Link href="/verify" className="hover:text-foreground underline-offset-4 transition-colors hover:underline">
+      <p className="text-muted-foreground relative flex items-center justify-between gap-2 text-xs">
+        <span>Secure examination management</span>
+        <Link href="/verify" className="hover:text-foreground transition-colors">
           Verify a report →
         </Link>
       </p>
@@ -218,12 +176,9 @@ function IconInput({
   icon: Icon,
   invalid,
   trailing,
+  className,
   ...props
-}: React.ComponentProps<"input"> & {
-  icon: LucideIcon;
-  invalid?: boolean;
-  trailing?: React.ReactNode;
-}) {
+}: React.ComponentProps<"input"> & { icon: LucideIcon; invalid?: boolean; trailing?: React.ReactNode }) {
   return (
     <div className="group relative">
       <Icon
@@ -233,34 +188,19 @@ function IconInput({
       <input
         {...props}
         aria-invalid={invalid}
-        className={cn(
-          "border-input bg-card h-11 w-full rounded-lg border pl-9 text-sm transition-[border-color,box-shadow]",
-          trailing ? "pr-11" : "pr-3",
-          "hover:border-foreground/40 focus-visible:border-primary focus-visible:ring-primary/20 focus-visible:ring-4 focus-visible:outline-none",
-          "aria-[invalid=true]:border-destructive aria-[invalid=true]:focus-visible:ring-destructive/20",
-        )}
+        className={cn(fieldClass, "h-10 pl-9", trailing ? "pr-10" : "pr-3", className)}
       />
-      {trailing && <div className="absolute top-1/2 right-1.5 -translate-y-1/2">{trailing}</div>}
+      {trailing && <div className="absolute top-1/2 right-1 -translate-y-1/2">{trailing}</div>}
     </div>
   );
 }
 
 function FieldError({ id, msg }: { id: string; msg?: string }) {
+  if (!msg) return null;
   return (
-    <AnimatePresence initial={false}>
-      {msg && (
-        <motion.p
-          id={id}
-          role="alert"
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="text-destructive overflow-hidden text-xs"
-        >
-          {msg}
-        </motion.p>
-      )}
-    </AnimatePresence>
+    <p id={id} role="alert" className="animate-page-in text-destructive text-xs">
+      {msg}
+    </p>
   );
 }
 
@@ -278,9 +218,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterInput>({
-    resolver: zodResolver(
-      isRegister ? registerSchema : (loginSchema as unknown as typeof registerSchema),
-    ),
+    resolver: zodResolver(isRegister ? registerSchema : (loginSchema as unknown as typeof registerSchema)),
   });
   const password = watch("password") ?? "";
   const shownRole: RoleKey = isRegister ? "candidate" : role;
@@ -289,12 +227,10 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   async function onSubmit(values: RegisterInput) {
     try {
       await api(`/api/auth/${mode}`, { method: "POST", body: values });
-      toast.success(isRegister ? "Account created. Welcome!" : "Signed in");
-      router.push("/dashboard");
+      router.replace("/dashboard");
       router.refresh();
     } catch (e) {
-      if (!applyFieldErrors(e, setError))
-        toast.error(e instanceof Error ? e.message : "Something went wrong");
+      if (!applyFieldErrors(e, setError)) toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
   }
 
@@ -310,25 +246,20 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   ];
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-dvh lg:h-dvh lg:overflow-hidden">
       <Showcase role={shownRole} />
 
-      <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 px-4 py-10 sm:px-6">
-        <Link href="/" className="flex flex-col items-center gap-2 text-center lg:hidden">
-          <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-lg font-mono text-sm font-semibold">
+      <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-5 overflow-y-auto px-4 py-8 sm:px-6">
+        <Link href="/" className="flex items-center gap-2.5 lg:hidden">
+          <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-md font-mono text-xs font-semibold">
             n/
           </span>
-          <strong className="font-semibold">null-portal</strong>
-          <span className="text-muted-foreground text-sm">Secure examination management</span>
+          <strong className="font-semibold tracking-tight">null-portal</strong>
         </Link>
 
-        <div className="bg-card shadow-elev-2 animate-page-in w-full max-w-[420px] space-y-6 rounded-lg border p-6 sm:p-7">
+        <div className="animate-page-in w-full max-w-[400px] space-y-5">
           {!isRegister && (
-            <div
-              role="tablist"
-              aria-label="Sign in as"
-              className="bg-muted/60 grid grid-cols-3 gap-1 rounded-lg border p-1"
-            >
+            <div role="tablist" aria-label="Sign in as" className="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1">
               {ROLE_TABS.map((t) => {
                 const on = role === t.key;
                 return (
@@ -339,154 +270,143 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
                     aria-selected={on}
                     onClick={() => setRole(t.key)}
                     className={cn(
-                      "relative h-10 rounded-lg text-sm font-medium transition-colors motion-safe:active:scale-[0.97]",
-                      on ? "text-background" : "text-muted-foreground hover:text-foreground",
+                      "h-9 rounded-md text-sm font-medium transition-[background-color,color,box-shadow] duration-150",
+                      on ? "bg-card text-foreground shadow-elev-1" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    {on && (
-                      <motion.span
-                        layoutId="role-pill"
-                        className="bg-foreground shadow-elev-1 absolute inset-0 rounded-lg"
-                        transition={{ type: "spring", stiffness: 500, damping: 38 }}
-                      />
-                    )}
-                    <span className="relative">{t.label}</span>
+                    {t.label}
                   </button>
                 );
               })}
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {isRegister ? "Create your account" : "Sign in"}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {isRegister
-                ? "Public registration creates a candidate account. Examiners and admins are added by an administrator."
-                : `Continue as ${tab.label.toLowerCase()}. Your role comes from your account.`}
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-            {isRegister && (
-              <div className="space-y-1.5">
-                <label htmlFor="name" className="text-sm font-medium">Full name</label>
-                <IconInput
-                  id="name"
-                  icon={User}
-                  autoComplete="name"
-                  invalid={!!errors.name}
-                  aria-describedby={errors.name ? "name-error" : undefined}
-                  {...register("name")}
-                />
-                <FieldError id="name-error" msg={errors.name?.message} />
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
-              <IconInput
-                id="email"
-                type="email"
-                icon={Mail}
-                autoComplete="email"
-                invalid={!!errors.email}
-                aria-describedby={errors.email ? "email-error" : undefined}
-                {...register("email")}
-              />
-              <FieldError id="email-error" msg={errors.email?.message} />
+          <div className="bg-card shadow-elev-2 space-y-5 rounded-lg border p-6">
+            <div className="space-y-1">
+              <h2 className="text-xl font-semibold tracking-tight">
+                {isRegister ? "Create your account" : "Sign in"}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {isRegister
+                  ? "Registration creates a candidate account."
+                  : `Continue as ${tab.label.toLowerCase()}. Your role is set by your account.`}
+              </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="password" className="text-sm font-medium">Password</label>
-              <IconInput
-                id="password"
-                type={showPw ? "text" : "password"}
-                icon={Lock}
-                autoComplete={isRegister ? "new-password" : "current-password"}
-                invalid={!!errors.password}
-                aria-describedby={errors.password ? "password-error" : undefined}
-                onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
-                {...register("password")}
-                trailing={
-                  <button
-                    type="button"
-                    onClick={() => setShowPw((s) => !s)}
-                    aria-label={showPw ? "Hide password" : "Show password"}
-                    aria-pressed={showPw}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-                  >
-                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                }
-              />
-              <FieldError id="password-error" msg={errors.password?.message} />
-              {capsLock && (
-                <p className="text-warning text-xs" role="status">Caps Lock is on.</p>
-              )}
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-3.5">
               {isRegister && (
-                <ul className="flex flex-wrap gap-x-4 gap-y-1 pt-1" aria-label="Password rules">
-                  {pwRules.map((r) => (
-                    <li
-                      key={r.text}
-                      className={cn(
-                        "flex items-center gap-1.5 text-xs transition-colors",
-                        r.ok ? "text-success" : "text-muted-foreground",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "flex h-4 w-4 items-center justify-center rounded-full border transition-all",
-                          r.ok ? "border-success bg-success text-white" : "border-input",
-                        )}
-                      >
-                        {r.ok && <Check className="h-3 w-3" strokeWidth={3} />}
-                      </span>
-                      {r.text}
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-1.5">
+                  <label htmlFor="name" className="text-sm font-medium">Full name</label>
+                  <IconInput
+                    id="name"
+                    icon={User}
+                    autoComplete="name"
+                    invalid={!!errors.name}
+                    aria-describedby={errors.name ? "name-error" : undefined}
+                    {...register("name")}
+                  />
+                  <FieldError id="name-error" msg={errors.name?.message} />
+                </div>
               )}
-            </div>
 
-            <Button type="submit" size="lg" className="w-full" disabled={isSubmitting}>
-              {isSubmitting && <Spinner />}
-              {isRegister ? "Create account" : "Sign in"}
-              {!isSubmitting && (
-                <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-0.5" />
-              )}
-            </Button>
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="text-sm font-medium">Email</label>
+                <IconInput
+                  id="email"
+                  type="email"
+                  icon={Mail}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  invalid={!!errors.email}
+                  aria-describedby={errors.email ? "email-error" : undefined}
+                  {...register("email")}
+                />
+                <FieldError id="email-error" msg={errors.email?.message} />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="password" className="text-sm font-medium">Password</label>
+                <IconInput
+                  id="password"
+                  type={showPw ? "text" : "password"}
+                  icon={Lock}
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  invalid={!!errors.password}
+                  aria-describedby={errors.password ? "password-error" : undefined}
+                  onKeyUp={(e) => setCapsLock(e.getModifierState("CapsLock"))}
+                  {...register("password")}
+                  trailing={
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      aria-label={showPw ? "Hide password" : "Show password"}
+                      aria-pressed={showPw}
+                      className="text-muted-foreground hover:text-foreground flex h-8 w-8 items-center justify-center rounded-md transition-colors"
+                    >
+                      {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  }
+                />
+                <FieldError id="password-error" msg={errors.password?.message} />
+                {capsLock && <p className="text-warning text-xs" role="status">Caps Lock is on.</p>}
+                {isRegister && (
+                  <ul className="flex flex-wrap gap-x-4 gap-y-1 pt-0.5" aria-label="Password rules">
+                    {pwRules.map((r) => (
+                      <li
+                        key={r.text}
+                        className={cn("flex items-center gap-1.5 text-xs transition-colors", r.ok ? "text-success" : "text-muted-foreground")}
+                      >
+                        <span
+                          className={cn(
+                            "flex h-3.5 w-3.5 items-center justify-center rounded-full transition-colors",
+                            r.ok ? "bg-success text-white" : "bg-muted-foreground/25",
+                          )}
+                        >
+                          {r.ok && <Check className="h-2.5 w-2.5" strokeWidth={3} />}
+                        </span>
+                        {r.text}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting && <Spinner />}
+                {isRegister ? "Create account" : "Sign in"}
+                {!isSubmitting && <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-0.5" />}
+              </Button>
+            </form>
 
             {!isRegister && (
               <button
                 type="button"
                 onClick={fillDemo}
-                className="border-input text-muted-foreground hover:border-primary hover:text-foreground hover:bg-accent/50 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed py-2.5 text-xs transition-colors"
+                className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors"
               >
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                Use demo {tab.label.toLowerCase()} · <span className="font-mono">{tab.demo}</span>
+                <Sparkles className="text-primary h-3.5 w-3.5" aria-hidden="true" />
+                Fill demo {tab.label.toLowerCase()}
+                <span className="font-mono">({tab.demo})</span>
               </button>
             )}
-          </form>
+          </div>
 
           <p className="text-muted-foreground text-center text-sm">
             {isRegister ? "Already have an account? " : "New candidate? "}
             <Link
               href={isRegister ? "/login" : "/register"}
-              className="text-foreground font-semibold underline-offset-4 hover:underline"
+              className="text-foreground font-medium underline-offset-4 hover:underline"
             >
               {isRegister ? "Sign in" : "Create an account"}
             </Link>
+            <span className="lg:hidden">
+              {" · "}
+              <Link href="/verify" className="text-foreground font-medium underline-offset-4 hover:underline">
+                Verify a report
+              </Link>
+            </span>
           </p>
         </div>
-
-        <Link
-          href="/verify"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm transition-colors lg:hidden"
-        >
-          <ShieldCheck className="h-4 w-4" /> Verify a result report
-        </Link>
       </main>
     </div>
   );
