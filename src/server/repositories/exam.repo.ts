@@ -34,6 +34,11 @@ type SummaryRow = {
   enrollment_count: number;
   ends_in_future: boolean;
   created_at: Date;
+  updated_at: Date;
+  started_attempts: number;
+  close_reason: string | null;
+  cancelled: boolean;
+  content_changed_at: Date | null;
 };
 
 /** Phase is always derived from stored status + PostgreSQL now() (never app server/client clock). */
@@ -52,7 +57,9 @@ const SUMMARY_SELECT = `
          ${PHASE_SQL} AS phase,
          e.shuffle_questions, e.shuffle_options, e.multi_scoring,
          e.negative_marking, e.show_answers, e.recovery_window_seconds,
-         e.results_published_at, e.created_at,
+         e.results_published_at, e.created_at, e.updated_at,
+         e.close_reason, e.cancelled, e.content_changed_at,
+         (SELECT count(*)::int FROM real_attempts ra WHERE ra.exam_id = e.id) AS started_attempts,
          (e.ends_at > now()) AS ends_in_future,
          COALESCE(eq.total_marks, 0)::numeric AS total_marks,
          COALESCE(eq.question_count, 0)::int AS question_count,
@@ -96,6 +103,13 @@ const toSummary = (r: SummaryRow): ExamSummary => ({
   enrollmentCount: r.enrollment_count,
   endsInFuture: r.ends_in_future,
   createdAt: r.created_at.toISOString(),
+  updatedAt: r.updated_at.toISOString(),
+  startedAttempts: r.started_attempts,
+  closeReason: r.close_reason,
+  cancelled: r.cancelled,
+  contentChangedAt: r.content_changed_at
+    ? r.content_changed_at.toISOString()
+    : null,
 });
 
 export const examRepo = {
@@ -122,15 +136,61 @@ export const examRepo = {
     return rows.map(toSummary);
   },
 
-  async findById(id: string, ownerId?: string): Promise<ExamSummary | null> {
+  /**
+   * With `c` the read runs inside that transaction; with `lock` the exam row is locked
+   * (FOR UPDATE) so phase checks and the write that follows cannot race an attempt start.
+   */
+  async findById(
+    id: string,
+    ownerId?: string,
+    opts: { c?: PoolClient; lock?: boolean } = {},
+  ): Promise<ExamSummary | null> {
     const params: unknown[] = [id];
     let filter = "WHERE e.id = $1";
     if (ownerId) {
       params.push(ownerId);
       filter += " AND e.owner_id = $2";
     }
-    const rows = await query<SummaryRow>(`${SUMMARY_SELECT} ${filter}`, params);
+    const sql = `${SUMMARY_SELECT} ${filter}${opts.lock ? " FOR UPDATE OF e" : ""}`;
+    const rows = opts.c
+      ? (await opts.c.query<SummaryRow>(sql, params)).rows
+      : await query<SummaryRow>(sql, params);
     return rows[0] ? toSummary(rows[0]) : null;
+  },
+
+  /** Transactional exam write helper: run one UPDATE with a bumped updated_at. */
+  async patchInTx(
+    c: PoolClient,
+    id: string,
+    sets: Record<string, unknown>,
+    opts: { contentChanged?: boolean } = {},
+  ) {
+    const cols = Object.keys(sets);
+    const assigns = cols.map((k, i) => `${k} = $${i + 2}`);
+    assigns.push("updated_at = now()");
+    if (opts.contentChanged) assigns.push("content_changed_at = now()");
+    await c.query(`UPDATE exams SET ${assigns.join(", ")} WHERE id = $1`, [
+      id,
+      ...cols.map((k) => sets[k]),
+    ]);
+  },
+
+  async countOwnedOrAssignedQuestions(
+    c: PoolClient,
+    examId: string,
+    ownerId: string,
+    questionIds: string[],
+  ): Promise<number> {
+    if (questionIds.length === 0) return 0;
+    const r = await c.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM questions q
+       WHERE NOT q.archived AND q.id = ANY($2::uuid[])
+         AND (q.owner_id = $1
+              OR EXISTS (SELECT 1 FROM exam_questions eq
+                         WHERE eq.exam_id = $3 AND eq.question_id = q.id))`,
+      [ownerId, questionIds, examId],
+    );
+    return r.rows[0].n;
   },
 
   async listQuestions(examId: string): Promise<ExamQuestionRow[]> {

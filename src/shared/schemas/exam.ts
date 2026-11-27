@@ -41,7 +41,7 @@ export function windowErrors(v: {
 
 const fields = {
   title: z.string().trim().min(3, "Title must be at least 3 characters").max(120, "Title is too long"),
-  instructions: z.string().trim().max(4000, "Instructions are too long").default(""),
+  instructions: z.string().trim().max(4000, "Instructions are too long"),
   startsAt: iso,
   endsAt: iso,
   durationMinutes: z
@@ -65,16 +65,42 @@ const fields = {
 };
 const fieldsObject = z.object(fields);
 
-export const examInputSchema = fieldsObject.superRefine((v, ctx) => {
-  for (const [path, message] of Object.entries(windowErrors(v)))
-    ctx.addIssue({ code: "custom", path: [path], message });
-});
+export const examInputSchema = fieldsObject
+  .extend({ instructions: fields.instructions.default("") })
+  .superRefine((v, ctx) => {
+    for (const [path, message] of Object.entries(windowErrors(v)))
+      ctx.addIssue({ code: "custom", path: [path], message });
+  });
 export type ExamInput = z.input<typeof examInputSchema>;
 export type ExamValues = z.output<typeof examInputSchema>;
 
 /** PATCH: any subset. Cross-field window rules are re-checked on the merged record in the service. */
-export const examPatchSchema = fieldsObject.partial();
+export const examPatchSchema = fieldsObject
+  .partial()
+  .extend({ updatedAt: iso.optional() });
 export type ExamPatch = z.infer<typeof examPatchSchema>;
+
+/** Admin: close or cancel an exam. A reason is mandatory and audited. */
+export const adminCloseSchema = z.object({
+  action: z.enum(["CLOSE", "CANCEL"]),
+  reason: z.string().trim().min(5, "Give a reason (at least 5 characters)").max(500),
+});
+export type AdminCloseInput = z.infer<typeof adminCloseSchema>;
+
+/** Admin: hand an exam to another active examiner. */
+export const reassignOwnerSchema = z.object({
+  ownerId: z.uuid(),
+  reason: z.string().trim().max(500).optional(),
+});
+
+/** Examiner: audited answer-key correction for a completed exam. */
+export const rescoreSchema = z.object({
+  questionId: z.uuid(),
+  correctOptionIds: z.array(z.number().int()).min(1, "Pick at least one correct option").max(20),
+  reason: z.string().trim().min(3, "Give a reason (at least 3 characters)").max(500),
+  updatedAt: iso.optional(),
+});
+export type RescoreInput = z.infer<typeof rescoreSchema>;
 
 export const examQuestionsSchema = z.object({
   items: z
@@ -89,6 +115,7 @@ export const examQuestionsSchema = z.object({
       }),
     )
     .max(200, "At most 200 questions"),
+  updatedAt: iso.optional(),
 });
 export type ExamQuestionsInput = z.infer<typeof examQuestionsSchema>;
 
@@ -135,6 +162,14 @@ export type ExamSummary = {
   enrollmentCount: number;
   endsInFuture: boolean;
   createdAt: string;
+  /** Optimistic-concurrency token: send back unchanged with every edit. */
+  updatedAt: string;
+  /** Real (non-sandbox) attempts that have started. */
+  startedAttempts: number;
+  closeReason: string | null;
+  cancelled: boolean;
+  /** When candidate-visible content last changed after publishing. */
+  contentChangedAt: string | null;
 };
 export type ExamQuestionRow = {
   questionId: string;

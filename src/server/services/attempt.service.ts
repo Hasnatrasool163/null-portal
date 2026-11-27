@@ -230,7 +230,9 @@ export const attemptService = {
         accessStatus = "MISSED";
         accessReason =
           r.status === "CLOSED"
-            ? "Exam was closed by examiner"
+            ? r.cancelled
+              ? "Exam was cancelled"
+              : "Exam was closed by examiner"
             : "Exam window has ended";
       } else {
         accessStatus = "CAN_START";
@@ -260,6 +262,11 @@ export const attemptService = {
             ? Number(r.total_score)
             : null,
         receiptCode: r.receipt_code,
+        changedAt:
+          r.attempt_id === null && r.content_changed_at
+            ? r.content_changed_at.toISOString()
+            : null,
+        cancelReason: r.cancelled ? r.close_reason : null,
       };
     });
   },
@@ -284,19 +291,21 @@ export const attemptService = {
         negative_marking: number;
         show_answers: boolean;
         recovery_window_seconds: number;
+        instructions: string;
         enrolled: boolean;
         server_now: Date;
       }>(
         `SELECT e.id, e.status, e.starts_at, e.ends_at, e.duration_minutes,
                 e.shuffle_questions, e.shuffle_options, e.multi_scoring,
                 e.negative_marking, e.show_answers, e.recovery_window_seconds,
-                now() AS server_now,
+                e.instructions, now() AS server_now,
                 EXISTS (
                   SELECT 1 FROM enrollments en
                   WHERE en.exam_id = e.id AND en.candidate_id = $2
                 ) AS enrolled
          FROM exams e
-         WHERE e.id = $1`,
+         WHERE e.id = $1
+         FOR SHARE OF e`,
         [examId, user.id],
       );
       const ex = exRes.rows[0];
@@ -338,11 +347,12 @@ export const attemptService = {
       const ins = await c.query<{ id: string }>(
         `INSERT INTO attempts (
            exam_id, candidate_id, is_sandbox, seed, deadline_at,
-           multi_scoring, negative_marking, show_answers, recovery_window_seconds
+           multi_scoring, negative_marking, show_answers, recovery_window_seconds,
+           duration_minutes, instructions_snapshot
          ) VALUES (
            $1, $2, false, $3,
            LEAST(now() + ($4 || ' minutes')::interval, $5::timestamptz),
-           $6, $7, $8, $9
+           $6, $7, $8, $9, $10::int, $11
          )
          ON CONFLICT (exam_id, candidate_id) WHERE NOT is_sandbox DO NOTHING
          RETURNING id`,
@@ -356,6 +366,8 @@ export const attemptService = {
           ex.negative_marking,
           ex.show_answers,
           ex.recovery_window_seconds,
+          ex.duration_minutes,
+          ex.instructions,
         ],
       );
 

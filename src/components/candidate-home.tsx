@@ -75,6 +75,13 @@ function ExamCard({
             {item.instructions}
           </p>
         )}
+        {item.changedAt && (
+          <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+            Changed: the examiner updated this exam on{" "}
+            {format(new Date(item.changedAt), "PP p")}. Check the schedule and
+            instructions above.
+          </p>
+        )}
 
         <div className="flex items-center justify-between gap-2 pt-1">
           {item.accessStatus === "CAN_START" && (
