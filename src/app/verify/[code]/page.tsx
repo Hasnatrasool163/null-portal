@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/misc";
 import { Button } from "@/components/ui/button";
 import { secondaryService } from "@/server/services/secondary.service";
+import { VerifyLookup } from "@/components/verify-lookup";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Verify Report" };
@@ -24,7 +25,7 @@ export default async function VerifyReportPage({
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-4 py-12">
-      <Card>
+      <Card className="animate-page-in">
         <CardHeader>
           <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
             null-portal · Credential Verification
@@ -50,7 +51,7 @@ export default async function VerifyReportPage({
               <code className="bg-muted rounded px-1.5 py-0.5 font-mono">
                 {code}
               </code>
-              .
+              . Check the code and try again.
             </p>
           ) : (
             <>
@@ -112,9 +113,10 @@ export default async function VerifyReportPage({
             </>
           )}
 
+          {!data && <VerifyLookup initial={code} />}
           <div className="pt-2">
             <Button asChild variant="outline" size="sm">
-              <Link href="/">Back to null-portal</Link>
+              <Link href="/verify">Verify another code</Link>
             </Button>
           </div>
         </CardContent>

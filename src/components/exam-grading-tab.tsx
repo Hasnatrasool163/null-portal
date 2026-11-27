@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { CheckCircle2, ClipboardCheck, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -174,6 +175,8 @@ export function ExamGradingTab({
     onError: (e) => toast.error(e.message),
   });
 
+  const paged = usePaged(grading.data?.attempts ?? [], 10);
+
   if (grading.isPending) return <Skeleton className="h-48 w-full" />;
   if (grading.isError) {
     return (
@@ -238,7 +241,7 @@ export function ExamGradingTab({
             </TR>
           </THead>
           <TBody>
-            {data.attempts.map((a) => (
+            {paged.slice.map((a) => (
               <TR key={a.attemptId}>
                 <TD>
                   <p className="font-medium">{a.candidateName}</p>
@@ -310,6 +313,14 @@ export function ExamGradingTab({
           </TBody>
         </Table>
       )}
+
+      <Pagination
+        page={paged.page}
+        pageSize={paged.pageSize}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="attempts"
+      />
 
       <Dialog
         open={activeAttempt !== undefined}

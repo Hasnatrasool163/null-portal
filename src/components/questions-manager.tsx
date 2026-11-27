@@ -10,7 +10,8 @@ import { useDebounce } from "use-debounce";
 import { Copy, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -111,7 +112,6 @@ export function QuestionsManager() {
   });
 
   const total = list.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = !!(q || topicId || difficulty || type);
 
   return (
@@ -138,15 +138,14 @@ export function QuestionsManager() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="Search question text..."
-          aria-label="Search questions"
+        <SearchInput
+          label="Search questions"
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+          onChange={(v) => {
+            setSearch(v);
             setPage(1);
           }}
+          phrases={["binary search", "TCP handshake", "derivative of x²", "normalization"]}
         />
         <Select
           className="w-44"
@@ -297,31 +296,13 @@ export function QuestionsManager() {
         </Table>
       )}
 
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            Page {page} of {pages} ({total} questions)
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPage={setPage}
+        noun="questions"
+      />
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent

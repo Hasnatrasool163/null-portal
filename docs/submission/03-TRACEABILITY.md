@@ -15,6 +15,6 @@
 
 ## 2. Honest Gaps & Trade-offs
 - **Innovation 5.2 (Blueprint difficulty balancing)** was scoped as optional after 5.3 and was not implemented so full focus remained on rock-solid execution and verification of 5.3 and all 8 secondary features.
-- **Sketch pad persistence**: Scratchpad text notes autosave to PostgreSQL (`attempts.scratchpad`) and persist across refreshes/devices; the optional freehand drawing canvas is session-local (cleared on page reload).
-- **Scrolling vs Single-question layout**: Workspace preferences persist `layout` (`single` / `scroll`), font size, theme (including High Contrast), palette position, and subtle timer; the exam workspace currently renders the primary paginated question view with keyboard shortcuts and jump palette.
+- **Sketch pad persistence**: Scratchpad text notes autosave to PostgreSQL (`attempts.scratchpad`) and follow the candidate across devices. The freehand sketch (pen/eraser, 3 inks, 2 widths, undo/redo, DPR-sharp) is stored on the device per attempt (`localStorage`) and cleared after submission; it is never sent to the server or graded.
+- **Workspace layouts**: Preferences (`/api/me/preferences`) now drive both layouts: one question at a time, or a scrolling paper with an in-view tracker; navigator as a side panel or a bottom bar; question text size via one CSS variable. The workspace theme applies only inside the exam and the app theme is restored afterwards.
 - **Local PostgreSQL deployment**: Currently configured and verified against local PostgreSQL 17; ready to deploy to Vercel + hosted Postgres (Neon/Supabase) by setting `DATABASE_URL`, `DATABASE_SSL=true`, and `SESSION_SECRET`.

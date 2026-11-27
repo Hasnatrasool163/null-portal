@@ -13,7 +13,9 @@ import {
   Flag,
   HelpCircle,
   LayoutGrid,
+  Maximize2,
   Megaphone,
+  Minimize2,
   NotebookPen,
   RotateCcw,
   Send,
@@ -27,9 +29,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/blocks";
-import { ScratchpadDrawer } from "@/components/scratchpad-drawer";
+import {
+  ScratchpadDrawer,
+  clearLocalSketch,
+} from "@/components/scratchpad-drawer";
 import {
   PreferencesDialog,
+  useApplyWorkspaceTheme,
   useWorkspacePreferences,
 } from "@/components/preferences-dialog";
 import { useNetworkStatus } from "@/lib/use-network-status";
@@ -38,7 +44,7 @@ import {
   getQueuedAnswers,
   removeQueuedAnswers,
 } from "@/lib/offline-queue";
-import { api } from "@/lib/api-client";
+import { ApiClientError, api } from "@/lib/api-client";
 import type { SyncBatchResponse } from "@/shared/schemas/sync";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type { AttemptState, SubmitResult } from "@/shared/schemas/attempt";
@@ -71,7 +77,9 @@ function isAnswered(a: DraftAnswer | undefined) {
   return a.selectedOptionIds.length > 0 || a.textAnswer.trim().length > 0;
 }
 
-function buildInitialDrafts(attempt: AttemptState): Record<string, DraftAnswer> {
+function buildInitialDrafts(
+  attempt: AttemptState,
+): Record<string, DraftAnswer> {
   const initial: Record<string, DraftAnswer> = {};
   for (const q of attempt.questions) {
     initial[q.id] = {
@@ -120,7 +128,9 @@ export function ExamWorkspace({ attemptId }: { attemptId: string }) {
       />
     );
   }
-  return <AttemptSession key={attemptQuery.data.id} attempt={attemptQuery.data} />;
+  return (
+    <AttemptSession key={attemptQuery.data.id} attempt={attemptQuery.data} />
+  );
 }
 
 function AttemptSession({ attempt }: { attempt: AttemptState }) {
@@ -135,6 +145,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   const [scratchpadOpen, setScratchpadOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const { prefs } = useWorkspacePreferences();
+  useApplyWorkspaceTheme(prefs.theme);
+  const [timeUp, setTimeUp] = useState(false);
+  const [offlineBlock, setOfflineBlock] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
   const [saveChip, setSaveChip] = useState<SaveChip>("saved");
   const [queuedCount, setQueuedCount] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, DraftAnswer>>(() =>
@@ -157,7 +171,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     deadlineMs: number;
   } | null>(null);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const flushRef = useRef<() => Promise<number>>(async () => 0);
+  const wasFailingRef = useRef(false);
+  const autoRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSubmitRef = useRef<() => Promise<void>>(async () => {});
   const backoffRef = useRef(2000);
   const syncingRef = useRef(false);
   const autoSubmittedRef = useRef(false);
@@ -176,22 +193,26 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     };
   }, [attempt.serverNow, attempt.deadlineAt]);
 
+  function onSubmitted(res: SubmitResult) {
+    setConfirmSubmit(false);
+    setTimeUp(false);
+    setSubmittedResult(res);
+    clearLocalSketch(attemptId);
+    qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
+    qc.invalidateQueries({ queryKey: ["my-exams"] });
+    toast.success(
+      res.submitReason === "TIMEOUT"
+        ? "Time is up. Your attempt has been submitted."
+        : "Exam submitted.",
+    );
+  }
+
   const submitMutation = useMutation({
     mutationFn: () =>
       api<SubmitResult>(`/api/attempts/${attemptId}/submit`, {
         method: "POST",
       }),
-    onSuccess: (res) => {
-      setConfirmSubmit(false);
-      setSubmittedResult(res);
-      qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
-      qc.invalidateQueries({ queryKey: ["my-exams"] });
-      toast.success(
-        res.submitReason === "TIMEOUT"
-          ? "Time is up. Your attempt has been submitted."
-          : "Exam submitted.",
-      );
-    },
+    onSuccess: (res) => onSubmitted(res),
     onError: (e) => {
       setConfirmSubmit(false);
       toast.error(e.message);
@@ -199,36 +220,47 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   });
 
   // Flush the durable IndexedDB queue to POST /api/attempts/[id]/sync with exponential backoff.
-  const flushQueue = useCallback(async () => {
-    if (syncingRef.current) return;
+  const flushQueue = useCallback(async (): Promise<number> => {
+    if (syncingRef.current) return (await getQueuedAnswers(attemptId)).length;
     const queued = await getQueuedAnswers(attemptId);
     setQueuedCount(queued.length);
     if (queued.length === 0) {
       setSaveChip("saved");
-      return;
+      return 0;
     }
     syncingRef.current = true;
     setSaveChip("saving");
     try {
-      const res = await api<SyncBatchResponse>(`/api/attempts/${attemptId}/sync`, {
-        method: "POST",
-        body: {
-          items: queued.map((q) => ({
-            attemptQuestionId: q.attemptQuestionId,
-            selectedOptionIds: q.selectedOptionIds,
-            textAnswer: q.textAnswer,
-            markedForReview: q.markedForReview,
-            seq: q.seq,
-            capturedElapsedMs: q.capturedElapsedMs,
-          })),
+      const res = await api<SyncBatchResponse>(
+        `/api/attempts/${attemptId}/sync`,
+        {
+          method: "POST",
+          body: {
+            items: queued.map((q) => ({
+              attemptQuestionId: q.attemptQuestionId,
+              selectedOptionIds: q.selectedOptionIds,
+              textAnswer: q.textAnswer,
+              markedForReview: q.markedForReview,
+              seq: q.seq,
+              capturedElapsedMs: q.capturedElapsedMs,
+            })),
+          },
         },
-      });
+      );
       backoffRef.current = 2000;
       const doneKeys = queued.map((q) => q.key);
       await removeQueuedAnswers(attemptId, doneKeys);
       const remaining = await getQueuedAnswers(attemptId);
       setQueuedCount(remaining.length);
       setSaveChip(remaining.length === 0 ? "saved" : "unsaved");
+      if (wasFailingRef.current) {
+        wasFailingRef.current = false;
+        const synced = queued.length - res.rejected;
+        if (synced > 0)
+          toast.success(
+            `${synced} answer${synced === 1 ? "" : "s"} synced to the server`,
+          );
+      }
 
       if (res.acceptedLate > 0) {
         toast.info(
@@ -243,7 +275,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       if (res.attemptStatus === "SUBMITTED") {
         qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
       }
+      return remaining.length;
     } catch {
+      wasFailingRef.current = true;
       setSaveChip("error");
       // Schedule exponential backoff retry (2s -> 4s -> 8s -> 15s).
       const delay = backoffRef.current;
@@ -252,6 +286,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       flushTimerRef.current = setTimeout(() => {
         void flushRef.current();
       }, delay);
+      return queued.length;
     } finally {
       syncingRef.current = false;
     }
@@ -292,7 +327,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
   // Write locally to IndexedDB first, then debounce network flush (~600ms).
   const updateDraft = useCallback(
-    (aqId: string, updater: (prev: DraftAnswer) => Omit<DraftAnswer, "seq">) => {
+    (
+      aqId: string,
+      updater: (prev: DraftAnswer) => Omit<DraftAnswer, "seq">,
+    ) => {
       setDrafts((prev) => {
         const cur = prev[aqId] ?? {
           selectedOptionIds: [],
@@ -305,7 +343,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
         const estServerNow = clk
           ? clk.serverNowMs + (performance.now() - clk.anchorPerfMs)
           : Date.now();
-        const capturedElapsedMs = Math.max(0, Math.round(estServerNow - startedAtMs));
+        const capturedElapsedMs = Math.max(
+          0,
+          Math.round(estServerNow - startedAtMs),
+        );
 
         setSaveChip("unsaved");
         void enqueueAnswer({
@@ -332,15 +373,86 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     [attemptId, flushQueue, startedAtMs],
   );
 
-  // Flush durable queue before final submit.
+  // Flush the durable queue first. Never submit while answers exist only on this device.
   const flushAllAndSubmit = useCallback(async () => {
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
     }
-    await flushQueue();
+    const remaining = await flushQueue();
+    if (remaining > 0) {
+      setConfirmSubmit(false);
+      setOfflineBlock(remaining);
+      return;
+    }
     submitMutation.mutate();
   }, [flushQueue, submitMutation]);
+
+  // Time-up: sync, then submit; keep retrying quietly while offline. The server
+  // also finalises lazily at the deadline, so nothing is lost if this never succeeds.
+  const autoSubmit = useCallback(async () => {
+    setTimeUp(true);
+    const retry = () => {
+      if (autoRetryRef.current) clearTimeout(autoRetryRef.current);
+      autoRetryRef.current = setTimeout(
+        () => void autoSubmitRef.current(),
+        4000,
+      );
+    };
+    const remaining = await flushQueue();
+    if (remaining > 0) return retry();
+    try {
+      const res = await api<SubmitResult>(`/api/attempts/${attemptId}/submit`, {
+        method: "POST",
+      });
+      onSubmitted(res);
+    } catch (e) {
+      if (e instanceof ApiClientError && e.status !== 0) {
+        // Server already finalised it (e.g. 409): show the submitted state.
+        qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
+        return;
+      }
+      retry();
+    }
+    // onSubmitted only touches state setters and the query client.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attemptId, flushQueue, qc]);
+
+  useEffect(() => {
+    autoSubmitRef.current = autoSubmit;
+  }, [autoSubmit]);
+
+  useEffect(
+    () => () => {
+      if (autoRetryRef.current) clearTimeout(autoRetryRef.current);
+    },
+    [],
+  );
+
+  // Warn before leaving while answers exist only on this device.
+  useEffect(() => {
+    if (queuedCount === 0) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [queuedCount]);
+
+  useEffect(() => {
+    const onFs = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement)
+      void document.exitFullscreen().catch(() => {});
+    else
+      void document.documentElement
+        .requestFullscreen()
+        .catch(() =>
+          toast.error("Full screen is not available in this browser."),
+        );
+  }
 
   // Monotonic countdown tick + accessibility announcements + auto-submit at 0.
   useEffect(() => {
@@ -367,11 +479,11 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       if (left <= 0 && !autoSubmittedRef.current) {
         autoSubmittedRef.current = true;
         setAnnouncement("Time is up. Submitting your exam.");
-        void flushAllAndSubmit();
+        void autoSubmit();
       }
     }, 500);
     return () => clearInterval(id);
-  }, [attempt, submittedResult, flushAllAndSubmit]);
+  }, [attempt, submittedResult, autoSubmit]);
 
   const net = useNetworkStatus({
     enabled: attempt.status === "IN_PROGRESS" && !submittedResult,
@@ -385,7 +497,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     },
     onReconnect: (offlineSeconds) => {
       backoffRef.current = 2000;
-      void flushQueue();
+      if (autoSubmittedRef.current) void autoSubmitRef.current();
+      else void flushQueue();
       if (!attempt.isSandbox) {
         void api(`/api/attempts/${attemptId}/incidents`, {
           method: "POST",
@@ -451,7 +564,11 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
   // Advisory browser-signal listeners (never penalize; skipped in sandbox).
   useEffect(() => {
-    if (attempt.status !== "IN_PROGRESS" || attempt.isSandbox || submittedResult)
+    if (
+      attempt.status !== "IN_PROGRESS" ||
+      attempt.isSandbox ||
+      submittedResult
+    )
       return;
     const report = (type: IncidentType) => {
       void api(`/api/attempts/${attemptId}/incidents`, {
@@ -482,11 +599,43 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   }, [attempt.status, attempt.isSandbox, attemptId, submittedResult]);
 
   const currentQuestion = attempt?.questions[index];
-  const currentDraft = currentQuestion ? drafts[currentQuestion.id] : undefined;
+
+  // Move to a question: page in single mode, smooth-scroll in scrolling mode.
+  const jumpTo = useCallback(
+    (i: number) => {
+      const n = Math.max(0, Math.min(attempt.questions.length - 1, i));
+      setIndex(n);
+      if (prefs.layout === "scroll")
+        document
+          .getElementById(`q-${n}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [attempt.questions.length, prefs.layout],
+  );
+
+  // Scrolling mode: highlight the question currently in view.
+  useEffect(() => {
+    if (prefs.layout !== "scroll" || reviewMode) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const en of entries)
+          if (en.isIntersecting)
+            setIndex(Number((en.target as HTMLElement).dataset.qindex));
+      },
+      { rootMargin: "-35% 0px -60% 0px" },
+    );
+    document.querySelectorAll("[data-qindex]").forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, [prefs.layout, reviewMode, attempt.questions.length]);
 
   // Keyboard shortcuts: Left/Right navigate, 1-9 select option, f flag (disabled while typing in textarea/input).
   useEffect(() => {
-    if (!attempt || attempt.status !== "IN_PROGRESS" || reviewMode || confirmSubmit)
+    if (
+      !attempt ||
+      attempt.status !== "IN_PROGRESS" ||
+      reviewMode ||
+      confirmSubmit
+    )
       return;
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -495,10 +644,13 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        setIndex((i) => Math.min(attempt.questions.length - 1, i + 1));
+        jumpTo(index + 1);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
-        setIndex((i) => Math.max(0, i - 1));
+        jumpTo(index - 1);
+      } else if ((e.key === "s" || e.key === "S") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setScratchpadOpen((o) => !o);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         updateDraft(currentQuestion.id, (cur) => ({
@@ -506,10 +658,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           textAnswer: cur.textAnswer,
           markedForReview: !cur.markedForReview,
         }));
-      } else if (
-        currentQuestion.type !== "WRITTEN" &&
-        /^[1-9]$/.test(e.key)
-      ) {
+      } else if (currentQuestion.type !== "WRITTEN" && /^[1-9]$/.test(e.key)) {
         const opt = currentQuestion.options[Number(e.key) - 1];
         if (!opt) return;
         e.preventDefault();
@@ -529,7 +678,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [attempt, currentQuestion, reviewMode, confirmSubmit, updateDraft]);
+  }, [
+    attempt,
+    currentQuestion,
+    reviewMode,
+    confirmSubmit,
+    updateDraft,
+    jumpTo,
+    index,
+  ]);
 
   const counts = useMemo(() => {
     if (!attempt) return { answered: 0, unanswered: 0, flagged: 0 };
@@ -567,7 +724,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           </p>
           <div className="bg-muted grid grid-cols-2 gap-3 rounded-md p-3">
             <div>
-              <p className="text-muted-foreground text-xs">Questions answered</p>
+              <p className="text-muted-foreground text-xs">
+                Questions answered
+              </p>
               <p className="font-semibold">
                 {submittedResult?.answeredCount ?? counts.answered} /{" "}
                 {attempt.questions.length}
@@ -601,6 +760,181 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           ? "border-warning/60 bg-warning/10 text-warning"
           : "border-border bg-card text-foreground";
 
+  const renderQuestion = (
+    q: AttemptState["questions"][number],
+    i: number,
+    single: boolean,
+  ) => {
+    const d = drafts[q.id];
+    if (!d) return null;
+    return (
+      <Card id={`q-${i}`} data-qindex={i} className="scroll-mt-24">
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
+          <div>
+            <h2
+              ref={single ? headingRef : undefined}
+              tabIndex={-1}
+              className="text-base font-semibold outline-none"
+            >
+              Question {i + 1} of {attempt.questions.length}
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              {TYPE_LABEL[q.type]} · {q.marks} mark
+              {q.marks === 1 ? "" : "s"}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={d.markedForReview ? "secondary" : "outline"}
+            onClick={() =>
+              updateDraft(q.id, (cur) => ({
+                selectedOptionIds: cur.selectedOptionIds,
+                textAnswer: cur.textAnswer,
+                markedForReview: !cur.markedForReview,
+              }))
+            }
+          >
+            <Flag
+              className={`h-3.5 w-3.5 ${d.markedForReview ? "text-warning fill-current" : ""}`}
+            />
+            {d.markedForReview ? "Flagged" : "Flag for review"}
+          </Button>
+        </CardHeader>
+
+        <CardContent className="space-y-5">
+          <p className="q-text whitespace-pre-wrap">{q.body}</p>
+
+          {q.type === "WRITTEN" ? (
+            <div className="space-y-1.5">
+              <label
+                htmlFor={`written-${q.id}`}
+                className="text-sm font-medium"
+              >
+                Your answer
+              </label>
+              <textarea
+                id={`written-${q.id}`}
+                rows={8}
+                maxLength={10_000}
+                placeholder="Type your response here..."
+                className="q-text border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 w-full rounded-xl border px-3 py-2 focus-visible:ring-4 focus-visible:outline-none"
+                value={d.textAnswer}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateDraft(q.id, (cur) => ({
+                    selectedOptionIds: [],
+                    textAnswer: val,
+                    markedForReview: cur.markedForReview,
+                  }));
+                }}
+              />
+              <p className="text-muted-foreground text-right text-xs">
+                {d.textAnswer.length} / 10,000 characters
+              </p>
+            </div>
+          ) : (
+            <fieldset className="space-y-2.5">
+              <legend className="sr-only">Answer choices</legend>
+              {q.options.map((opt, optIdx) => {
+                const checked = d.selectedOptionIds.includes(opt.id);
+                return (
+                  <label
+                    key={opt.id}
+                    className={`q-text flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-[background-color,border-color,transform] duration-150 motion-safe:active:scale-[0.995] ${
+                      checked
+                        ? "border-primary bg-accent/60"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    <input
+                      type={q.type === "MCQ_SINGLE" ? "radio" : "checkbox"}
+                      name={`q-${q.id}`}
+                      className="accent-primary mt-0.5 h-4 w-4"
+                      checked={checked}
+                      onChange={() =>
+                        updateDraft(q.id, (cur) => {
+                          if (q.type === "MCQ_SINGLE") {
+                            return {
+                              ...cur,
+                              selectedOptionIds: [opt.id],
+                            };
+                          }
+                          const next = cur.selectedOptionIds.includes(opt.id)
+                            ? cur.selectedOptionIds.filter((x) => x !== opt.id)
+                            : [...cur.selectedOptionIds, opt.id];
+                          return { ...cur, selectedOptionIds: next };
+                        })
+                      }
+                    />
+                    <span className="flex-1">
+                      <span className="text-muted-foreground mr-2 font-mono text-xs">
+                        {optIdx + 1}.
+                      </span>
+                      {opt.body}
+                    </span>
+                  </label>
+                );
+              })}
+              {q.type === "MCQ_SINGLE" && d.selectedOptionIds.length > 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() =>
+                    updateDraft(q.id, (cur) => ({
+                      ...cur,
+                      selectedOptionIds: [],
+                    }))
+                  }
+                >
+                  Clear selection
+                </Button>
+              )}
+            </fieldset>
+          )}
+
+          {single && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={i === 0}
+                onClick={() => setIndex((i) => Math.max(0, i - 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setReviewMode(true)}
+                >
+                  Review &amp; submit
+                </Button>
+                {i < attempt.questions.length - 1 && (
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      setIndex((i) =>
+                        Math.min(attempt.questions.length - 1, i + 1),
+                      )
+                    }
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
+
   const paletteList = (
     <div className="space-y-3">
       <div className="flex items-center justify-between text-xs">
@@ -623,8 +957,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               aria-current={active ? "step" : undefined}
               onClick={() => {
                 setReviewMode(false);
-                setIndex(i);
                 setPaletteOpen(false);
+                requestAnimationFrame(() => jumpTo(i));
               }}
               className={`relative flex h-10 items-center justify-center gap-0.5 rounded-md border text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
                 active
@@ -668,7 +1002,11 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   );
 
   return (
-    <div className="space-y-4">
+    <div
+      className={`space-y-4 transition-[padding] duration-300 ${scratchpadOpen ? "lg:pr-[416px]" : ""} ${
+        prefs.palettePosition === "bottom" ? "pb-20" : ""
+      }`}
+    >
       {/* Screen-reader timer threshold announcements */}
       <div className="sr-only" role="status" aria-live="assertive">
         {announcement}
@@ -700,7 +1038,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       {net.state !== "online" && (
         <div
           role="alert"
-          className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium ${
+          className={`animate-page-in flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium ${
             net.state === "offline"
               ? "border-destructive bg-destructive/15 text-destructive"
               : "border-warning bg-warning/15 text-warning"
@@ -732,9 +1070,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               type="button"
               aria-label="Dismiss announcement"
               className="hover:opacity-75"
-              onClick={() =>
-                setDismissedAnn((prev) => new Set(prev).add(a.id))
-              }
+              onClick={() => setDismissedAnn((prev) => new Set(prev).add(a.id))}
             >
               <X className="h-4 w-4" />
             </button>
@@ -744,7 +1080,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       {/* Top exam bar */}
       <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold">{attempt.examTitle}</h1>
+          <h1 className="truncate text-lg font-semibold">
+            {attempt.examTitle}
+          </h1>
           <p className="text-muted-foreground text-xs">
             Question {index + 1} of {attempt.questions.length}
           </p>
@@ -752,6 +1090,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
         <div className="flex flex-wrap items-center gap-2">
           <Badge
+            role="status"
+            aria-live="polite"
             className={
               net.state === "offline" || saveChip === "error"
                 ? "bg-destructive/15 text-destructive"
@@ -796,10 +1136,25 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setScratchpadOpen(true)}
+            aria-pressed={scratchpadOpen}
+            onClick={() => setScratchpadOpen((o) => !o)}
           >
             <NotebookPen className="h-4 w-4" />
             <span className="hidden sm:inline">Scratchpad</span>
+          </Button>
+
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
+            title={fullscreen ? "Exit full screen" : "Full screen"}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? (
+              <Minimize2 className="h-4 w-4" />
+            ) : (
+              <Maximize2 className="h-4 w-4" />
+            )}
           </Button>
 
           <Button
@@ -814,7 +1169,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Button
             size="icon"
             variant="outline"
-            className="lg:hidden"
+            className={
+              prefs.palettePosition === "side" ? "lg:hidden" : "hidden"
+            }
             aria-label="Open question palette"
             onClick={() => setPaletteOpen(true)}
           >
@@ -834,14 +1191,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
       {/* Main grid: Question / Review panel + Desktop Palette */}
       <div
+        data-qsize={prefs.fontSize}
         className={`grid gap-6 ${
           prefs.palettePosition === "side" ? "lg:grid-cols-[1fr_240px]" : ""
-        } ${
-          prefs.fontSize === "lg"
-            ? "text-lg"
-            : prefs.fontSize === "sm"
-              ? "text-sm"
-              : "text-base"
         }`}
       >
         <div>
@@ -891,7 +1243,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                           className="min-w-0 flex-1 truncate text-left hover:underline"
                           onClick={() => {
                             setReviewMode(false);
-                            setIndex(i);
+                            requestAnimationFrame(() => jumpTo(i));
                           }}
                         >
                           <span className="font-medium">Q{i + 1}.</span>{" "}
@@ -932,207 +1284,87 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                 </div>
               </CardContent>
             </Card>
-          ) : (
-            currentQuestion &&
-            currentDraft && (
-              <Card>
-                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
-                  <div>
-                    <h2
-                      ref={headingRef}
-                      tabIndex={-1}
-                      className="text-base font-semibold outline-none"
-                    >
-                      Question {index + 1} of {attempt.questions.length}
-                    </h2>
-                    <p className="text-muted-foreground text-xs">
-                      {TYPE_LABEL[currentQuestion.type]} ·{" "}
-                      {currentQuestion.marks} mark
-                      {currentQuestion.marks === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={
-                      currentDraft.markedForReview ? "secondary" : "outline"
-                    }
-                    onClick={() =>
-                      updateDraft(currentQuestion.id, (cur) => ({
-                        selectedOptionIds: cur.selectedOptionIds,
-                        textAnswer: cur.textAnswer,
-                        markedForReview: !cur.markedForReview,
-                      }))
-                    }
-                  >
-                    <Flag
-                      className={`h-3.5 w-3.5 ${currentDraft.markedForReview ? "text-warning fill-current" : ""}`}
-                    />
-                    {currentDraft.markedForReview
-                      ? "Flagged"
-                      : "Flag for review"}
-                  </Button>
-                </CardHeader>
-
-                <CardContent className="space-y-5">
-                  <p className="text-base leading-relaxed whitespace-pre-wrap">
-                    {currentQuestion.body}
-                  </p>
-
-                  {currentQuestion.type === "WRITTEN" ? (
-                    <div className="space-y-1.5">
-                      <label
-                        htmlFor={`written-${currentQuestion.id}`}
-                        className="text-sm font-medium"
-                      >
-                        Your answer
-                      </label>
-                      <textarea
-                        id={`written-${currentQuestion.id}`}
-                        rows={8}
-                        maxLength={10_000}
-                        placeholder="Type your response here..."
-                        className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm leading-relaxed focus-visible:ring-2 focus-visible:outline-none"
-                        value={currentDraft.textAnswer}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          updateDraft(currentQuestion.id, (cur) => ({
-                            selectedOptionIds: [],
-                            textAnswer: val,
-                            markedForReview: cur.markedForReview,
-                          }));
-                        }}
-                      />
-                      <p className="text-muted-foreground text-right text-xs">
-                        {currentDraft.textAnswer.length} / 10,000 characters
-                      </p>
-                    </div>
-                  ) : (
-                    <fieldset className="space-y-2.5">
-                      <legend className="sr-only">Answer choices</legend>
-                      {currentQuestion.options.map((opt, optIdx) => {
-                        const checked = currentDraft.selectedOptionIds.includes(
-                          opt.id,
-                        );
-                        return (
-                          <label
-                            key={opt.id}
-                            className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 text-sm transition-colors ${
-                              checked
-                                ? "border-primary bg-accent/60"
-                                : "border-border hover:bg-muted/50"
-                            }`}
-                          >
-                            <input
-                              type={
-                                currentQuestion.type === "MCQ_SINGLE"
-                                  ? "radio"
-                                  : "checkbox"
-                              }
-                              name={`q-${currentQuestion.id}`}
-                              className="accent-primary mt-0.5 h-4 w-4"
-                              checked={checked}
-                              onChange={() =>
-                                updateDraft(currentQuestion.id, (cur) => {
-                                  if (currentQuestion.type === "MCQ_SINGLE") {
-                                    return {
-                                      ...cur,
-                                      selectedOptionIds: [opt.id],
-                                    };
-                                  }
-                                  const next = cur.selectedOptionIds.includes(
-                                    opt.id,
-                                  )
-                                    ? cur.selectedOptionIds.filter(
-                                        (x) => x !== opt.id,
-                                      )
-                                    : [...cur.selectedOptionIds, opt.id];
-                                  return { ...cur, selectedOptionIds: next };
-                                })
-                              }
-                            />
-                            <span className="flex-1 leading-snug">
-                              <span className="text-muted-foreground mr-2 font-mono text-xs">
-                                {optIdx + 1}.
-                              </span>
-                              {opt.body}
-                            </span>
-                          </label>
-                        );
-                      })}
-                      {currentQuestion.type === "MCQ_SINGLE" &&
-                        currentDraft.selectedOptionIds.length > 0 && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              updateDraft(currentQuestion.id, (cur) => ({
-                                ...cur,
-                                selectedOptionIds: [],
-                              }))
-                            }
-                          >
-                            Clear selection
-                          </Button>
-                        )}
-                    </fieldset>
-                  )}
-
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={index === 0}
-                      onClick={() => setIndex((i) => Math.max(0, i - 1))}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Previous
-                    </Button>
-
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setReviewMode(true)}
-                      >
-                        Review &amp; submit
-                      </Button>
-                      {index < attempt.questions.length - 1 && (
-                        <Button
-                          type="button"
-                          onClick={() =>
-                            setIndex((i) =>
-                              Math.min(attempt.questions.length - 1, i + 1),
-                            )
-                          }
-                        >
-                          Next
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
+          ) : prefs.layout === "scroll" ? (
+            <div className="space-y-4">
+              {attempt.questions.map((q, i) => (
+                <div key={q.id}>{renderQuestion(q, i, false)}</div>
+              ))}
+              <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <p className="text-muted-foreground text-sm">
+                  {counts.answered} of {attempt.questions.length} answered
+                  {counts.flagged > 0 && ` · ${counts.flagged} flagged`}
+                </p>
+                <Button onClick={() => setReviewMode(true)}>
+                  Review &amp; submit
+                </Button>
               </Card>
-            )
+            </div>
+          ) : (
+            currentQuestion && renderQuestion(currentQuestion, index, true)
           )}
         </div>
 
         {/* Desktop side palette */}
-        <aside className="hidden lg:block" aria-label="Question navigation">
-          <Card className="sticky top-20 p-4">
-            {paletteList}
-            <Button
-              className="mt-4 w-full"
-              variant={reviewMode ? "secondary" : "default"}
-              onClick={() => setReviewMode(true)}
-            >
+        {prefs.palettePosition === "side" && (
+          <aside className="hidden lg:block" aria-label="Question navigation">
+            <Card className="sticky top-4 p-4">
+              {paletteList}
+              <Button
+                className="mt-4 w-full"
+                variant={reviewMode ? "secondary" : "default"}
+                onClick={() => setReviewMode(true)}
+              >
+                Review &amp; submit
+              </Button>
+            </Card>
+          </aside>
+        )}
+      </div>
+
+      {prefs.palettePosition === "bottom" && (
+        <nav
+          aria-label="Question navigation"
+          className="bg-card/95 shadow-elev-3 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur"
+        >
+          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2.5">
+            <div className="flex flex-1 gap-1.5 overflow-x-auto py-1">
+              {attempt.questions.map((q, i) => {
+                const d = drafts[q.id];
+                const done = isAnswered(d);
+                const active = !reviewMode && i === index;
+                return (
+                  <button
+                    key={q.id}
+                    type="button"
+                    aria-label={`Question ${i + 1}${done ? ", answered" : ", unanswered"}${d?.markedForReview ? ", flagged" : ""}`}
+                    aria-current={active ? "step" : undefined}
+                    onClick={() => {
+                      setReviewMode(false);
+                      requestAnimationFrame(() => jumpTo(i));
+                    }}
+                    className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-xs font-medium transition-[transform,background-color] motion-safe:active:scale-90 ${
+                      active
+                        ? "ring-primary/50 border-primary ring-2"
+                        : "border-border"
+                    } ${done ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                  >
+                    {i + 1}
+                    {d?.markedForReview && (
+                      <Flag
+                        className="text-warning absolute -top-1 -right-1 h-3 w-3 fill-current"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <Button size="sm" onClick={() => setReviewMode(true)}>
               Review &amp; submit
             </Button>
-          </Card>
-        </aside>
-      </div>
+          </div>
+        </nav>
+      )}
 
       {/* Mobile palette drawer */}
       <Dialog open={paletteOpen} onOpenChange={setPaletteOpen}>
@@ -1185,6 +1417,62 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
       <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
 
+      {timeUp && (
+        <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <Card
+            className="animate-page-in max-w-md space-y-3 p-6 text-center"
+            role="alertdialog"
+            aria-live="assertive"
+          >
+            <Clock
+              className="text-primary mx-auto h-8 w-8"
+              aria-hidden="true"
+            />
+            <h2 className="text-lg font-semibold">Time is up</h2>
+            <p className="text-muted-foreground text-sm">
+              {net.state === "offline" || queuedCount > 0
+                ? "Waiting for your connection to send the last answers. Keep this page open. Answers you gave before the deadline will still be accepted."
+                : "Submitting your exam…"}
+            </p>
+            <Spinner className="mx-auto" />
+          </Card>
+        </div>
+      )}
+
+      <Dialog
+        open={offlineBlock > 0}
+        onOpenChange={(o) => !o && setOfflineBlock(0)}
+      >
+        <DialogContent
+          title="Your answers aren't on the server yet"
+          description="We didn't submit, so nothing is lost."
+        >
+          <div className="space-y-4 text-sm">
+            <p>
+              <b>{offlineBlock}</b> answer{offlineBlock === 1 ? " is" : "s are"}{" "}
+              saved on this device but haven&apos;t reached the server.
+              Reconnect, wait for the badge to show
+              <b> Saved</b>, then submit again. Your timer keeps running on the
+              server.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setOfflineBlock(0)}>
+                Keep working
+              </Button>
+              <Button
+                onClick={() => {
+                  setOfflineBlock(0);
+                  void flushAllAndSubmit();
+                }}
+              >
+                <RotateCcw className="h-4 w-4" />
+                Try again
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Keyboard shortcuts help */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent title="Keyboard shortcuts">
@@ -1199,6 +1487,12 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               <span>Select option 1–9</span>
               <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
                 1 – 9
+              </code>
+            </li>
+            <li className="flex justify-between">
+              <span>Open / close scratchpad</span>
+              <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+                S
               </code>
             </li>
             <li className="flex justify-between">

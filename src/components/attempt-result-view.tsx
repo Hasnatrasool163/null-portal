@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, CheckCircle2, Download, XCircle } from "lucide-react";
+import { ArrowLeft, Award, CalendarCheck, CheckCircle2, Percent, XCircle } from "lucide-react";
+import { DownloadButton } from "@/components/ui/download-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -55,21 +56,28 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           title={r.examTitle}
           subtitle={`${r.candidateName} · Submitted ${format(new Date(r.submittedAt), "PP p")}`}
           actions={
-            <Button asChild variant="outline">
-              <a href={`/api/attempts/${r.attemptId}/report.pdf`} download>
-                <Download className="h-4 w-4" />
-                Download verifiable PDF
-              </a>
-            </Button>
+            <DownloadButton
+              href={`/api/attempts/${r.attemptId}/report.pdf`}
+              fallbackName="result-report.pdf"
+            >
+              Download verifiable PDF
+            </DownloadButton>
           }
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Score" value={`${r.totalScore} / ${r.totalMarks}`} />
-        <StatCard label="Percentage" value={`${r.percentage}%`} />
+      <div className="stagger grid gap-4 sm:grid-cols-3">
+        <StatCard label="Score" value={`${r.totalScore} / ${r.totalMarks}`} icon={Award} />
+        <StatCard
+          label="Percentage"
+          value={`${r.percentage}%`}
+          icon={Percent}
+          tone={r.percentage >= 50 ? "success" : "warning"}
+        />
         <StatCard
           label="Published"
+          icon={CalendarCheck}
+          tone="muted"
           value={format(new Date(r.resultsPublishedAt), "PP")}
         />
       </div>

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -25,7 +24,9 @@
   --border: #e0d9ca;
   --input: #d6cfbf;
   --ring: #1d5c63;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
+  --sidebar: #f3eee4;
+  --shadow-color: 30 25% 20%;
 }
 
 .dark {
@@ -47,6 +48,8 @@
   --border: #2d3544;
   --input: #3a4354;
   --ring: #5eb3bb;
+  --sidebar: #11151b;
+  --shadow-color: 220 40% 2%;
 }
 .high-contrast {
   --background: #ffffff;
@@ -67,6 +70,7 @@
   --border: #000000;
   --input: #000000;
   --ring: #003d4d;
+  --sidebar: #ffffff;
 }
 
 @theme inline {
@@ -88,6 +92,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -100,3 +105,64 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* ---------- Elevation (one scale, used by Card / Button / menus) ---------- */
+:root {
+  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.06),
+    0 1px 1px hsl(var(--shadow-color) / 0.04);
+  --elev-2: 0 2px 4px hsl(var(--shadow-color) / 0.06),
+    0 6px 16px -4px hsl(var(--shadow-color) / 0.12);
+  --elev-3: 0 12px 32px -8px hsl(var(--shadow-color) / 0.28),
+    0 4px 8px -2px hsl(var(--shadow-color) / 0.08);
+}
+.shadow-elev-1 { box-shadow: var(--elev-1); }
+.shadow-elev-2 { box-shadow: var(--elev-2); }
+.shadow-elev-3 { box-shadow: var(--elev-3); }
+
+::selection { background: color-mix(in srgb, var(--primary) 25%, transparent); }
+
+/* ---------- Motion ---------- */
+@keyframes caret-blink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.animate-caret { animation: caret-blink 1s step-end infinite; }
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-page-in { animation: page-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+/* Staggered entrance for grids/lists: add .stagger to the parent. */
+.stagger > * { animation: rise-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+@keyframes cell-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.55; }
+}
+.animate-cell { animation: cell-pulse 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html { scroll-behavior: smooth; }
+
+/* Exam workspace text size: one variable drives question, options and answer box. */
+[data-qsize="sm"] { --q-size: 0.9375rem; }
+[data-qsize="md"] { --q-size: 1.0625rem; }
+[data-qsize="lg"] { --q-size: 1.25rem; }
+.q-text { font-size: var(--q-size, 1rem); line-height: 1.65; }

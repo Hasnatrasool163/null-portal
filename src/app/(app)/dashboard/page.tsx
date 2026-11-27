@@ -2,6 +2,17 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard } from "@/components/ui/blocks";
 import { CandidateHome } from "@/components/candidate-home";
+import {
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  FilePen,
+  Radio,
+  ShieldCheck,
+  UserCheck,
+  UserX,
+  Users,
+} from "lucide-react";
 import { requireRole } from "@/server/auth/current-user";
 import { userService } from "@/server/services/user.service";
 import { examService } from "@/server/services/exam.service";
@@ -23,6 +34,7 @@ export default async function DashboardPage() {
     return (
       <>
         <PageHeader
+          eyebrow="administrator"
           title={`Welcome, ${first}`}
           subtitle="Platform oversight: users, roles and read-only exam overview."
           actions={
@@ -36,17 +48,17 @@ export default async function DashboardPage() {
             </div>
           }
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Administrators" value={s.admins} />
-          <StatCard label="Examiners" value={s.examiners} />
-          <StatCard label="Candidates" value={s.candidates} />
-          <StatCard label="Deactivated accounts" value={s.inactive} />
+        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Administrators" value={s.admins} icon={ShieldCheck} />
+          <StatCard label="Examiners" value={s.examiners} icon={UserCheck} />
+          <StatCard label="Candidates" value={s.candidates} icon={Users} />
+          <StatCard label="Deactivated accounts" value={s.inactive} icon={UserX} tone="muted" />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total exams" value={totalExams} />
-          <StatCard label="Ongoing exams" value={phases.ONGOING} />
-          <StatCard label="Upcoming exams" value={phases.UPCOMING} />
-          <StatCard label="Completed exams" value={phases.COMPLETED} />
+        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Total exams" value={totalExams} icon={ClipboardList} />
+          <StatCard label="Ongoing exams" value={phases.ONGOING} icon={Radio} tone="success" />
+          <StatCard label="Upcoming exams" value={phases.UPCOMING} icon={CalendarClock} tone="warning" />
+          <StatCard label="Completed exams" value={phases.COMPLETED} icon={CheckCircle2} tone="muted" />
         </div>
       </>
     );
@@ -57,6 +69,7 @@ export default async function DashboardPage() {
     return (
       <>
         <PageHeader
+          eyebrow="examiner"
           title={`Welcome, ${first}`}
           subtitle="Your exams by phase. Create drafts, enroll candidates and publish."
           actions={
@@ -70,11 +83,11 @@ export default async function DashboardPage() {
             </div>
           }
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Ongoing" value={phases.ONGOING} />
-          <StatCard label="Upcoming" value={phases.UPCOMING} />
-          <StatCard label="Drafts" value={phases.DRAFT} />
-          <StatCard label="Completed" value={phases.COMPLETED} />
+        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Ongoing" value={phases.ONGOING} icon={Radio} tone="success" hint="Candidates can sit now" />
+          <StatCard label="Upcoming" value={phases.UPCOMING} icon={CalendarClock} tone="warning" hint="Published, not open yet" />
+          <StatCard label="Drafts" value={phases.DRAFT} icon={FilePen} hint="Still editable" />
+          <StatCard label="Completed" value={phases.COMPLETED} icon={CheckCircle2} tone="muted" hint="Ready to grade or publish" />
         </div>
       </>
     );
