@@ -3,18 +3,25 @@ import type { PoolClient } from "pg";
 import { query } from "../db";
 import type { Topic } from "@/shared/schemas/question";
 
-type Row = { id: string; name: string; question_count: number };
+type Row = {
+  id: string;
+  name: string;
+  question_count: number;
+  archived_count: number;
+};
 const toTopic = (r: Row): Topic => ({
   id: r.id,
   name: r.name,
   questionCount: r.question_count,
+  archivedCount: r.archived_count,
 });
 
 export const topicRepo = {
   async list(ownerId: string): Promise<Topic[]> {
     const rows = await query<Row>(
       `SELECT t.id, t.name,
-              count(q.id) FILTER (WHERE NOT q.archived)::int AS question_count
+              count(q.id) FILTER (WHERE NOT q.archived)::int AS question_count,
+              count(q.id) FILTER (WHERE q.archived)::int AS archived_count
        FROM topics t LEFT JOIN questions q ON q.topic_id = t.id
        WHERE t.owner_id = $1
        GROUP BY t.id ORDER BY lower(t.name)`,
@@ -41,7 +48,7 @@ export const topicRepo = {
       "INSERT INTO topics (owner_id, name) VALUES ($1, $2) RETURNING id, name",
       [ownerId, name],
     );
-    return { ...rows[0], questionCount: 0 };
+    return { ...rows[0], questionCount: 0, archivedCount: 0 };
   },
   async rename(id: string, name: string) {
     await query("UPDATE topics SET name = $2 WHERE id = $1", [id, name]);

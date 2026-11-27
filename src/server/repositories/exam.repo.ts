@@ -376,29 +376,37 @@ export const examRepo = {
    * Submitted real attempts per day for the last `days` days (zero-filled), plus the
    * total for the equally long period before it, for a trend comparison.
    */
-  async submissionTrend(days = 30): Promise<{ series: { day: string; n: number }[]; previous: number }> {
+  async submissionTrend(
+    days = 30,
+    ownerId?: string,
+  ): Promise<{ series: { day: string; n: number }[]; previous: number }> {
+    // Optional owner scope: only attempts on exams this examiner owns.
+    const owned = `($2::uuid IS NULL OR a.exam_id IN (SELECT id FROM exams WHERE owner_id = $2::uuid))`;
     const series = await query<{ day: string; n: number }>(
       `SELECT to_char(d, 'YYYY-MM-DD') AS day, count(a.id)::int AS n
          FROM generate_series((now() - ($1::int - 1) * interval '1 day')::date, now()::date, interval '1 day') d
          LEFT JOIN real_attempts a
-           ON a.status = 'SUBMITTED' AND a.submitted_at::date = d::date
+           ON a.status = 'SUBMITTED' AND a.submitted_at::date = d::date AND ${owned}
         GROUP BY d
         ORDER BY d`,
-      [days],
+      [days, ownerId ?? null],
     );
     const [{ n }] = await query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM real_attempts
-        WHERE status = 'SUBMITTED'
-          AND submitted_at >= now()::date - ($1::int * 2 - 1) * interval '1 day'
-          AND submitted_at <  now()::date - ($1::int - 1) * interval '1 day'`,
-      [days],
+      `SELECT count(*)::int AS n FROM real_attempts a
+        WHERE a.status = 'SUBMITTED'
+          AND a.submitted_at >= now()::date - ($1::int * 2 - 1) * interval '1 day'
+          AND a.submitted_at <  now()::date - ($1::int - 1) * interval '1 day'
+          AND ${owned}`,
+      [days, ownerId ?? null],
     );
     return { series, previous: n };
   },
 
   async phaseCounts(ownerId?: string): Promise<Record<Phase, number>> {
     const params: unknown[] = [];
-    const where = ownerId ? (params.push(ownerId), "WHERE e.owner_id = $1") : "";
+    const where = ownerId
+      ? (params.push(ownerId), "WHERE e.owner_id = $1")
+      : "";
     const rows = await query<{ phase: Phase; n: number }>(
       `SELECT (${PHASE_SQL}) AS phase, count(*)::int AS n
        FROM exams e ${where} GROUP BY 1`,

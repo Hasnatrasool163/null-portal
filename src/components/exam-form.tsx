@@ -70,11 +70,19 @@ const formSchema = z
     const s = new Date(v.startsAt);
     const e = new Date(v.endsAt);
     if (Number.isNaN(s.getTime())) {
-      ctx.addIssue({ code: "custom", path: ["startsAt"], message: "Invalid start time" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["startsAt"],
+        message: "Invalid start time",
+      });
       return;
     }
     if (Number.isNaN(e.getTime())) {
-      ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Invalid end time" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["endsAt"],
+        message: "Invalid end time",
+      });
       return;
     }
     for (const [path, message] of Object.entries(
@@ -113,8 +121,9 @@ export function ExamForm({
     register,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<FormValues>({
+    mode: "onTouched",
     resolver: zodResolver(formSchema),
     defaultValues: exam
       ? {
@@ -331,7 +340,10 @@ export function ExamForm({
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !isValid || (!!exam && !isDirty)}
+          >
             {isSubmitting && <Spinner />}
             {submitLabel ?? (exam ? "Save changes" : "Create exam")}
           </Button>

@@ -68,7 +68,10 @@ async function writeOptions(
 
 export const questionRepo = {
   async list(ownerId: string, q: QuestionListQuery) {
-    const where = ["q.owner_id = $1", q.status === "archived" ? "q.archived" : "NOT q.archived"];
+    const where = [
+      "q.owner_id = $1",
+      q.status === "archived" ? "q.archived" : "NOT q.archived",
+    ];
     const params: unknown[] = [ownerId];
     const add = (sql: string, v: unknown) => {
       params.push(v);
@@ -89,6 +92,37 @@ export const questionRepo = {
       [...params, q.pageSize, (q.page - 1) * q.pageSize],
     );
     return { items: rows.map(toItem), total: n };
+  },
+
+  /** Random active questions matching one blueprint rule, skipping `excludeIds`. */
+  async draw(
+    ownerId: string,
+    rule: {
+      count: number;
+      topicId?: string;
+      difficulty?: string;
+      type?: string;
+    },
+    excludeIds: string[],
+  ) {
+    const where = [
+      "q.owner_id = $1",
+      "NOT q.archived",
+      "NOT (q.id = ANY($2::uuid[]))",
+    ];
+    const params: unknown[] = [ownerId, excludeIds];
+    const add = (sql: string, v: unknown) => {
+      params.push(v);
+      where.push(sql.replace("?", `$${params.length}`));
+    };
+    if (rule.topicId) add("q.topic_id = ?", rule.topicId);
+    if (rule.difficulty) add("q.difficulty = ?", rule.difficulty);
+    if (rule.type) add("q.type = ?", rule.type);
+    const rows = await query<Row>(
+      `${SELECT} WHERE ${where.join(" AND ")} ORDER BY random() LIMIT $${params.length + 1}`,
+      [...params, rule.count],
+    );
+    return rows.map(toItem);
   },
 
   async findOwned(ownerId: string, id: string): Promise<QuestionDetail | null> {

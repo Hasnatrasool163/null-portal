@@ -270,4 +270,6 @@ export type ExaminerOverview = {
   live: OverviewExam[];
   upcoming: OverviewExam[];
   totals: { enrolled: number; submitted: number; awaitingGrading: number };
+  /** Submissions to this examiner's exams, last 30 days vs the 30 before. */
+  trend: { series: { day: string; n: number }[]; previous: number };
 };

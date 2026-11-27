@@ -7,7 +7,17 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { Archive, ArchiveRestore, Copy, Eye, FileUp, Lock, Pencil, Plus, Tags } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  Eye,
+  FileUp,
+  Lock,
+  Pencil,
+  Plus,
+  Tags,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -159,7 +169,12 @@ export function QuestionsManager() {
             setSearch(v);
             setPage(1);
           }}
-          phrases={["binary search", "TCP handshake", "derivative of x²", "normalization"]}
+          phrases={[
+            "binary search",
+            "TCP handshake",
+            "derivative of x²",
+            "normalization",
+          ]}
         />
         <Select
           className="w-44"
@@ -230,7 +245,9 @@ export function QuestionsManager() {
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {s === "archived" && <Archive className="h-3.5 w-3.5" aria-hidden="true" />}
+              {s === "archived" && (
+                <Archive className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
               {s === "active" ? "Active" : "Archived"}
             </button>
           ))}
@@ -280,7 +297,9 @@ export function QuestionsManager() {
               <TH>Type</TH>
               <TH>Difficulty</TH>
               <TH>Marks</TH>
-              <TH className="text-right">Actions</TH>
+              <TH className="w-14">
+                <span className="sr-only">Actions</span>
+              </TH>
             </TR>
           </THead>
           <TBody>
@@ -301,52 +320,57 @@ export function QuestionsManager() {
                 </TD>
                 <TD>{DIFFICULTY_LABEL[it.difficulty]}</TD>
                 <TD>{it.defaultMarks}</TD>
-                <TD className="text-right whitespace-nowrap">
-                  {status === "archived" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={restore.isPending && restore.variables === it.id}
-                      onClick={() => restore.mutate(it.id)}
-                    >
-                      {restore.isPending && restore.variables === it.id ? (
-                        <Spinner />
-                      ) : (
-                        <ArchiveRestore className="h-4 w-4" />
-                      )}
-                      Restore
-                    </Button>
+                <TD className="w-14 text-right">
+                  {restore.isPending && restore.variables === it.id ? (
+                    <span className="inline-flex h-8 w-8 items-center justify-center">
+                      <Spinner />
+                    </span>
                   ) : (
-                    <div className="inline-flex items-center gap-1">
-                      {it.locked ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          tooltip="Used in a published exam. Edit a copy instead."
-                          disabled={duplicate.isPending}
-                          onClick={() => duplicate.mutate(it.id)}
-                        >
-                          <Copy className="h-4 w-4" />
-                          Duplicate
-                        </Button>
-                      ) : (
-                        <Button variant="ghost" size="sm" onClick={() => setEditing(it.id)}>
-                          <Pencil className="h-4 w-4" />
-                          Edit
-                        </Button>
-                      )}
-                      <RowMenu
-                        label={`More actions for question`}
-                        items={[
-                          { label: "Preview", icon: Eye, onSelect: () => setPreviewing(it.id) },
-                          it.locked
-                            ? { label: "Edit", icon: Pencil, onSelect: () => {}, disabled: true, hint: "Locked" }
-                            : { label: "Duplicate", icon: Copy, onSelect: () => duplicate.mutate(it.id) },
-                          "separator",
-                          { label: "Archive", icon: Archive, destructive: true, onSelect: () => setArchiving(it) },
-                        ]}
-                      />
-                    </div>
+                    <RowMenu
+                      label="Actions for this question"
+                      items={
+                        status === "archived"
+                          ? [
+                              {
+                                label: "Preview",
+                                icon: Eye,
+                                onSelect: () => setPreviewing(it.id),
+                              },
+                              {
+                                label: "Restore",
+                                icon: ArchiveRestore,
+                                onSelect: () => restore.mutate(it.id),
+                              },
+                            ]
+                          : [
+                              {
+                                label: "Preview",
+                                icon: Eye,
+                                onSelect: () => setPreviewing(it.id),
+                              },
+                              {
+                                label: "Edit",
+                                icon: Pencil,
+                                onSelect: () => setEditing(it.id),
+                                disabled: it.locked,
+                                hint: it.locked ? "Locked" : undefined,
+                              },
+                              {
+                                label: "Duplicate",
+                                icon: Copy,
+                                onSelect: () => duplicate.mutate(it.id),
+                                disabled: duplicate.isPending,
+                              },
+                              "separator",
+                              {
+                                label: "Archive",
+                                icon: Archive,
+                                destructive: true,
+                                onSelect: () => setArchiving(it),
+                              },
+                            ]
+                      }
+                    />
                   )}
                 </TD>
               </TR>
@@ -363,7 +387,10 @@ export function QuestionsManager() {
         noun="questions"
       />
 
-      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(o) => !o && setEditing(null)}
+      >
         <DialogContent
           className="max-h-[90vh] max-w-2xl overflow-y-auto"
           title={editing === "new" ? "New question" : "Edit question"}
@@ -431,7 +458,10 @@ export function QuestionsManager() {
         </DialogContent>
       </Dialog>
 
-      <QuestionPreviewDialog questionId={previewing} onClose={() => setPreviewing(null)} />
+      <QuestionPreviewDialog
+        questionId={previewing}
+        onClose={() => setPreviewing(null)}
+      />
       <TopicsDialog open={topicsOpen} onOpenChange={setTopicsOpen} />
       <QuestionImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </>

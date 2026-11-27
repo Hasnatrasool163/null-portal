@@ -6,6 +6,7 @@ import { validateQuestionImport } from "../import/questions-import";
 import { Errors, assertUuid } from "../http";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type {
+  DrawRequest,
   ImportPayload,
   QuestionInput,
   QuestionListQuery,
@@ -35,6 +36,20 @@ export const questionService = {
       .then((r) => ({ ...r, page: q.page, pageSize: q.pageSize })),
 
   get: ownedQuestion,
+
+  /** Blueprint draw: rules run in order; later rules never re-pick earlier picks. */
+  async draw(user: SessionUser, input: DrawRequest) {
+    const taken = new Set(input.excludeIds);
+    const items: Awaited<ReturnType<typeof questionRepo.draw>> = [];
+    const results: { wanted: number; got: number }[] = [];
+    for (const rule of input.rules) {
+      const picked = await questionRepo.draw(user.id, rule, [...taken]);
+      picked.forEach((p) => taken.add(p.id));
+      items.push(...picked);
+      results.push({ wanted: rule.count, got: picked.length });
+    }
+    return { items, results };
+  },
 
   async create(user: SessionUser, input: QuestionInput) {
     await assertOwnTopic(user, input.topicId);
@@ -91,8 +106,7 @@ export const questionService = {
   /** Step 2: re-validate server-side (never trust the preview) and insert valid rows atomically. */
   async importCommit(user: SessionUser, p: ImportPayload) {
     const { preview, valid } = validateQuestionImport(p);
-    if (valid.length === 0)
-      throw Errors.badRequest("No valid rows to import");
+    if (valid.length === 0) throw Errors.badRequest("No valid rows to import");
     await tx(async (c) => {
       const topicIds = new Map<string, string>();
       for (const row of valid) {

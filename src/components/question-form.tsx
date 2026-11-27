@@ -42,8 +42,9 @@ export function QuestionForm({
     setError,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<QuestionInput>({
+    mode: "onTouched",
     resolver: zodResolver(questionInputSchema),
     defaultValues: initial ?? {
       topicId: topics[0]?.id ?? "",
@@ -107,8 +108,7 @@ export function QuestionForm({
               onChange: (e) => {
                 const t = e.target.value;
                 if (t === "WRITTEN") setValue("options", []);
-                else if (options.length < 2)
-                  setValue("options", BLANK_OPTIONS);
+                else if (options.length < 2) setValue("options", BLANK_OPTIONS);
                 else if (t === "MCQ_SINGLE") {
                   // keep at most one correct answer when narrowing to single choice
                   let seen = false;
@@ -236,7 +236,15 @@ export function QuestionForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || topics.length === 0}>
+        <Button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            topics.length === 0 ||
+            !isValid ||
+            (!!initial && !isDirty)
+          }
+        >
           {isSubmitting && <Spinner />}
           Save question
         </Button>

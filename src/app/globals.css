@@ -248,3 +248,21 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
     repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
   background-position: 0 0, 0 1.25rem;
 }
+
+/* Native date/time pickers: let the browser draw the popup and icon in the active theme,
+   tint the selection with the brand colour and make the trigger icon a clear hit target. */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"] { accent-color: var(--primary); font-variant-numeric: tabular-nums; }
+input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 3px;
+  opacity: 0.65;
+  transition: opacity 150ms, background-color 150ms;
+}
+input::-webkit-calendar-picker-indicator:hover { opacity: 1; background-color: var(--muted); }
+input::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+input::-webkit-datetime-edit-text { color: var(--muted-foreground); }
