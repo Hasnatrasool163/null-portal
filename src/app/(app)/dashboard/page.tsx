@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader, StatCard } from "@/components/ui/blocks";
+import { PageHeader, StatCard } from "@/components/ui/blocks";
+import { CandidateHome } from "@/components/candidate-home";
 import { requireRole } from "@/server/auth/current-user";
 import { userService } from "@/server/services/user.service";
 import { examService } from "@/server/services/exam.service";
@@ -79,16 +80,5 @@ export default async function DashboardPage() {
     );
   }
 
-  return (
-    <>
-      <PageHeader
-        title={`Welcome, ${first}`}
-        subtitle="Exams assigned to you will appear here."
-      />
-      <EmptyState
-        title="Candidate exam portal"
-        text="Your available, upcoming and completed exams will appear here once S3 is enabled."
-      />
-    </>
-  );
+  return <CandidateHome firstName={first} />;
 }

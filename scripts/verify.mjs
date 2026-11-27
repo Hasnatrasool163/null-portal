@@ -277,10 +277,136 @@ async function slice2() {
   check("close transitions exam to COMPLETED", closed.status === 200 && closed.data.phase === "COMPLETED");
 }
 
+async function slice3() {
+  console.log("S3 candidate exam engine");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const cand2 = await login("candidate2@demo.test");
+
+  const my = await cand1.get("/api/my/exams");
+  check("candidate1 sees enrolled exams", my.status === 200 && my.data.length >= 3);
+  const upcoming = my.data.find((e) => e.accessStatus === "UPCOMING");
+  check("start before window rejected (409)", !!upcoming && (await cand1.post(`/api/exams/${upcoming.examId}/start`)).status === 409);
+
+  // Create a dedicated live exam enrolled ONLY for candidate1 so verify is repeatable and clean.
+  const now = Date.now();
+  const qs = (await ex1.get("/api/questions?pageSize=50")).data.items;
+  const singleQ = qs.find((q) => q.type === "MCQ_SINGLE");
+  const multiQ = qs.find((q) => q.type === "MCQ_MULTI");
+  const writtenQ = qs.find((q) => q.type === "WRITTEN");
+  const ex = await ex1.post("/api/exams", {
+    title: `Verify Live ${now}`,
+    instructions: "Live verify exam",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3600_000).toISOString(),
+    durationMinutes: 15,
+    shuffleQuestions: true,
+    shuffleOptions: true,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0.25,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const examId = ex.data.id;
+  await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+    items: [
+      { questionId: singleQ.id, marks: 2 },
+      { questionId: multiQ.id, marks: 3 },
+      { questionId: writtenQ.id, marks: 5 },
+    ],
+  });
+  const c1Id = (await cand1.get("/api/auth/me")).data.id;
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${examId}/publish`);
+
+  check("non-enrolled candidate2 rejected (404)", (await cand2.post(`/api/exams/${examId}/start`)).status === 404);
+
+  const start1 = await cand1.post(`/api/exams/${examId}/start`);
+  check("enrolled candidate starts exam", start1.status === 200 && start1.data.questions.length === 3);
+  const attemptId = start1.data.id;
+
+  const leaksKey = start1.data.questions.some((q) =>
+    q.options.some((o) => "isCorrect" in o || "is_correct" in o),
+  );
+  check("answer key never sent before publish", !leaksKey);
+
+  const start2 = await cand1.post(`/api/exams/${examId}/start`);
+  check(
+    "duplicate start returns same attempt and same order",
+    start2.status === 200 &&
+      start2.data.id === attemptId &&
+      start2.data.questions.map((q) => q.id).join(",") ===
+        start1.data.questions.map((q) => q.id).join(","),
+  );
+
+  check("candidate2 cannot fetch candidate1 attempt (404)", (await cand2.get(`/api/attempts/${attemptId}`)).status === 404);
+
+  const aqSingle = start1.data.questions.find((q) => q.type === "MCQ_SINGLE");
+  const aqWritten = start1.data.questions.find((q) => q.type === "WRITTEN");
+
+  const badOpt = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [999999999],
+    seq: 1,
+  });
+  check("invalid option id rejected (400)", badOpt.status === 400);
+
+  const twoOpts = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[0].id, aqSingle.options[1].id],
+    seq: 1,
+  });
+  check("MCQ_SINGLE with 2 options rejected (400)", twoOpts.status === 400);
+
+  const save1 = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[0].id],
+    markedForReview: true,
+    seq: 2,
+  });
+  check("autosave accepted", save1.status === 200 && save1.data.accepted === true);
+
+  const stale = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[1].id],
+    seq: 1,
+  });
+  check("stale seq ignored (idempotent)", stale.status === 200 && stale.data.stale === true);
+
+  await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqWritten.id,
+    textAnswer: "A process has its own address space; threads share it.",
+    seq: 1,
+  });
+
+  const resumed = await cand1.get(`/api/attempts/${attemptId}`);
+  const savedSingle = resumed.data.answers.find((a) => a.attemptQuestionId === aqSingle.id);
+  check(
+    "refresh/resume preserves saved answers and review flag",
+    savedSingle?.selectedOptionIds[0] === aqSingle.options[0].id && savedSingle?.markedForReview === true,
+  );
+
+  const sub1 = await cand1.post(`/api/attempts/${attemptId}/submit`);
+  check("submit succeeds and sets NEEDS_REVIEW (has written)", sub1.status === 200 && sub1.data.gradingStatus === "NEEDS_REVIEW");
+
+  const sub2 = await cand1.post(`/api/attempts/${attemptId}/submit`);
+  check("double submit is idempotent", sub2.status === 200 && sub2.data.submittedAt === sub1.data.submittedAt);
+
+  const afterClose = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[1].id],
+    seq: 99,
+  });
+  check("autosave after submit rejected with ATTEMPT_CLOSED (409)", afterClose.status === 409 && afterClose.error.code === "ATTEMPT_CLOSED");
+
+  check("cannot re-start submitted exam (409)", (await cand1.post(`/api/exams/${examId}/start`)).status === 409);
+}
+
 try {
   await slice0();
   await slice1();
   await slice2();
+  await slice3();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);
