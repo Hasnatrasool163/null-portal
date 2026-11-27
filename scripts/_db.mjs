@@ -18,13 +18,20 @@ export function loadEnv() {
 
 export function connect() {
   loadEnv();
-  const raw = process.env.DATABASE_URL;
+  // USE_FALLBACK_DB=true switches to the hosted DATABASE_FALLBACK_URL (e.g. Aiven).
+  const useFallback =
+    process.env.USE_FALLBACK_DB === "true" &&
+    !!process.env.DATABASE_FALLBACK_URL;
+  const raw = useFallback
+    ? process.env.DATABASE_FALLBACK_URL
+    : process.env.DATABASE_URL;
   if (!raw) throw new Error("DATABASE_URL is not set (see .env.example)");
   const u = new URL(raw);
   u.searchParams.delete("sslmode");
-  const ssl =
-    process.env.DATABASE_SSL === "true"
-      ? { rejectUnauthorized: false }
-      : undefined;
+  const sslOn = useFallback
+    ? process.env.DATABASE_FALLBACK_SSL === "true"
+    : process.env.DATABASE_SSL === "true";
+  const ssl = sslOn ? { rejectUnauthorized: false } : undefined;
+  if (useFallback) console.log(`Using fallback DB at ${u.hostname}`);
   return new pg.Client({ connectionString: u.toString(), ssl });
 }
