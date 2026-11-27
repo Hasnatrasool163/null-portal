@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -60,6 +60,7 @@ type Tab =
   | "grading"
   | "analytics"
   | "audit";
+const TABS: Tab[] = ["review", "settings", "questions", "enrollments", "monitor", "grading", "analytics", "audit"];
 
 function QuestionsTab({
   exam,
@@ -558,7 +559,11 @@ export function ExamDetailView({
 }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("review");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    return TABS.includes(t as Tab) ? (t as Tab) : "review";
+  });
   const [confirmAction, setConfirmAction] = useState<"publish" | "close" | null>(
     null,
   );
@@ -721,7 +726,7 @@ export function ExamDetailView({
       </div>
 
       <div
-        className="-mx-4 flex gap-1 overflow-x-auto border-b px-4 sm:mx-0 sm:px-0"
+        className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Exam sections"
       >
@@ -797,42 +802,27 @@ export function ExamDetailView({
             <CardHeader>
               <CardTitle>Configuration summary</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <span className="text-muted-foreground">Multi-choice scoring:</span>{" "}
-                <b>{MULTI_LABEL[exam.multiScoring]}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Negative marking:</span>{" "}
-                <b>{exam.negativeMarking}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Shuffling:</span>{" "}
-                <b>
-                  {exam.shuffleQuestions ? "Questions" : "Fixed order"} /{" "}
-                  {exam.shuffleOptions ? "Options shuffled" : "Fixed options"}
-                </b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Recovery window:</span>{" "}
-                <b>
-                  {exam.recoveryWindowSeconds > 0
-                    ? `${exam.recoveryWindowSeconds}s`
-                    : "Disabled"}
-                </b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Show answer key:</span>{" "}
-                <b>{exam.showAnswers ? "After results publish" : "Never"}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Examiner:</span>{" "}
-                <b>{exam.ownerName}</b>
-              </div>
+            <CardContent className="space-y-5 text-sm">
+              <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Multi-choice scoring", MULTI_LABEL[exam.multiScoring]],
+                  ["Negative marking", exam.negativeMarking > 0 ? `${exam.negativeMarking * 100}% per wrong answer` : "Off"],
+                  ["Question order", exam.shuffleQuestions ? "Shuffled" : "Fixed"],
+                  ["Option order", exam.shuffleOptions ? "Shuffled" : "Fixed"],
+                  ["Offline recovery window", exam.recoveryWindowSeconds > 0 ? `${exam.recoveryWindowSeconds} seconds` : "Disabled"],
+                  ["Answer key", exam.showAnswers ? "Shown after results publish" : "Never shown"],
+                  ["Examiner", exam.ownerName],
+                ].map(([label, value]) => (
+                  <div key={label} className="space-y-0.5">
+                    <dt className="text-muted-foreground text-xs">{label}</dt>
+                    <dd className="font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
               {exam.instructions && (
-                <div className="sm:col-span-2">
-                  <p className="text-muted-foreground">Instructions:</p>
-                  <p className="mt-1 whitespace-pre-wrap">{exam.instructions}</p>
+                <div className="bg-muted/50 space-y-1 rounded-md p-3">
+                  <p className="text-muted-foreground text-xs">Instructions</p>
+                  <p className="whitespace-pre-wrap">{exam.instructions}</p>
                 </div>
               )}
             </CardContent>

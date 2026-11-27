@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  FlaskConical,
   Flag,
   HelpCircle,
   LayoutGrid,
@@ -1029,10 +1030,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       </div>
 
       {attempt.isSandbox && (
-        <div className="border-warning bg-warning/15 text-warning flex flex-wrap items-center justify-between gap-2 rounded-md border px-4 py-2 text-sm font-medium">
-          <span>
-            SANDBOX PREVIEW — This attempt is for testing only and is never
-            counted in statistics or reports.
+        <div className="border-warning/30 bg-warning/8 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-sm">
+          <span className="flex items-center gap-2.5">
+            <span className="bg-warning/15 text-warning flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
+              <FlaskConical className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span>
+              <span className="font-semibold">Sandbox preview</span>
+              <span className="text-muted-foreground"> · Not counted in results, statistics or reports.</span>
+            </span>
           </span>
           <div className="flex gap-2">
             <Button

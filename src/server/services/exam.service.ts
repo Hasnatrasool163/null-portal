@@ -5,7 +5,9 @@ import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
 import {
   windowErrors,
+  type ActionItem,
   type ExamDetail,
+  type ExaminerOverview,
   type ExamPatch,
   type ExamQuestionsInput,
   type ExamSummary,
@@ -66,6 +68,75 @@ export const examService = {
       q: q.q,
       phase: q.phase,
     }),
+
+  /** Examiner dashboard: what needs attention now, what's live, what's next. Owner-scoped. */
+  async overview(user: SessionUser): Promise<ExaminerOverview> {
+    if (user.role !== "EXAMINER") throw Errors.forbidden();
+    const exams = await examRepo.overview(user.id);
+    const actions: ActionItem[] = [];
+    const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+    for (const e of exams) {
+      const base = { examId: e.id, examTitle: e.title };
+      if (e.needsReview > 0) {
+        actions.push({
+          ...base,
+          kind: "grade",
+          title: `${plural(e.needsReview, "attempt")} to grade`,
+          detail: "Written answers are waiting for marks.",
+          cta: "Grade",
+          tab: "grading",
+        });
+      } else if (e.phase === "COMPLETED" && e.submitted > 0 && !e.resultsPublished) {
+        actions.push({
+          ...base,
+          kind: "publish",
+          title: "Results ready to publish",
+          detail: `${plural(e.submitted, "submission")} graded. Candidates can't see results yet.`,
+          cta: "Publish",
+          tab: "grading",
+        });
+      }
+      if (e.phase === "DRAFT") {
+        const missing = [
+          e.questionCount === 0 && "questions",
+          e.enrolled === 0 && "candidates",
+        ].filter(Boolean);
+        actions.push({
+          ...base,
+          kind: "draft",
+          title: missing.length ? `Draft needs ${missing.join(" and ")}` : "Draft ready to publish",
+          detail: missing.length
+            ? "Finish setting it up before candidates can sit it."
+            : "All requirements met. Review and publish when ready.",
+          cta: missing.length ? "Continue" : "Review",
+          tab: e.questionCount === 0 ? "questions" : e.enrolled === 0 ? "enrollments" : "review",
+        });
+      } else if (e.phase === "UPCOMING" && e.enrolled === 0) {
+        actions.push({
+          ...base,
+          kind: "enroll",
+          title: "No candidates enrolled",
+          detail: "Published, but nobody can sit it yet.",
+          cta: "Enroll",
+          tab: "enrollments",
+        });
+      }
+    }
+    const order: Record<ActionItem["kind"], number> = { grade: 0, publish: 1, enroll: 2, draft: 3 };
+    actions.sort((a, b) => order[a.kind] - order[b.kind]);
+
+    return {
+      actions,
+      live: exams.filter((e) => e.phase === "ONGOING"),
+      upcoming: exams.filter((e) => e.phase === "UPCOMING").slice(0, 5),
+      totals: {
+        enrolled: exams.reduce((n, e) => n + e.enrolled, 0),
+        submitted: exams.reduce((n, e) => n + e.submitted, 0),
+        awaitingGrading: exams.reduce((n, e) => n + e.needsReview, 0),
+      },
+    };
+  },
 
   phaseCounts: (user: SessionUser) =>
     examRepo.phaseCounts(user.role === "ADMIN" ? undefined : user.id),

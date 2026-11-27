@@ -7,6 +7,7 @@ import type {
   ExamSummary,
   ExamValues,
   MultiScoring,
+  OverviewExam,
   Phase,
 } from "@/shared/schemas/exam";
 
@@ -254,6 +255,58 @@ export const examRepo = {
       [ownerId, questionIds],
     );
     return r.n;
+  },
+
+  /** One row per exam with the live counts the examiner dashboard needs (real attempts only). */
+  async overview(ownerId: string): Promise<OverviewExam[]> {
+    const rows = await query<{
+      id: string;
+      title: string;
+      phase: Phase;
+      starts_at: Date;
+      ends_at: Date;
+      duration_minutes: number;
+      question_count: number;
+      enrolled: number;
+      active: number;
+      submitted: number;
+      needs_review: number;
+      incidents_24h: number;
+      results_published_at: Date | null;
+    }>(
+      `SELECT e.id, e.title, (${PHASE_SQL}) AS phase, e.starts_at, e.ends_at,
+              e.duration_minutes, e.results_published_at,
+              (SELECT count(*)::int FROM exam_questions q WHERE q.exam_id = e.id) AS question_count,
+              (SELECT count(*)::int FROM enrollments en WHERE en.exam_id = e.id) AS enrolled,
+              count(a.id) FILTER (WHERE a.status = 'IN_PROGRESS')::int AS active,
+              count(a.id) FILTER (WHERE a.status = 'SUBMITTED')::int AS submitted,
+              count(a.id) FILTER (WHERE a.grading_status = 'NEEDS_REVIEW')::int AS needs_review,
+              (SELECT count(*)::int
+                 FROM incidents i JOIN real_attempts ra ON ra.id = i.attempt_id
+                WHERE ra.exam_id = e.id AND i.type <> 'RECONNECT'
+                  AND i.occurred_at > now() - interval '24 hours') AS incidents_24h
+         FROM exams e
+         LEFT JOIN real_attempts a ON a.exam_id = e.id
+        WHERE e.owner_id = $1
+        GROUP BY e.id
+        ORDER BY e.starts_at`,
+      [ownerId],
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      phase: r.phase,
+      startsAt: r.starts_at.toISOString(),
+      endsAt: r.ends_at.toISOString(),
+      durationMinutes: r.duration_minutes,
+      questionCount: r.question_count,
+      enrolled: r.enrolled,
+      active: r.active,
+      submitted: r.submitted,
+      needsReview: r.needs_review,
+      incidents24h: r.incidents_24h,
+      resultsPublished: r.results_published_at !== null,
+    }));
   },
 
   async phaseCounts(ownerId?: string): Promise<Record<Phase, number>> {

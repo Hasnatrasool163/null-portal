@@ -182,3 +182,39 @@ export type CandidateImportResult = {
   alreadyEnrolled: number;
   created: { name: string; email: string; tempPassword: string }[];
 };
+
+/* ---------- Examiner dashboard overview ---------- */
+export type OverviewExam = {
+  id: string;
+  title: string;
+  phase: Phase;
+  startsAt: string;
+  endsAt: string;
+  durationMinutes: number;
+  questionCount: number;
+  enrolled: number;
+  active: number;
+  submitted: number;
+  needsReview: number;
+  incidents24h: number;
+  resultsPublished: boolean;
+};
+
+export type ActionKind = "grade" | "publish" | "draft" | "enroll";
+export type ActionItem = {
+  kind: ActionKind;
+  examId: string;
+  examTitle: string;
+  title: string;
+  detail: string;
+  cta: string;
+  /** exam-detail tab the CTA should open */
+  tab: "grading" | "questions" | "enrollments" | "review";
+};
+
+export type ExaminerOverview = {
+  actions: ActionItem[];
+  live: OverviewExam[];
+  upcoming: OverviewExam[];
+  totals: { enrolled: number; submitted: number; awaitingGrading: number };
+};

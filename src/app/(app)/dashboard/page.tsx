@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PageHeader, StatCard } from "@/components/ui/blocks";
 import { CandidateHome } from "@/components/candidate-home";
+import { ExaminerDashboard } from "@/components/examiner-dashboard";
 import {
   CalendarClock,
   CheckCircle2,
   ClipboardList,
-  FilePen,
   Radio,
   ShieldCheck,
   UserCheck,
@@ -65,32 +65,11 @@ export default async function DashboardPage() {
   }
 
   if (user.role === "EXAMINER") {
-    const phases = await examService.phaseCounts(user);
-    return (
-      <>
-        <PageHeader
-          eyebrow="examiner"
-          title={`Welcome, ${first}`}
-          subtitle="Your exams by phase. Create drafts, enroll candidates and publish."
-          actions={
-            <div className="flex gap-2">
-              <Button variant="outline" asChild>
-                <Link href="/questions">Question bank</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/exams">Manage exams</Link>
-              </Button>
-            </div>
-          }
-        />
-        <div className="stagger grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="Ongoing" value={phases.ONGOING} icon={Radio} tone="success" hint="Candidates can sit now" />
-          <StatCard label="Upcoming" value={phases.UPCOMING} icon={CalendarClock} tone="warning" hint="Published, not open yet" />
-          <StatCard label="Drafts" value={phases.DRAFT} icon={FilePen} hint="Still editable" />
-          <StatCard label="Completed" value={phases.COMPLETED} icon={CheckCircle2} tone="muted" hint="Ready to grade or publish" />
-        </div>
-      </>
-    );
+    const [phases, overview] = await Promise.all([
+      examService.phaseCounts(user),
+      examService.overview(user),
+    ]);
+    return <ExaminerDashboard firstName={first} phases={phases} overview={overview} />;
   }
 
   return <CandidateHome firstName={first} />;
