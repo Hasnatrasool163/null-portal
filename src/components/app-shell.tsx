@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Scale,
   Settings2,
   ShieldCheck,
   Users,
@@ -37,6 +38,7 @@ const NAV: Record<Role, NavItem[]> = {
     HOME,
     { href: "/admin/users", label: "Users & roles", icon: Users },
     { href: "/exams", label: "Exams", icon: ClipboardList },
+    { href: "/admin/disputes", label: "Disputes", icon: Scale },
     VERIFY,
   ],
   EXAMINER: [

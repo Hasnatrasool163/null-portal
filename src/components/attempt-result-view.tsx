@@ -2,12 +2,19 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Check, X } from "lucide-react";
+import { Check, Scale, X } from "lucide-react";
 import { DownloadButton } from "@/components/ui/download-button";
 import { BackButton } from "@/components/ui/back-button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/misc";
 import { EmptyState } from "@/components/ui/blocks";
+import { Button } from "@/components/ui/button";
+import {
+  DisputeDialog,
+  DisputeStatusBadge,
+  FileDisputeDialog,
+} from "@/components/dispute-views";
+import { CATEGORY_LABEL, type AttemptDisputes } from "@/shared/schemas/dispute";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { TYPE_LABEL } from "@/shared/schemas/question";
@@ -49,10 +56,24 @@ const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
 export function AttemptResultView({ attemptId }: { attemptId: string }) {
   const [filter, setFilter] = useState<Outcome | "all">("all");
+  // undefined = dialog closed; "" = whole result; otherwise an attemptQuestionId.
+  const [fileFor, setFileFor] = useState<string | undefined>(undefined);
+  const [openDispute, setOpenDispute] = useState<string | null>(null);
   const query = useQuery({
     queryKey: ["attempt-result", attemptId],
     queryFn: () => api<CandidateResultView>(`/api/attempts/${attemptId}/result`),
   });
+  const disputes = useQuery({
+    queryKey: ["disputes", "attempt", attemptId],
+    queryFn: () => api<AttemptDisputes>(`/api/attempts/${attemptId}/disputes`),
+    enabled: query.isSuccess,
+  });
+  const canFile = disputes.data?.canFile ?? false;
+  const liveDisputeFor = new Set(
+    (disputes.data?.disputes ?? [])
+      .filter((d) => ["OPEN", "UNDER_REVIEW", "RESOLVED", "ESCALATED"].includes(d.status))
+      .map((d) => d.questionNumber),
+  );
 
   if (query.isPending) {
     return (
@@ -261,6 +282,19 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
                         <p className="leading-relaxed">{q.feedback}</p>
                       </div>
                     )}
+
+                    {canFile && !liveDisputeFor.has(q.position + 1) && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setFileFor(q.attemptQuestionId)}
+                          className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 text-xs font-medium"
+                        >
+                          <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                          Dispute this question
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </Card>
               </li>
@@ -268,6 +302,71 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           })}
         </ol>
       </section>
+
+      {/* Disputes */}
+      <section id="disputes" className="scroll-mt-20 space-y-3" aria-labelledby="disputes-heading">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-2.5">
+          <div>
+            <h2 id="disputes-heading" className="text-lg font-semibold tracking-tight">
+              Disputes
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              {canFile && disputes.data?.fileBy
+                ? `Think a mark is wrong, a question was flawed, or a technical problem affected you? You can raise a dispute until ${format(new Date(disputes.data.fileBy), "MMM d, p")}.`
+                : disputes.data?.cannotFileReason && disputes.data.cannotFileReason !== "Only the candidate can file a dispute."
+                  ? disputes.data.cannotFileReason
+                  : "Every dispute gets a written decision and a visible timeline."}
+            </p>
+          </div>
+          {canFile && (
+            <Button size="sm" variant="outline" onClick={() => setFileFor("")}>
+              <Scale className="h-4 w-4" />
+              Raise a dispute
+            </Button>
+          )}
+        </div>
+        {(disputes.data?.disputes.length ?? 0) === 0 ? (
+          <p className="text-muted-foreground py-2 text-sm">No disputes for this result.</p>
+        ) : (
+          <ul className="divide-y rounded-md border">
+            {disputes.data!.disputes.map((d) => (
+              <li key={d.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenDispute(d.id)}
+                  className="hover:bg-muted flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left text-sm"
+                >
+                  <span className="font-medium">
+                    {d.questionNumber ? `Question ${d.questionNumber}` : "Overall result"}
+                  </span>
+                  <span className="text-muted-foreground text-xs">{CATEGORY_LABEL[d.category]}</span>
+                  <span className="ml-auto flex items-center gap-3">
+                    {d.scoreAfter !== null && d.scoreAfter !== d.scoreAtFiling && (
+                      <span className="text-xs tabular-nums">
+                        {fmt(d.scoreAtFiling)} → <b>{fmt(d.scoreAfter)}</b>
+                      </span>
+                    )}
+                    <DisputeStatusBadge status={d.status} outcome={d.outcome} />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {fileFor !== undefined && (
+        <FileDisputeDialog
+          key={fileFor}
+          open
+          onOpenChange={(o) => !o && setFileFor(undefined)}
+          attemptId={r.attemptId}
+          questions={r.questions.map((q) => ({ attemptQuestionId: q.attemptQuestionId, position: q.position }))}
+          initialQuestionId={fileFor || undefined}
+          fileBy={disputes.data?.fileBy ?? null}
+        />
+      )}
+      <DisputeDialog disputeId={openDispute} onOpenChange={(o) => !o && setOpenDispute(null)} />
     </div>
   );
 }

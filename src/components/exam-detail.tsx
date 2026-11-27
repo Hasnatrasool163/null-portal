@@ -32,6 +32,7 @@ import { ExamForm } from "@/components/exam-form";
 import { CandidateImportDialog } from "@/components/candidate-import-dialog";
 import { ExamAnalyticsTab } from "@/components/exam-analytics-tab";
 import { ExamGradingTab } from "@/components/exam-grading-tab";
+import { ExamDisputesTab } from "@/components/exam-disputes-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { AuditLogView } from "@/components/audit-log-view";
 import { PhaseStatus } from "@/components/exams-manager";
@@ -59,9 +60,10 @@ type Tab =
   | "enrollments"
   | "monitor"
   | "grading"
+  | "disputes"
   | "analytics"
   | "audit";
-const TABS: Tab[] = ["review", "settings", "questions", "enrollments", "monitor", "grading", "analytics", "audit"];
+const TABS: Tab[] = ["review", "settings", "questions", "enrollments", "monitor", "grading", "disputes", "analytics", "audit"];
 
 function QuestionsTab({
   exam,
@@ -681,6 +683,7 @@ export function ExamDetailView({
     { id: "enrollments", label: `Enrollments (${exam.enrollmentCount})` },
     { id: "monitor", label: "Live Monitor" },
     { id: "grading", label: "Grading & Results" },
+    { id: "disputes", label: "Disputes" },
     { id: "analytics", label: "Analytics" },
     { id: "audit", label: "Audit log" },
   ];
@@ -898,6 +901,7 @@ export function ExamDetailView({
         <ExamGradingTab examId={exam.id} readOnly={isAdmin} />
       )}
 
+      {tab === "disputes" && <ExamDisputesTab examId={exam.id} isAdmin={isAdmin} />}
       {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
       {tab === "audit" && <AuditLogView examId={exam.id} />}
       </div>
