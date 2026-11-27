@@ -140,6 +140,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   const [index, setIndex] = useState(0);
   const [reviewMode, setReviewMode] = useState(false);
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [scratchpadOpen, setScratchpadOpen] = useState(false);
@@ -214,6 +215,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       }),
     onSuccess: (res) => onSubmitted(res),
     onError: (e) => {
+      setSubmitting(false);
       setConfirmSubmit(false);
       toast.error(e.message);
     },
@@ -375,6 +377,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
   // Flush the durable queue first. Never submit while answers exist only on this device.
   const flushAllAndSubmit = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
     if (flushTimerRef.current) {
       clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
@@ -386,7 +390,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       return;
     }
     submitMutation.mutate();
-  }, [flushQueue, submitMutation]);
+  }, [flushQueue, submitMutation, submitting]);
 
   // Time-up: sync, then submit; keep retrying quietly while offline. The server
   // also finalises lazily at the deadline, so nothing is lost if this never succeeds.
@@ -1367,15 +1371,22 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             {counts.flagged > 0 && ` (${counts.flagged} flagged)`}.
           </p>
           <div className="mt-4 flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setConfirmSubmit(false)}>
+            <Button
+              variant="outline"
+              disabled={submitting || submitMutation.isPending}
+              onClick={() => setConfirmSubmit(false)}
+            >
               Cancel
             </Button>
             <Button
-              disabled={submitMutation.isPending}
+              disabled={submitting || submitMutation.isPending}
+              aria-busy={submitting || submitMutation.isPending}
               onClick={() => void flushAllAndSubmit()}
             >
-              {submitMutation.isPending && <Spinner />}
-              Confirm submit
+              {(submitting || submitMutation.isPending) && <Spinner />}
+              {submitting || submitMutation.isPending
+                ? "Submitting..."
+                : "Confirm submit"}
             </Button>
           </div>
         </DialogContent>

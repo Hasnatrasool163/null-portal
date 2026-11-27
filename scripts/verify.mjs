@@ -587,11 +587,30 @@ async function slice6(ctx) {
   const ver2 = await new Client().get(`/api/verify/${code}`);
   check("grade change marks old PDF verification SUPERSEDED", ver2.status === 200 && ver2.data.status === "SUPERSEDED");
 
-  // 7. Examiner summary PDF
+  // 7. Examiner summary PDF + clean filename (no trailing hyphen)
   const exPdf = await fetch(`${BASE}/api/exams/${examId}/report.pdf`, {
     headers: { cookie: ex1.cookie },
   });
-  check("examiner summary PDF generated server-side", exPdf.status === 200 && exPdf.headers.get("content-type")?.includes("pdf"));
+  const exDisp = exPdf.headers.get("content-disposition") ?? "";
+  check(
+    "examiner summary PDF generated with clean filename",
+    exPdf.status === 200 &&
+      exPdf.headers.get("content-type")?.includes("pdf") &&
+      !exDisp.includes("-.pdf"),
+  );
+
+  // 8. All public/samples/* files validate 100% cleanly against live import endpoints
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const sampleCsv = fs.readFileSync(path.join(process.cwd(), "public/samples/questions-sample.csv"), "utf8");
+  const sampleJson = fs.readFileSync(path.join(process.cwd(), "public/samples/questions-sample.json"), "utf8");
+  const sampleCand = fs.readFileSync(path.join(process.cwd(), "public/samples/candidates-sample.csv"), "utf8");
+  const vCsv = await ex1.post("/api/questions/import/validate", { format: "csv", content: sampleCsv });
+  const vJson = await ex1.post("/api/questions/import/validate", { format: "json", content: sampleJson });
+  const vCand = await ex1.post(`/api/exams/${examId}/candidates/import/validate`, { content: sampleCand });
+  check("questions-sample.csv is 100% valid", vCsv.status === 200 && vCsv.data.total === 8 && vCsv.data.valid === 8);
+  check("questions-sample.json is 100% valid", vJson.status === 200 && vJson.data.total === 6 && vJson.data.valid === 6);
+  check("candidates-sample.csv is 100% valid", vCand.status === 200 && vCand.data.total === 6 && vCand.data.valid === 6);
 }
 
 async function slice7() {

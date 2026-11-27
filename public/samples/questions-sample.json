@@ -3,20 +3,68 @@
     "topic": "Networking",
     "difficulty": "EASY",
     "type": "MCQ_SINGLE",
-    "body": "Which device forwards packets between different networks?",
+    "body": "Which device forwards packets between different IP networks?",
     "marks": 1,
     "options": [
       { "body": "Hub", "isCorrect": false },
       { "body": "Router", "isCorrect": true },
-      { "body": "Repeater", "isCorrect": false }
+      { "body": "Repeater", "isCorrect": false },
+      { "body": "Bridge", "isCorrect": false }
+    ]
+  },
+  {
+    "topic": "Networking",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_MULTI",
+    "body": "Select all protocols that use TCP by default.",
+    "marks": 2,
+    "options": [
+      { "body": "HTTPS", "isCorrect": true },
+      { "body": "SSH", "isCorrect": true },
+      { "body": "DNS (standard query)", "isCorrect": false },
+      { "body": "SMTP", "isCorrect": true }
     ]
   },
   {
     "topic": "Networking",
     "difficulty": "MEDIUM",
     "type": "WRITTEN",
-    "body": "Describe the purpose of DNS and how a name lookup is resolved.",
+    "body": "Describe the purpose of DNS and outline how a recursive name lookup is resolved.",
     "marks": 5,
+    "options": []
+  },
+  {
+    "topic": "Databases",
+    "difficulty": "EASY",
+    "type": "MCQ_SINGLE",
+    "body": "Which constraint ensures every value in a column is unique and non-null?",
+    "marks": 1,
+    "options": [
+      { "body": "FOREIGN KEY", "isCorrect": false },
+      { "body": "PRIMARY KEY", "isCorrect": true },
+      { "body": "CHECK", "isCorrect": false },
+      { "body": "DEFAULT", "isCorrect": false }
+    ]
+  },
+  {
+    "topic": "Databases",
+    "difficulty": "HARD",
+    "type": "MCQ_MULTI",
+    "body": "Select all isolation anomalies prevented by Serializable isolation in PostgreSQL.",
+    "marks": 3,
+    "options": [
+      { "body": "Dirty reads", "isCorrect": true },
+      { "body": "Non-repeatable reads", "isCorrect": true },
+      { "body": "Phantom reads", "isCorrect": true },
+      { "body": "Network timeouts", "isCorrect": false }
+    ]
+  },
+  {
+    "topic": "Operating Systems",
+    "difficulty": "HARD",
+    "type": "WRITTEN",
+    "body": "Explain the difference between a mutex and a counting semaphore with one practical use case for each.",
+    "marks": 6,
     "options": []
   }
 ]

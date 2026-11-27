@@ -1,6 +1,5 @@
 import "server-only";
-import { randomBytes } from "node:crypto";
-import { jsPDF } from "jspdf";
+import { randomBytes, randomInt } from "node:crypto";
 import QRCode from "qrcode";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
@@ -8,6 +7,10 @@ import { examRepo } from "../repositories/exam.repo";
 import { attemptRepo } from "../repositories/attempt.repo";
 import { populateSnapshotInTx } from "./attempt.service";
 import { gradingService } from "./grading.service";
+import {
+  renderCandidateResultPdf,
+  renderExamSummaryPdf,
+} from "../pdf/reports";
 import {
   DEFAULT_PREFERENCES,
   preferencesSchema,
@@ -19,7 +22,6 @@ import {
 import type { SessionUser } from "@/shared/schemas/auth";
 import type { Difficulty, QuestionType } from "@/shared/schemas/question";
 import type { SnapshotOption } from "../exam/scoring";
-import { randomInt } from "node:crypto";
 
 function maskName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
@@ -402,107 +404,18 @@ export const secondaryService = {
     const verifyUrl = `${origin}/verify/${code}`;
     const qrDataUrl = await QRCode.toDataURL(verifyUrl, {
       margin: 1,
-      width: 120,
+      width: 168,
     });
-
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    let y = 48;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("null-portal — Official Examination Result", 40, y);
-    y += 22;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(90);
-    doc.text(`Issued: ${new Date().toUTCString()}`, 40, y);
-    doc.setTextColor(0);
-
-    // QR top-right
-    doc.addImage(qrDataUrl, "PNG", pageW - 125, 34, 85, 85);
-    doc.setFontSize(8);
-    doc.text(`Verify: ${code}`, pageW - 125, 128);
-
-    y += 26;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.text(result.examTitle, 40, y);
-    y += 20;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.text(`Candidate: ${result.candidateName}`, 40, y);
-    y += 16;
-    doc.text(
-      `Score: ${result.totalScore} / ${result.totalMarks} (${result.percentage}% — ${scoreBand(result.percentage)})`,
-      40,
-      y,
-    );
-    y += 16;
-    doc.text(
-      `Submitted: ${new Date(result.submittedAt).toUTCString()}`,
-      40,
-      y,
-    );
-    y += 24;
-
-    doc.setDrawColor(200);
-    doc.line(40, y, pageW - 40, y);
-    y += 18;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Question Breakdown", 40, y);
-    y += 18;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    for (const q of result.questions) {
-      if (y > pageH - 90) {
-        doc.addPage();
-        y = 50;
-      }
-      const header = `Q${q.position + 1} (${q.type}) — ${q.score ?? 0} / ${q.marks} marks`;
-      doc.setFont("helvetica", "bold");
-      doc.text(header, 40, y);
-      y += 13;
-      doc.setFont("helvetica", "normal");
-      const lines = doc.splitTextToSize(q.body, pageW - 80);
-      doc.text(lines, 40, y);
-      y += lines.length * 12 + 4;
-      if (q.feedback) {
-        const fbLines = doc.splitTextToSize(
-          `Feedback: ${q.feedback}`,
-          pageW - 80,
-        );
-        doc.setTextColor(70);
-        doc.text(fbLines, 40, y);
-        doc.setTextColor(0);
-        y += fbLines.length * 11 + 4;
-      }
-      y += 6;
-    }
-
-    // Page numbers & verification footer
-    const pages = doc.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(110);
-      doc.text(`Verify online: ${verifyUrl}`, 40, pageH - 24);
-      doc.text(`Page ${i} of ${pages}`, pageW - 90, pageH - 24);
-    }
-
-    const arrayBuf = doc.output("arraybuffer");
-    return {
-      buffer: new Uint8Array(arrayBuf),
-      filename: `result-${code}.pdf`,
+    const { buffer, filename } = renderCandidateResultPdf({
+      result,
       code,
-    };
+      verifyUrl,
+      qrDataUrl,
+    });
+    return { buffer, filename, code };
   },
 
-  /** Server-side PDF: Examiner Exam Summary Report (scores, per-question stats, real attempts only). */
+  /** Server-side PDF: Examiner Exam Summary Report (scores, per-question stats, extensions, real attempts only). */
   async buildExamSummaryPdf(
     user: SessionUser,
     examIdRaw: string,
@@ -511,96 +424,33 @@ export const secondaryService = {
       gradingService.getExamGrading(user, examIdRaw),
       this.getExamAnalytics(user, examIdRaw),
     ]);
-
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-    const pageH = doc.internal.pageSize.getHeight();
-    let y = 48;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(17);
-    doc.text("null-portal — Examination Summary Report", 40, y);
-    y += 20;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(90);
-    doc.text(`Generated: ${new Date().toUTCString()} (excludes sandbox attempts)`, 40, y);
-    doc.setTextColor(0);
-    y += 24;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.text(analytics.examTitle, 40, y);
-    y += 18;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.text(
-      `Submitted attempts: ${analytics.submittedAttempts}  |  Total marks: ${analytics.totalMarks}  |  Avg: ${analytics.averageScore ?? "—"}  |  High: ${analytics.highestScore ?? "—"}  |  Low: ${analytics.lowestScore ?? "—"}`,
-      40,
-      y,
+    const extRows = await query<{
+      candidate_name: string;
+      minutes: number;
+      reason: string;
+      granted_by_name: string;
+      created_at: Date;
+    }>(
+      `SELECT cu.name AS candidate_name, te.minutes, te.reason,
+              gu.name AS granted_by_name, te.created_at
+       FROM time_extensions te
+       JOIN real_attempts a ON a.id = te.attempt_id
+       JOIN users cu ON cu.id = a.candidate_id
+       JOIN users gu ON gu.id = te.granted_by
+       WHERE a.exam_id = $1
+       ORDER BY te.created_at DESC`,
+      [analytics.examId],
     );
-    y += 24;
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Candidate Scores", 40, y);
-    y += 16;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    for (const a of grading.attempts) {
-      if (y > pageH - 70) {
-        doc.addPage();
-        y = 50;
-      }
-      doc.text(
-        `${a.candidateName} (${a.candidateEmail}) — ${a.status} / ${a.gradingStatus} — ${a.totalScore ?? "—"} / ${a.totalMarks}`,
-        40,
-        y,
-      );
-      y += 14;
-    }
-
-    y += 14;
-    if (y > pageH - 90) {
-      doc.addPage();
-      y = 50;
-    }
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Per-Question Analytics", 40, y);
-    y += 16;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    for (const q of analytics.questions) {
-      if (y > pageH - 80) {
-        doc.addPage();
-        y = 50;
-      }
-      const line = `Q${q.position + 1} [${q.declaredDifficulty}${q.difficultyMismatch ? ` -> obs ${q.observedDifficulty}` : ""}]: ${q.percentCorrect}% full credit | ${q.skipRate}% skipped | avg ${q.avgScorePct}%`;
-      doc.text(line, 40, y);
-      y += 13;
-      const bodyLines = doc.splitTextToSize(q.body, pageW - 95);
-      doc.setTextColor(80);
-      doc.text(bodyLines.slice(0, 2), 52, y);
-      doc.setTextColor(0);
-      y += Math.min(2, bodyLines.length) * 11 + 8;
-    }
-
-    const pages = doc.getNumberOfPages();
-    for (let i = 1; i <= pages; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(110);
-      doc.text(`null-portal Examination Summary`, 40, pageH - 24);
-      doc.text(`Page ${i} of ${pages}`, pageW - 90, pageH - 24);
-    }
-
-    const slug = analytics.examTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .slice(0, 40);
-    return {
-      buffer: new Uint8Array(doc.output("arraybuffer")),
-      filename: `exam-summary-${slug}.pdf`,
-    };
+    return renderExamSummaryPdf({
+      grading,
+      analytics,
+      extensions: extRows.map((e) => ({
+        candidateName: e.candidate_name,
+        minutes: e.minutes,
+        reason: e.reason,
+        grantedByName: e.granted_by_name,
+        createdAt: e.created_at.toISOString(),
+      })),
+    });
   },
 };

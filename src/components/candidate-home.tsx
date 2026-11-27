@@ -85,18 +85,31 @@ function ExamCard({
             <Button
               size="sm"
               disabled={startingId !== null}
+              aria-busy={isStarting}
               onClick={() => onStart(item.examId)}
             >
               {isStarting ? <Spinner /> : <Play className="h-3.5 w-3.5" />}
-              Start exam
+              {isStarting ? "Starting exam..." : "Start exam"}
             </Button>
           )}
           {item.accessStatus === "IN_PROGRESS" && item.attemptId && (
-            <Button asChild size="sm">
-              <Link href={`/attempts/${item.attemptId}`}>
-                Resume attempt
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+            <Button
+              size="sm"
+              disabled={startingId !== null}
+              aria-busy={isStarting}
+              onClick={() => onStart(item.examId)}
+            >
+              {isStarting ? (
+                <>
+                  <Spinner />
+                  Opening attempt...
+                </>
+              ) : (
+                <>
+                  Resume attempt
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </>
+              )}
             </Button>
           )}
           {item.accessStatus === "SUBMITTED" && (
@@ -146,16 +159,35 @@ export function CandidateHome({ firstName }: { firstName: string }) {
   const list = useQuery({
     queryKey: ["my-exams"],
     queryFn: () => api<MyExamItem[]>("/api/my/exams"),
+    refetchOnMount: "always",
   });
 
   const start = useMutation({
     mutationFn: (examId: string) =>
       api<AttemptState>(`/api/exams/${examId}/start`, { method: "POST" }),
     onSuccess: (attempt) => {
+      // Keep button locked in loading state until navigation completes.
       router.push(`/attempts/${attempt.id}`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      setLaunchingId(null);
+      toast.error(e.message);
+      void list.refetch();
+    },
   });
+
+  function handleLaunch(examId: string) {
+    if (launchingId !== null) return;
+    setLaunchingId(examId);
+    const existing = list.data?.find(
+      (e) => e.examId === examId && e.accessStatus === "IN_PROGRESS" && e.attemptId,
+    );
+    if (existing?.attemptId) {
+      router.push(`/attempts/${existing.attemptId}`);
+      return;
+    }
+    start.mutate(examId);
+  }
 
   const exams = list.data ?? [];
   const available = exams.filter(
