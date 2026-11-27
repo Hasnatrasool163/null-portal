@@ -1,0 +1,22 @@
+[
+  {
+    "topic": "Networking",
+    "difficulty": "EASY",
+    "type": "MCQ_SINGLE",
+    "body": "Which device forwards packets between different networks?",
+    "marks": 1,
+    "options": [
+      { "body": "Hub", "isCorrect": false },
+      { "body": "Router", "isCorrect": true },
+      { "body": "Repeater", "isCorrect": false }
+    ]
+  },
+  {
+    "topic": "Networking",
+    "difficulty": "MEDIUM",
+    "type": "WRITTEN",
+    "body": "Describe the purpose of DNS and how a name lookup is resolved.",
+    "marks": 5,
+    "options": []
+  }
+]

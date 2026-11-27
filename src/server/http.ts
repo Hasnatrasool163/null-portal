@@ -28,6 +28,13 @@ export const Errors = {
     new ApiError(429, "RATE_LIMITED", "Too many requests, slow down"),
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Malformed ids are "not found" (and never reach SQL). */
+export function assertUuid(id: string | undefined, what = "Record"): string {
+  if (!id || !UUID_RE.test(id)) throw Errors.notFound(`${what} not found`);
+  return id;
+}
+
 function zodFields(e: ZodError) {
   const fields: Record<string, string> = {};
   for (const i of e.issues) fields[i.path.join(".") || "_"] ??= i.message;

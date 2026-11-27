@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Moon, Sun, Users } from "lucide-react";
+import { BookOpen, LayoutDashboard, LogOut, Moon, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,10 @@ const NAV: Record<
   { href: string; label: string; icon: typeof LayoutDashboard }[]
 > = {
   ADMIN: [HOME, { href: "/admin/users", label: "Users", icon: Users }],
-  EXAMINER: [HOME],
+  EXAMINER: [
+    HOME,
+    { href: "/questions", label: "Question bank", icon: BookOpen },
+  ],
   CANDIDATE: [HOME],
 };
 
