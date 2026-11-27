@@ -156,6 +156,7 @@ export function CandidateHome({ firstName }: { firstName: string }) {
   const router = useRouter();
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [confirming, setConfirming] = useState<MyExamItem | null>(null);
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
   const list = useQuery({
     queryKey: ["my-exams"],
     queryFn: () => api<MyExamItem[]>("/api/my/exams"),
@@ -215,7 +216,7 @@ export function CandidateHome({ firstName }: { firstName: string }) {
 
       <Dialog
         open={confirming !== null}
-        onOpenChange={(o) => !o && !start.isPending && setConfirming(null)}
+        onOpenChange={(o) => !o && launchingId === null && setConfirming(null)}
       >
         {confirming && (
           <DialogContent
@@ -226,9 +227,9 @@ export function CandidateHome({ firstName }: { firstName: string }) {
             <StartExamBody
               key={confirming.examId}
               exam={confirming}
-              starting={start.isPending}
+              starting={launchingId === confirming.examId}
               onCancel={() => setConfirming(null)}
-              onStart={() => start.mutate(confirming.examId)}
+              onStart={() => handleLaunch(confirming.examId)}
             />
           </DialogContent>
         )}
@@ -267,9 +268,15 @@ export function CandidateHome({ firstName }: { firstName: string }) {
                   <ExamCard
                     key={item.examId}
                     item={item}
-                    startingId={start.isPending ? start.variables : null}
+                    startingId={launchingId}
                     onStart={(id) => {
-                      setConfirming(available.find((x) => x.examId === id) ?? null);
+                      const target = available.find((x) => x.examId === id);
+                      if (!target) return;
+                      if (target.accessStatus === "IN_PROGRESS") {
+                        handleLaunch(id);
+                      } else {
+                        setConfirming(target);
+                      }
                     }}
                   />
                 ))}
@@ -380,9 +387,13 @@ function StartExamBody({
         <Button variant="outline" disabled={starting} onClick={onCancel}>
           Not yet
         </Button>
-        <Button disabled={!ack || !sys.ready || starting} onClick={onStart}>
+        <Button
+          disabled={!ack || !sys.ready || starting}
+          aria-busy={starting}
+          onClick={onStart}
+        >
           {starting ? <Spinner /> : <Play className="h-4 w-4" />}
-          Start exam
+          {starting ? "Starting exam..." : "Start exam"}
         </Button>
       </div>
     </div>
