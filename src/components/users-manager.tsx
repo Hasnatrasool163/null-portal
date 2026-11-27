@@ -9,7 +9,7 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDebounce } from "use-debounce";
-import { Copy, Plus, UserCheck, UserX } from "lucide-react";
+import { Copy, KeyRound, Plus, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -109,8 +109,10 @@ export function UsersManager({ meId }: { meId: string }) {
     name: string;
     email: string;
     tempPassword: string;
+    kind: "created" | "reset";
   } | null>(null);
   const [toggling, setToggling] = useState<AdminUser | null>(null);
+  const [resetting, setResetting] = useState<AdminUser | null>(null);
 
   const params = new URLSearchParams({
     page: String(page),
@@ -138,6 +140,27 @@ export function UsersManager({ meId }: { meId: string }) {
     },
     onError: (e) => {
       setToggling(null);
+      toast.error(e.message);
+    },
+  });
+
+  const resetPw = useMutation({
+    mutationFn: (id: string) =>
+      api<{ user: AdminUser; tempPassword: string }>(
+        `/api/admin/users/${id}/reset-password`,
+        { method: "POST" },
+      ),
+    onSuccess: (r) => {
+      setResetting(null);
+      setCreated({
+        name: r.user.name,
+        email: r.user.email,
+        tempPassword: r.tempPassword,
+        kind: "reset",
+      });
+    },
+    onError: (e) => {
+      setResetting(null);
       toast.error(e.message);
     },
   });
@@ -255,23 +278,34 @@ export function UsersManager({ meId }: { meId: string }) {
                     )}
                   </TD>
                   <TD className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isMe}
-                      onClick={() =>
-                        u.isActive
-                          ? setToggling(u)
-                          : patch.mutate({ id: u.id, isActive: true })
-                      }
-                    >
-                      {u.isActive ? (
-                        <UserX className="h-4 w-4" />
-                      ) : (
-                        <UserCheck className="h-4 w-4" />
-                      )}
-                      {u.isActive ? "Deactivate" : "Reactivate"}
-                    </Button>
+                    <div className="inline-flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isMe}
+                        onClick={() => setResetting(u)}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Reset password
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isMe}
+                        onClick={() =>
+                          u.isActive
+                            ? setToggling(u)
+                            : patch.mutate({ id: u.id, isActive: true })
+                        }
+                      >
+                        {u.isActive ? (
+                          <UserX className="h-4 w-4" />
+                        ) : (
+                          <UserCheck className="h-4 w-4" />
+                        )}
+                        {u.isActive ? "Deactivate" : "Reactivate"}
+                      </Button>
+                    </div>
                   </TD>
                 </TR>
               );
@@ -295,7 +329,7 @@ export function UsersManager({ meId }: { meId: string }) {
               onCancel={() => setCreating(false)}
               onDone={(r) => {
                 setCreating(false);
-                setCreated({ ...r.user, tempPassword: r.tempPassword });
+                setCreated({ ...r.user, tempPassword: r.tempPassword, kind: "created" });
                 qc.invalidateQueries({ queryKey: ["admin-users"] });
               }}
             />
@@ -305,8 +339,12 @@ export function UsersManager({ meId }: { meId: string }) {
 
       <Dialog open={created !== null} onOpenChange={(o) => !o && setCreated(null)}>
         <DialogContent
-          title="User created"
-          description="Copy the temporary password now. It cannot be shown again."
+          title={created?.kind === "reset" ? "Password reset" : "User created"}
+          description={
+            created?.kind === "reset"
+              ? "Copy the temporary password now. It cannot be shown again. Active sessions for this user have been signed out."
+              : "Copy the temporary password now. It cannot be shown again."
+          }
         >
           {created && (
             <div className="space-y-4">
@@ -355,6 +393,26 @@ export function UsersManager({ meId }: { meId: string }) {
               }
             >
               Deactivate
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resetting !== null} onOpenChange={(o) => !o && setResetting(null)}>
+        <DialogContent
+          title="Reset password?"
+          description={`Generate a new one-time temporary password for ${resetting?.name}? All active sessions for this user will be signed out immediately.`}
+        >
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setResetting(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={resetPw.isPending}
+              onClick={() => resetting && resetPw.mutate(resetting.id)}
+            >
+              {resetPw.isPending && <Spinner />}
+              Reset password
             </Button>
           </div>
         </DialogContent>
