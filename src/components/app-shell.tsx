@@ -22,6 +22,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { SessionBlocked, useSessionGuard } from "@/components/session-guard";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -231,6 +232,7 @@ export function AppShell({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const tab = useSessionGuard(user.id);
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -247,6 +249,9 @@ export function AppShell({
       toast.error("Could not log out");
     }
   }
+
+  // A second tab of the same session: show why, render nothing of the app.
+  if (tab === "blocked") return <SessionBlocked />;
 
   // Focus mode: a live exam attempt gets the whole screen, no navigation.
   if (/^\/attempts\/[^/]+$/.test(pathname)) {
