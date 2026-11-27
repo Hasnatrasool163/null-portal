@@ -1170,6 +1170,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Tooltip content={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
             <Button
               size="icon"
+              tooltip={false}
               variant="ghost"
               aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
               onClick={toggleFullscreen}
@@ -1185,6 +1186,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Tooltip content="Workspace settings" side="bottom">
             <Button
               size="icon"
+              tooltip={false}
               variant="ghost"
               aria-label="Workspace settings"
               onClick={() => setPrefsOpen(true)}
@@ -1196,6 +1198,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Tooltip content="Question navigator" side="bottom">
             <Button
               size="icon"
+              tooltip={false}
               variant="outline"
               className={
                 prefs.palettePosition === "side" ? "lg:hidden" : "hidden"
@@ -1210,6 +1213,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           <Tooltip content={<>Keyboard shortcuts <span className="opacity-60">· ?</span></>} side="bottom" align="end">
             <Button
               size="icon"
+              tooltip={false}
               variant="ghost"
               aria-label="Keyboard shortcuts"
               onClick={() => setHelpOpen(true)}

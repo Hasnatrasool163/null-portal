@@ -98,6 +98,8 @@ export const questionListQuerySchema = z.object({
   topicId: z.uuid().optional(),
   difficulty: z.enum(DIFFICULTIES).optional(),
   type: z.enum(QUESTION_TYPES).optional(),
+  /** Archived questions are hidden by default; `archived` lists them for restore. */
+  status: z.enum(["active", "archived"]).default("active"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
 });

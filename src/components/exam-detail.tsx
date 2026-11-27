@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { EmptyState, PageHeader, StatCard } from "@/components/ui/blocks";
+import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ExamForm } from "@/components/exam-form";
 import { CandidateImportDialog } from "@/components/candidate-import-dialog";
@@ -34,13 +34,12 @@ import { ExamAnalyticsTab } from "@/components/exam-analytics-tab";
 import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { AuditLogView } from "@/components/audit-log-view";
-import { phaseBadgeClass } from "@/components/exams-manager";
+import { PhaseStatus } from "@/components/exams-manager";
 import { AdminExamActions, RescorePanel } from "@/components/exam-lifecycle-panels";
 import { api } from "@/lib/api-client";
 import { editLevel } from "@/shared/exam-lifecycle";
 import {
   MULTI_LABEL,
-  PHASE_LABEL,
   type CandidateOption,
   type EnrolledCandidate,
   type ExamDetail,
@@ -695,9 +694,7 @@ export function ExamDetailView({
           subtitle={`${format(new Date(exam.startsAt), "PP p")} – ${format(new Date(exam.endsAt), "PP p")} · ${exam.durationMinutes} min`}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className={phaseBadgeClass(exam.phase)}>
-                {PHASE_LABEL[exam.phase]}
-              </Badge>
+              <PhaseStatus phase={exam.phase} className="bg-card shadow-elev-1 h-10 rounded-md border px-3" />
               {!isAdmin && exam.questionCount > 0 && (
                 <Button
                   variant="outline"
@@ -768,44 +765,57 @@ export function ExamDetailView({
 
       {tab === "review" && (
         <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Questions" value={exam.questionCount} />
-            <StatCard label="Total marks" value={exam.totalMarks} />
-            <StatCard label="Enrolled candidates" value={exam.enrollmentCount} />
-            <StatCard label="Duration" value={`${exam.durationMinutes} min`} />
-          </div>
+          <Card className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+            {[
+              { label: "Questions", value: exam.questionCount, tab: "questions" as Tab },
+              { label: "Total marks", value: exam.totalMarks, tab: "questions" as Tab },
+              { label: "Candidates", value: exam.enrollmentCount, tab: "enrollments" as Tab },
+              { label: "Duration", value: `${exam.durationMinutes} min`, tab: "settings" as Tab },
+            ].map((st) => (
+              <button
+                key={st.label}
+                type="button"
+                onClick={() => setTab(st.tab)}
+                className="hover:bg-muted/40 focus-visible:ring-ring px-5 py-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+              >
+                <p className="text-muted-foreground text-xs">{st.label}</p>
+                <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{st.value}</p>
+              </button>
+            ))}
+          </Card>
 
           {exam.status === "DRAFT" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Publish readiness</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {exam.readiness.blockers.length === 0 ? (
-                  <p className="text-success flex items-center gap-2 font-medium">
-                    <CheckCircle2 className="h-4 w-4" />
-                    All publish requirements are met.
-                  </p>
-                ) : (
-                  <ul className="text-destructive space-y-1">
-                    {exam.readiness.blockers.map((b, i) => (
-                      <li key={i} className="flex items-center gap-2">
-                        <XCircle className="h-4 w-4 shrink-0" />
-                        {b}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {exam.readiness.warnings.map((w, i) => (
-                  <p
-                    key={i}
-                    className="text-warning flex items-center gap-2"
-                  >
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {w}
-                  </p>
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between gap-3 border-b px-5 py-3.5">
+                <h3 className="font-semibold">Publish checklist</h3>
+                <span
+                  className={`text-xs font-medium ${exam.readiness.ready ? "text-success" : "text-muted-foreground"}`}
+                >
+                  {exam.readiness.ready
+                    ? "Ready to publish"
+                    : `${exam.readiness.blockers.length} item${exam.readiness.blockers.length === 1 ? "" : "s"} left`}
+                </span>
+              </div>
+              <ul className="divide-y text-sm">
+                {exam.readiness.blockers.map((b, i) => (
+                  <li key={`b${i}`} className="flex items-center gap-3 px-5 py-3">
+                    <XCircle className="text-destructive h-4 w-4 shrink-0" aria-hidden="true" />
+                    {b}
+                  </li>
                 ))}
-              </CardContent>
+                {exam.readiness.warnings.map((w, i) => (
+                  <li key={`w${i}`} className="flex items-center gap-3 px-5 py-3">
+                    <AlertTriangle className="text-warning h-4 w-4 shrink-0" aria-hidden="true" />
+                    {w}
+                  </li>
+                ))}
+                {exam.readiness.blockers.length === 0 && (
+                  <li className="flex items-center gap-3 px-5 py-3">
+                    <CheckCircle2 className="text-success h-4 w-4 shrink-0" aria-hidden="true" />
+                    Questions, marks and schedule are valid. Publishing locks them.
+                  </li>
+                )}
+              </ul>
             </Card>
           )}
 

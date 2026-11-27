@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import * as D from "@radix-ui/react-dialog";
 import {
   BookOpen,
@@ -50,25 +50,9 @@ const CONSOLE: Record<Role, string> = {
   CANDIDATE: "Candidate portal",
 };
 
-// Collapsed state lives in localStorage; read it as an external store so the
-// server render (expanded) and the client agree without an effect + re-render.
-const COLLAPSE_KEY = "np.sidebar.collapsed";
-const listeners = new Set<() => void>();
-function subscribe(cb: () => void) {
-  listeners.add(cb);
-  window.addEventListener("storage", cb);
-  return () => {
-    listeners.delete(cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-function readCollapsed() {
-  try {
-    return localStorage.getItem(COLLAPSE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
+// Collapsed state is a cookie (not localStorage) so the SERVER renders the sidebar
+// in its saved state: no expand-then-collapse jump on page load.
+export const SIDEBAR_COOKIE = "np_sidebar";
 
 function initials(name: string) {
   return name
@@ -235,23 +219,23 @@ function SidebarBody({
 
 export function AppShell({
   user,
+  initialCollapsed = false,
   children,
 }: {
   user: SessionUser;
+  /** Read from the sidebar cookie on the server. */
+  initialCollapsed?: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
+  const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   function toggleCollapsed() {
-    try {
-      localStorage.setItem(COLLAPSE_KEY, collapsed ? "0" : "1");
-    } catch {
-      /* storage unavailable: toggle just won't persist */
-    }
-    listeners.forEach((l) => l());
+    const next = !collapsed;
+    setCollapsed(next);
+    document.cookie = `${SIDEBAR_COOKIE}=${next ? "1" : "0"}; path=/; max-age=31536000; samesite=lax`;
   }
 
   async function logout() {

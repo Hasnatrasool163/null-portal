@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 // Filled field: soft fill at rest, border + glow only on focus/error.
 export const fieldClass =
-  "w-full rounded-md border border-transparent bg-muted/70 px-3 py-2 text-sm transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 hover:bg-muted focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-[3px] focus-visible:ring-primary/15 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive/60 aria-[invalid=true]:bg-destructive/5";
+  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm shadow-elev-1 transition-[border-color,box-shadow] duration-150 placeholder:text-muted-foreground/75 hover:border-foreground/30 focus-visible:border-primary focus-visible:ring-[3px] focus-visible:ring-primary/15 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-muted disabled:opacity-60 aria-[invalid=true]:border-destructive aria-[invalid=true]:ring-destructive/15";
 const field = fieldClass;
 
 // forwardRef so react-hook-form's register() works directly.

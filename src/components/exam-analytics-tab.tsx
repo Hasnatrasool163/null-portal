@@ -12,9 +12,9 @@ import {
 import { AlertTriangle } from "lucide-react";
 import { DownloadButton } from "@/components/ui/download-button";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, Skeleton } from "@/components/ui/misc";
-import { EmptyState, StatCard } from "@/components/ui/blocks";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/misc";
+import { EmptyState } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
 import { DIFFICULTY_LABEL, TYPE_LABEL } from "@/shared/schemas/question";
@@ -53,134 +53,182 @@ export function ExamAnalyticsTab({ examId }: { examId: string }) {
     accuracy: q.avgScorePct,
     skipRate: q.skipRate,
   }));
+  const avgPct =
+    data.averageScore !== null && data.totalMarks > 0
+      ? Math.round((data.averageScore / data.totalMarks) * 100)
+      : null;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-muted-foreground text-sm">
-          Computed from <b>{data.submittedAttempts}</b> submitted real
-          attempt(s). Sandbox attempts are excluded.
+          From {data.submittedAttempts} submitted attempt{data.submittedAttempts === 1 ? "" : "s"}.
+          Sandbox previews are excluded.
         </p>
-        <DownloadButton
-          size="sm"
-          href={`/api/exams/${examId}/report.pdf`}
-          fallbackName="exam-summary.pdf"
-        >
+        <DownloadButton size="sm" href={`/api/exams/${examId}/report.pdf`} fallbackName="exam-summary.pdf">
           Download summary PDF
         </DownloadButton>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Submitted" value={data.submittedAttempts} />
-        <StatCard
-          label="Average score"
-          value={
-            data.averageScore !== null
-              ? `${data.averageScore} / ${data.totalMarks}`
-              : "—"
-          }
-        />
-        <StatCard label="Highest" value={data.highestScore ?? "—"} />
-        <StatCard label="Lowest" value={data.lowestScore ?? "—"} />
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            Per-question average score % vs skip rate %
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                <XAxis dataKey="name" fontSize={12} />
-                <YAxis domain={[0, 100]} unit="%" fontSize={12} />
-                <Tooltip />
-                <Bar
-                  dataKey="accuracy"
-                  name="Avg score %"
-                  fill="var(--primary)"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="skipRate"
-                  name="Skip rate %"
-                  fill="var(--warning)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Stats strip */}
+      <Card className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+        {[
+          { label: "Submitted", value: data.submittedAttempts, sub: "attempts" },
+          {
+            label: "Average",
+            value: data.averageScore ?? "—",
+            sub: avgPct !== null ? `of ${data.totalMarks} · ${avgPct}%` : `of ${data.totalMarks}`,
+          },
+          { label: "Highest", value: data.highestScore ?? "—", sub: `of ${data.totalMarks}` },
+          { label: "Lowest", value: data.lowestScore ?? "—", sub: `of ${data.totalMarks}` },
+        ].map((st) => (
+          <div key={st.label} className="px-5 py-4">
+            <p className="text-muted-foreground text-xs">{st.label}</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{st.value}</p>
+            <p className="text-muted-foreground text-xs">{st.sub}</p>
           </div>
-        </CardContent>
+        ))}
       </Card>
 
+      {/* Chart */}
+      <Card className="p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-semibold">Question performance</h3>
+            <p className="text-muted-foreground text-sm">Average score and skip rate per question.</p>
+          </div>
+          <ul className="text-muted-foreground flex gap-4 text-xs">
+            <li className="flex items-center gap-1.5">
+              <span className="bg-primary h-2.5 w-2.5 rounded-[3px]" aria-hidden="true" />
+              Average score
+            </li>
+            <li className="flex items-center gap-1.5">
+              <span className="bg-warning h-2.5 w-2.5 rounded-[3px]" aria-hidden="true" />
+              Skipped
+            </li>
+          </ul>
+        </div>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barGap={3} barCategoryGap="28%" margin={{ top: 4, right: 4, bottom: 0, left: -12 }}>
+              <CartesianGrid vertical={false} stroke="var(--border)" />
+              <XAxis
+                dataKey="name"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+                dy={6}
+              />
+              <YAxis
+                domain={[0, 100]}
+                ticks={[0, 25, 50, 75, 100]}
+                unit="%"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 12 }}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--muted)", opacity: 0.6 }}
+                content={({ active, payload, label }) =>
+                  active && payload?.length ? (
+                    <div className="bg-card shadow-elev-3 rounded-md border px-3 py-2 text-xs">
+                      <p className="mb-1 font-semibold">{label}</p>
+                      {payload.map((p) => (
+                        <p key={String(p.dataKey)} className="flex items-center gap-2">
+                          <span
+                            className="h-2 w-2 rounded-[2px]"
+                            style={{ background: String(p.color) }}
+                            aria-hidden="true"
+                          />
+                          <span className="text-muted-foreground">{p.name}</span>
+                          <span className="ml-auto pl-3 font-medium tabular-nums">{p.value}%</span>
+                        </p>
+                      ))}
+                    </div>
+                  ) : null
+                }
+              />
+              <Bar dataKey="accuracy" name="Average score" fill="var(--primary)" radius={[3, 3, 0, 0]} maxBarSize={22} />
+              <Bar dataKey="skipRate" name="Skipped" fill="var(--warning)" radius={[3, 3, 0, 0]} maxBarSize={22} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* Per-question table */}
       <Table>
         <THead>
           <TR>
             <TH>Question</TH>
-            <TH>Declared vs Observed</TH>
-            <TH>% Full credit</TH>
-            <TH>Skip rate</TH>
-            <TH>Most common wrong / Distribution</TH>
+            <TH>Difficulty</TH>
+            <TH>Full credit</TH>
+            <TH>Skipped</TH>
+            <TH className="min-w-64">Answers chosen</TH>
           </TR>
         </THead>
         <TBody>
           {data.questions.map((q) => (
             <TR key={q.questionId}>
-              <TD className="max-w-xs">
+              <TD className="max-w-xs align-top">
                 <p className="line-clamp-2 font-medium">
-                  Q{q.position + 1}. {q.body}
+                  <span className="text-muted-foreground font-normal">Q{q.position + 1}</span> {q.body}
                 </p>
                 <p className="text-muted-foreground text-xs">
                   {q.topicName} · {TYPE_LABEL[q.type]} · {q.marks} pts
                 </p>
               </TD>
-              <TD>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge>{DIFFICULTY_LABEL[q.declaredDifficulty]}</Badge>
-                  {q.observedDifficulty && (
-                    <span className="text-muted-foreground text-xs">
-                      → {DIFFICULTY_LABEL[q.observedDifficulty]}
-                    </span>
+              <TD className="align-top">
+                <p className="text-sm">
+                  {DIFFICULTY_LABEL[q.declaredDifficulty]}
+                  {q.observedDifficulty && q.observedDifficulty !== q.declaredDifficulty && (
+                    <span className="text-muted-foreground"> → {DIFFICULTY_LABEL[q.observedDifficulty]}</span>
                   )}
-                </div>
+                </p>
                 {q.difficultyMismatch && (
-                  <p className="text-warning mt-1 inline-flex items-center gap-1 text-xs">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    Difficulty mismatch
+                  <p className="text-warning mt-0.5 inline-flex items-center gap-1 text-xs">
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                    Plays harder/easier than set
                   </p>
                 )}
               </TD>
-              <TD>
-                <b>{q.percentCorrect}%</b>
-                <p className="text-muted-foreground text-xs">
-                  avg {q.avgScorePct}%
-                </p>
+              <TD className="align-top">
+                <p className="font-semibold tabular-nums">{q.percentCorrect}%</p>
+                <div className="bg-muted mt-1 h-1 w-16 overflow-hidden rounded-full" aria-hidden="true">
+                  <div className="bg-primary h-full" style={{ width: `${q.percentCorrect}%` }} />
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">avg {q.avgScorePct}%</p>
               </TD>
-              <TD>{q.skipRate}%</TD>
-              <TD className="max-w-xs text-xs">
+              <TD className={`align-top tabular-nums ${q.skipRate >= 20 ? "text-warning font-medium" : ""}`}>
+                {q.skipRate}%
+              </TD>
+              <TD className="align-top">
                 {q.type === "WRITTEN" ? (
-                  <span className="text-muted-foreground">
-                    Written response
-                  </span>
+                  <span className="text-muted-foreground text-xs">Written response</span>
                 ) : (
-                  <div className="space-y-1">
-                    {q.mostCommonWrong && (
-                      <p className="text-destructive">
-                        Top wrong: <b>{q.mostCommonWrong}</b>
-                      </p>
-                    )}
-                    <ul className="text-muted-foreground space-y-0.5">
-                      {q.optionDistribution.map((o) => (
-                        <li key={o.optionId} className="truncate">
-                          {o.isCorrect ? "✓ " : "· "}
-                          {o.body}: <b>{o.percent}%</b> ({o.count})
+                  <ul className="space-y-1.5">
+                    {q.optionDistribution.map((o) => {
+                      const topWrong = !o.isCorrect && o.body === q.mostCommonWrong;
+                      return (
+                        <li key={o.optionId} className="text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`truncate ${o.isCorrect ? "text-success font-medium" : topWrong ? "text-destructive" : "text-muted-foreground"}`}>
+                              {o.isCorrect ? "✓ " : ""}
+                              {o.body}
+                            </span>
+                            <span className="text-muted-foreground shrink-0 tabular-nums">
+                              {o.percent}% · {o.count}
+                            </span>
+                          </div>
+                          <div className="bg-muted mt-0.5 h-1 overflow-hidden rounded-full" aria-hidden="true">
+                            <div
+                              className={`h-full ${o.isCorrect ? "bg-success" : topWrong ? "bg-destructive" : "bg-muted-foreground/40"}`}
+                              style={{ width: `${o.percent}%` }}
+                            />
+                          </div>
                         </li>
-                      ))}
-                    </ul>
-                  </div>
+                      );
+                    })}
+                  </ul>
                 )}
               </TD>
             </TR>

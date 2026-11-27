@@ -121,10 +121,10 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               aria-label={ariaLabel}
               data-invalid={ariaInvalid ? "true" : undefined}
               className={cn(
-                "group bg-muted/70 flex h-10 w-full items-center justify-between gap-2 rounded-md border border-transparent px-3 text-left text-sm",
-                "hover:bg-muted transition-[background-color,border-color,box-shadow] duration-150",
-                "focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-primary/15 focus-visible:ring-[3px] focus-visible:outline-none",
-                "data-[state=open]:border-primary/50 data-[state=open]:bg-card data-[state=open]:ring-primary/15 data-[state=open]:ring-[3px]",
+                "group border-input bg-card shadow-elev-1 flex h-10 w-full items-center justify-between gap-2 rounded-md border px-3 text-left text-sm",
+                "hover:border-foreground/30 transition-[border-color,box-shadow] duration-150",
+                "focus-visible:border-primary focus-visible:ring-primary/15 focus-visible:ring-[3px] focus-visible:outline-none",
+                "data-[state=open]:border-primary data-[state=open]:ring-primary/15 data-[state=open]:ring-[3px]",
                 "data-[invalid=true]:border-destructive disabled:cursor-not-allowed disabled:opacity-50",
                 className,
               )}
