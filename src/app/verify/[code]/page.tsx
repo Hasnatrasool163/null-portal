@@ -55,10 +55,10 @@ export default async function VerifyReportPage({
 
   return (
     <VerifyFrame>
-      <div className="flex min-h-[calc(100dvh-10rem)] items-center justify-center">
-        <div className="animate-page-in w-full max-w-lg space-y-4">
+      <div className="flex justify-center pt-2 sm:pt-6">
+        <div className="animate-page-in w-full max-w-lg space-y-3">
           <BackButton href="/verify" label="Verify another code" />
-          <Card className="p-6 sm:p-8">
+          <Card className="p-5 sm:p-6">
             <div className="flex items-start gap-4">
               <span
                 className={cn(
@@ -89,7 +89,7 @@ export default async function VerifyReportPage({
             </div>
 
             {data && status ? (
-              <dl className="mt-6 divide-y border-t text-sm">
+              <dl className="mt-5 divide-y border-t text-sm">
                 {[
                   ["Status", <VerifyStatusLabel key="s" status={status} />],
                   ["Exam", data.examTitle],
@@ -114,7 +114,7 @@ export default async function VerifyReportPage({
                 ].map(([k, v]) => (
                   <div
                     key={String(k)}
-                    className="grid grid-cols-[7rem_1fr] items-center gap-4 py-3"
+                    className="grid grid-cols-[7rem_1fr] items-center gap-4 py-2.5"
                   >
                     <dt className="text-muted-foreground">{k}</dt>
                     <dd className="min-w-0 font-medium break-words">{v}</dd>
@@ -122,7 +122,7 @@ export default async function VerifyReportPage({
                 ))}
               </dl>
             ) : (
-              <div className="mt-6 border-t pt-6">
+              <div className="mt-5 border-t pt-5">
                 <VerifyLookup initial={code} />
               </div>
             )}

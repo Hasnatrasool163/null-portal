@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 import { BRAND } from "@/lib/brand";
@@ -17,19 +18,26 @@ export function PublicHeader({ verifyHref }: { verifyHref?: string }) {
           {BRAND.name}
         </span>
       </Link>
-      <nav className="flex items-center gap-1 sm:gap-2" aria-label="Primary">
+      <nav className="flex items-center gap-2" aria-label="Primary">
         {verifyHref && (
           <Button
             asChild
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="hidden sm:inline-flex"
+            className="bg-card border-primary/30 text-primary hover:border-primary/60"
           >
-            <a href={verifyHref}>Verify a report</a>
+            <a href={verifyHref} aria-label="Verify a report">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">Verify a report</span>
+              <span className="sm:hidden">Verify</span>
+            </a>
           </Button>
         )}
         <Button asChild size="sm">
-          <Link href="/login">Sign in</Link>
+          <Link href="/login">
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+            Sign in
+          </Link>
         </Button>
       </nav>
     </header>

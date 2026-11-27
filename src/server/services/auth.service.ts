@@ -17,13 +17,16 @@ import type {
   SessionUser,
 } from "@/shared/schemas/auth";
 
-/** Distinct code so the login screen can explain it (not a generic conflict toast). */
-const sessionActive = () =>
-  new ApiError(
-    409,
-    "SESSION_ACTIVE",
-    "This account is already signed in on another device, browser or tab. Sign out there first, or wait 2 minutes after closing it, then try again.",
-  );
+/**
+ * One response for every failed sign-in: unknown email, wrong password, deactivated
+ * account, or the account already signed in elsewhere. Distinct messages for the last
+ * two would only appear after a correct password, which tells someone guessing
+ * passwords that they have found the right one. Same status, code and text for all.
+ */
+const SIGN_IN_FAILED =
+  "We couldn't sign you in. Check your email and password. If you're signed in on another device, sign out there first or try again in a few minutes.";
+const signInFailed = () => new ApiError(401, "SIGN_IN_FAILED", SIGN_IN_FAILED);
+const sessionActive = signInFailed;
 
 /** Claims the account's single session slot for a new cookie, or throws if another session is alive. */
 async function startSession(userId: string, role: SessionUser["role"]) {
@@ -59,19 +62,19 @@ export const authService = {
 
   async login(input: LoginInput) {
     // Per-account DB-backed throttling (prevents credential stuffing even across rotated IPs/headers).
-    await checkRateLimit(`login:email:${input.email.toLowerCase()}`, 10, 60_000);
+    await checkRateLimit(
+      `login:email:${input.email.toLowerCase()}`,
+      10,
+      60_000,
+    );
 
     const found = await userRepo.findWithHashByEmail(input.email);
-    // Same message for "no such user" and "wrong password" (no account enumeration).
+    // Unknown email, wrong password and deactivated account all get the same response.
     if (!found || !(await verifyPassword(input.password, found.passwordHash))) {
-      throw Errors.unauthorized("Invalid email or password");
+      throw signInFailed();
     }
-    if (!found.isActive) {
-      throw Errors.forbidden(
-        "This account has been deactivated. Contact an administrator.",
-      );
-    }
-    // Checked only after the password, so this never leaks to someone without credentials.
+    if (!found.isActive) throw signInFailed();
+    // Also generic: a distinct "already signed in" message would confirm the password.
     await startSession(found.user.id, found.user.role);
     return found.user;
   },

@@ -859,7 +859,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                     <span className="flex-1">{opt.body}</span>
                     <kbd
                       className={`hidden h-6 min-w-6 items-center justify-center rounded border px-1.5 font-mono text-[11px] sm:inline-flex ${
-                        checked ? "border-primary/40 text-primary" : "text-muted-foreground"
+                        checked
+                          ? "border-primary/40 text-primary"
+                          : "text-muted-foreground"
                       }`}
                       aria-hidden="true"
                     >
@@ -933,8 +935,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       active
         ? "bg-primary text-primary-foreground shadow-elev-1 ring-2 ring-primary/30 ring-offset-1 ring-offset-card"
         : done
-          ? "bg-primary/12 text-primary hover:bg-primary/20"
-          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? "border border-primary/50 bg-primary/10 text-primary font-semibold hover:bg-primary/15"
+          : "border border-dashed border-foreground/25 bg-card text-muted-foreground hover:border-foreground/40 hover:text-foreground"
     }`;
   const flagDot = (
     <span
@@ -952,7 +954,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
         <div className="flex items-baseline justify-between">
           <span className="text-sm font-semibold">Questions</span>
           <span className="text-muted-foreground text-xs tabular-nums">
-            <span className="text-foreground font-semibold">{counts.answered}</span>
+            <span className="text-foreground font-semibold">
+              {counts.answered}
+            </span>
             /{attempt.questions.length} answered
           </span>
         </div>
@@ -999,19 +1003,31 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
 
       <ul className="text-muted-foreground grid grid-cols-2 gap-x-3 gap-y-1.5 border-t pt-3 text-xs">
         <li className="flex items-center gap-2">
-          <span className="bg-primary/12 h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          <span
+            className="border-primary/50 bg-primary/10 h-3 w-3 rounded-[3px] border"
+            aria-hidden="true"
+          />
           Answered
         </li>
         <li className="flex items-center gap-2">
-          <span className="bg-muted h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          <span
+            className="border-foreground/25 bg-card h-3 w-3 rounded-[3px] border border-dashed"
+            aria-hidden="true"
+          />
           Not answered
         </li>
         <li className="flex items-center gap-2">
-          <span className="bg-primary h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          <span
+            className="bg-primary h-3 w-3 rounded-[3px]"
+            aria-hidden="true"
+          />
           Current
         </li>
         <li className="flex items-center gap-2">
-          <span className="bg-warning h-2 w-2 rounded-full" aria-hidden="true" />
+          <span
+            className="bg-warning h-2 w-2 rounded-full"
+            aria-hidden="true"
+          />
           Flagged ({counts.flagged})
         </li>
       </ul>
@@ -1037,7 +1053,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             </span>
             <span>
               <span className="font-semibold">Sandbox preview</span>
-              <span className="text-muted-foreground"> · Not counted in results, statistics or reports.</span>
+              <span className="text-muted-foreground">
+                {" "}
+                · Not counted in results, statistics or reports.
+              </span>
             </span>
           </span>
           <div className="flex gap-2">
@@ -1155,7 +1174,14 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             )}
           </div>
 
-          <Tooltip content={<>Scratchpad <span className="opacity-60">· S</span></>} side="bottom">
+          <Tooltip
+            content={
+              <>
+                Scratchpad <span className="opacity-60">· S</span>
+              </>
+            }
+            side="bottom"
+          >
             <Button
               size="sm"
               variant="outline"
@@ -1167,7 +1193,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             </Button>
           </Tooltip>
 
-          <Tooltip content={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
+          <Tooltip
+            content={fullscreen ? "Exit full screen" : "Full screen"}
+            side="bottom"
+          >
             <Button
               size="icon"
               tooltip={false}
@@ -1210,7 +1239,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             </Button>
           </Tooltip>
 
-          <Tooltip content={<>Keyboard shortcuts <span className="opacity-60">· ?</span></>} side="bottom" align="end">
+          <Tooltip
+            content={
+              <>
+                Keyboard shortcuts <span className="opacity-60">· ?</span>
+              </>
+            }
+            side="bottom"
+            align="end"
+          >
             <Button
               size="icon"
               tooltip={false}
@@ -1322,9 +1359,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           ) : prefs.layout === "scroll" ? (
             <article
               aria-label="Exam paper"
-              className="paper-ruled shadow-elev-2 overflow-hidden rounded-lg border pl-10 sm:pl-14"
+              className="bg-card shadow-elev-1 overflow-hidden rounded-lg border"
             >
-              <header className="border-b border-dashed px-5 pt-6 pb-4 sm:px-6">
+              <header className="border-b px-5 pt-6 pb-4 sm:px-6">
                 <p className="text-muted-foreground font-mono text-[11px]">
                   Answer sheet
                 </p>
@@ -1337,7 +1374,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               </div>
               <footer className="bg-card/80 flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4 sm:px-6">
                 <p className="text-muted-foreground text-sm">
-                  End of paper · {counts.answered} of {attempt.questions.length} answered
+                  End of paper · {counts.answered} of {attempt.questions.length}{" "}
+                  answered
                   {counts.flagged > 0 && ` · ${counts.flagged} flagged`}
                 </p>
                 <Button onClick={() => setReviewMode(true)}>
@@ -1598,9 +1636,7 @@ function SubmissionReceipt({
           {isSandbox && " (Sandbox preview: not a real submission.)"}
         </p>
         <div className="rounded-md border-2 border-dashed p-4 text-center">
-          <p className="text-muted-foreground text-xs">
-            Confirmation code
-          </p>
+          <p className="text-muted-foreground text-xs">Confirmation code</p>
           <p
             className="font-mono text-2xl font-semibold tracking-widest"
             data-testid="receipt-code"

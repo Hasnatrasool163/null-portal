@@ -15,13 +15,81 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
+import { Skeleton, Spinner } from "@/components/ui/misc";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import { SystemCheckCompact, useSystemChecks } from "@/components/system-check";
 import type { AttemptState, MyExamItem } from "@/shared/schemas/attempt";
+
+const STATUS: Record<
+  MyExamItem["accessStatus"],
+  { label: string; chip: string; dot: string; live?: boolean }
+> = {
+  CAN_START: {
+    label: "Available",
+    chip: "bg-success/12 text-success",
+    dot: "bg-success",
+    live: true,
+  },
+  IN_PROGRESS: {
+    label: "In progress",
+    chip: "bg-success/12 text-success",
+    dot: "bg-success",
+    live: true,
+  },
+  UPCOMING: {
+    label: "Upcoming",
+    chip: "bg-warning/12 text-warning",
+    dot: "bg-warning",
+    live: true,
+  },
+  SUBMITTED: {
+    label: "Submitted",
+    chip: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground/60",
+  },
+  MISSED: {
+    label: "Closed",
+    chip: "bg-muted text-muted-foreground",
+    dot: "bg-muted-foreground/60",
+  },
+};
+
+/** Status chip; open/upcoming exams get a softly fading dot (disabled for reduced motion). */
+function StatusChip({ status }: { status: MyExamItem["accessStatus"] }) {
+  const s = STATUS[status] ?? STATUS.MISSED;
+  return (
+    <span
+      className={cn(
+        "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-[5px] px-2 text-xs font-medium",
+        s.chip,
+      )}
+    >
+      <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
+        {s.live && (
+          <span
+            className={cn(
+              "absolute inset-0 rounded-full motion-safe:animate-ping",
+              s.dot,
+              "opacity-60",
+            )}
+          />
+        )}
+        <span
+          className={cn(
+            "relative h-1.5 w-1.5 rounded-full",
+            s.dot,
+            s.live && "motion-safe:animate-pulse",
+          )}
+        />
+      </span>
+      {s.label}
+    </span>
+  );
+}
 
 function ExamCard({
   item,
@@ -33,42 +101,52 @@ function ExamCard({
   startingId: string | null;
 }) {
   const isStarting = startingId === item.examId;
-  return (
-    <Card interactive className="flex flex-col justify-between">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base leading-snug">{item.title}</CardTitle>
-          <Badge
-            className={
-              item.accessStatus === "CAN_START" ||
-              item.accessStatus === "IN_PROGRESS"
-                ? "bg-success/15 text-success shrink-0"
-                : item.accessStatus === "UPCOMING"
-                  ? "bg-warning/15 text-warning shrink-0"
-                  : "bg-muted text-muted-foreground shrink-0"
+  const footerText =
+    item.accessStatus === "CAN_START" || item.accessStatus === "IN_PROGRESS"
+      ? {
+          icon: Clock,
+          text: `Closes ${format(new Date(item.endsAt), "MMM d, p")}`,
+        }
+      : item.accessStatus === "UPCOMING"
+        ? {
+            icon: Clock,
+            text:
+              item.accessReason ||
+              `Opens ${format(new Date(item.startsAt), "MMM d, p")}`,
+          }
+        : item.accessStatus === "SUBMITTED"
+          ? {
+              icon: CheckCircle2,
+              text:
+                item.resultsPublished && item.totalScore !== null
+                  ? `Score ${item.totalScore} / ${item.totalMarks}`
+                  : item.accessReason,
             }
-          >
-            {item.accessStatus === "CAN_START"
-              ? "Available"
-              : item.accessStatus === "IN_PROGRESS"
-                ? "In progress"
-                : item.accessStatus === "UPCOMING"
-                  ? "Upcoming"
-                  : item.accessStatus === "SUBMITTED"
-                    ? "Submitted"
-                    : "Closed"}
-          </Badge>
+          : { icon: Lock, text: item.accessReason };
+
+  return (
+    <Card interactive className="flex flex-col">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <CardTitle className="text-base leading-snug">{item.title}</CardTitle>
+          <StatusChip status={item.accessStatus} />
         </div>
         <p className="text-muted-foreground text-xs">
           {item.questionCount} questions · {item.totalMarks} marks ·{" "}
           {item.durationMinutes} min
         </p>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="text-muted-foreground space-y-0.5 text-xs">
-          <div>Opens: {format(new Date(item.startsAt), "PP p")}</div>
-          <div>Closes: {format(new Date(item.endsAt), "PP p")}</div>
-        </div>
+      <CardContent className="flex flex-1 flex-col gap-3 text-sm">
+        <dl className="text-muted-foreground grid grid-cols-[3.5rem_1fr] gap-y-0.5 text-xs">
+          <dt>Opens</dt>
+          <dd className="text-foreground/80 tabular-nums">
+            {format(new Date(item.startsAt), "PP p")}
+          </dd>
+          <dt>Closes</dt>
+          <dd className="text-foreground/80 tabular-nums">
+            {format(new Date(item.endsAt), "PP p")}
+          </dd>
+        </dl>
 
         {item.instructions && (
           <p className="text-muted-foreground line-clamp-2 text-xs">
@@ -76,79 +154,73 @@ function ExamCard({
           </p>
         )}
         {item.changedAt && (
-          <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-            Changed: the examiner updated this exam on{" "}
+          <p className="bg-warning/10 text-warning rounded-md px-2.5 py-1.5 text-xs">
+            Updated by the examiner on{" "}
             {format(new Date(item.changedAt), "PP p")}. Check the schedule and
-            instructions above.
+            instructions.
           </p>
         )}
 
-        <div className="flex items-center justify-between gap-2 pt-1">
+        {/* Footer: context on the left, the one action on the right. */}
+        <div className="mt-auto flex min-h-9 items-center justify-between gap-3 border-t pt-3">
+          <span className="text-muted-foreground inline-flex min-w-0 items-center gap-1.5 text-xs">
+            <footerText.icon
+              className={cn(
+                "h-3.5 w-3.5 shrink-0",
+                item.accessStatus === "SUBMITTED" && "text-success",
+              )}
+              aria-hidden="true"
+            />
+            <span className="truncate">{footerText.text}</span>
+          </span>
+
           {item.accessStatus === "CAN_START" && (
             <Button
               size="sm"
+              className="shrink-0"
               disabled={startingId !== null}
               aria-busy={isStarting}
               onClick={() => onStart(item.examId)}
             >
               {isStarting ? <Spinner /> : <Play className="h-3.5 w-3.5" />}
-              {isStarting ? "Starting exam..." : "Start exam"}
+              {isStarting ? "Starting…" : "Start exam"}
             </Button>
           )}
           {item.accessStatus === "IN_PROGRESS" && item.attemptId && (
             <Button
               size="sm"
+              className="shrink-0"
               disabled={startingId !== null}
               aria-busy={isStarting}
               onClick={() => onStart(item.examId)}
             >
               {isStarting ? (
-                <>
-                  <Spinner />
-                  Opening attempt...
-                </>
+                <Spinner />
               ) : (
-                <>
-                  Resume attempt
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </>
+                <ArrowRight className="h-3.5 w-3.5" />
               )}
+              {isStarting ? "Opening…" : "Resume"}
             </Button>
           )}
-          {item.accessStatus === "SUBMITTED" && (
-            <div className="flex w-full items-center justify-between gap-2">
-              <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-                <CheckCircle2 className="text-success h-4 w-4" />
-                {item.resultsPublished && item.totalScore !== null
-                  ? `Score: ${item.totalScore} / ${item.totalMarks}`
-                  : item.accessReason}
+          {item.accessStatus === "SUBMITTED" &&
+            item.resultsPublished &&
+            item.attemptId && (
+              <Button asChild size="sm" variant="outline" className="shrink-0">
+                <Link href={`/attempts/${item.attemptId}/result`}>
+                  View result
+                </Link>
+              </Button>
+            )}
+          {item.accessStatus === "SUBMITTED" &&
+            !item.resultsPublished &&
+            item.receiptCode && (
+              <span
+                className="text-muted-foreground shrink-0 font-mono text-xs"
+                title="Submission receipt code"
+              >
+                {item.receiptCode}
               </span>
-              {item.receiptCode && !item.resultsPublished && (
-                <span className="text-muted-foreground font-mono text-xs" title="Submission receipt code">
-                  {item.receiptCode}
-                </span>
-              )}
-              {item.resultsPublished && item.attemptId && (
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/attempts/${item.attemptId}/result`}>
-                    View result
-                  </Link>
-                </Button>
-              )}
-            </div>
-          )}
-          {item.accessStatus === "UPCOMING" && (
-            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-              <Clock className="h-3.5 w-3.5" />
-              {item.accessReason}
-            </span>
-          )}
-          {item.accessStatus === "MISSED" && (
-            <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
-              <Lock className="h-3.5 w-3.5" />
-              {item.accessReason}
-            </span>
-          )}
+            )}
         </div>
       </CardContent>
     </Card>
@@ -183,7 +255,8 @@ export function CandidateHome({ firstName }: { firstName: string }) {
     if (launchingId !== null) return;
     setLaunchingId(examId);
     const existing = list.data?.find(
-      (e) => e.examId === examId && e.accessStatus === "IN_PROGRESS" && e.attemptId,
+      (e) =>
+        e.examId === examId && e.accessStatus === "IN_PROGRESS" && e.attemptId,
     );
     if (existing?.attemptId) {
       router.push(`/attempts/${existing.attemptId}`);
@@ -346,7 +419,9 @@ function StartExamBody({
               <p className="text-muted-foreground text-[11px] font-medium">
                 {s.label}
               </p>
-              <p className="mt-0.5 text-lg font-semibold tracking-tight tabular-nums">{s.value}</p>
+              <p className="mt-0.5 text-lg font-semibold tracking-tight tabular-nums">
+                {s.value}
+              </p>
             </div>
           ))}
         </div>
@@ -373,8 +448,14 @@ function StartExamBody({
         <Tooltip
           content={
             <span className="block space-y-1 py-0.5">
-              <span className="block">Lost connection? Keep working. Answers sync when you&apos;re back.</span>
-              <span className="block">Tab switches and copy/paste are noted for your examiner, never auto-penalised.</span>
+              <span className="block">
+                Lost connection? Keep working. Answers sync when you&apos;re
+                back.
+              </span>
+              <span className="block">
+                Tab switches and copy/paste are noted for your examiner, never
+                auto-penalised.
+              </span>
             </span>
           }
           side="top"
@@ -392,7 +473,11 @@ function StartExamBody({
           <Button variant="outline" disabled={starting} onClick={onCancel}>
             Not yet
           </Button>
-          <Button disabled={!sys.ready || starting} aria-busy={starting} onClick={onStart}>
+          <Button
+            disabled={!sys.ready || starting}
+            aria-busy={starting}
+            onClick={onStart}
+          >
             {starting ? <Spinner /> : <Play className="h-4 w-4" />}
             {starting ? "Starting…" : "Start exam"}
           </Button>

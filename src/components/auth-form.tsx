@@ -15,7 +15,7 @@ import {
   KeyRound,
   Lock,
   Mail,
-  MonitorX,
+  AlertCircle,
   QrCode,
   RefreshCw,
   ShieldCheck,
@@ -288,7 +288,7 @@ export function AuthForm() {
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
-      if (e instanceof ApiClientError && e.code === "SESSION_ACTIVE") {
+      if (e instanceof ApiClientError && e.code === "SIGN_IN_FAILED") {
         setSessionActive(e.message);
         return;
       }
@@ -415,14 +415,14 @@ export function AuthForm() {
               {sessionActive && (
                 <div
                   role="alert"
-                  className="animate-page-in border-warning/40 bg-warning/10 flex gap-2.5 rounded-md border p-3 text-sm"
+                  className="animate-page-in border-destructive/30 bg-destructive/5 flex gap-2.5 rounded-md border p-3 text-sm"
                 >
-                  <MonitorX
-                    className="text-warning mt-0.5 h-4 w-4 shrink-0"
+                  <AlertCircle
+                    className="text-destructive mt-0.5 h-4 w-4 shrink-0"
                     aria-hidden="true"
                   />
                   <div className="space-y-0.5">
-                    <p className="font-medium">Already signed in elsewhere</p>
+                    <p className="font-medium">Sign-in failed</p>
                     <p className="text-muted-foreground text-xs leading-relaxed">
                       {sessionActive}
                     </p>
