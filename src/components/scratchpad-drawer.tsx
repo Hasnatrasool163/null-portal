@@ -209,7 +209,7 @@ function SketchPad({ attemptId, visible }: { attemptId: string; visible: boolean
           {confirmClear ? "Confirm clear" : "Clear"}
         </button>
       </div>
-      <div ref={wrapRef} className="bg-background relative min-h-56 flex-1 overflow-hidden rounded-xl border [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]">
+      <div ref={wrapRef} className="bg-background relative min-h-56 flex-1 overflow-hidden rounded-lg border [background-image:radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]">
         <canvas
           ref={canvasRef}
           tabIndex={0}
@@ -307,8 +307,8 @@ export function ScratchpadDrawer({
       }}
       className={cn(
         "bg-card shadow-elev-3 fixed z-40 flex flex-col gap-3 border p-4 transition-[transform,opacity] duration-300 ease-out",
-        "inset-x-0 bottom-0 h-[62vh] rounded-t-2xl",
-        "lg:inset-x-auto lg:top-4 lg:right-4 lg:bottom-4 lg:h-auto lg:w-[400px] lg:rounded-2xl",
+        "inset-x-0 bottom-0 h-[62vh] rounded-t-lg",
+        "lg:inset-x-auto lg:top-4 lg:right-4 lg:bottom-4 lg:h-auto lg:w-[400px] lg:rounded-lg",
         open
           ? "translate-y-0 opacity-100 lg:translate-x-0"
           : "pointer-events-none translate-y-full opacity-0 lg:translate-x-[110%] lg:translate-y-0",
@@ -368,7 +368,7 @@ export function ScratchpadDrawer({
         maxLength={20_000}
         aria-label="Scratchpad notes"
         placeholder="Formulas, outlines, rough calculations…"
-        className="border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 min-h-0 w-full flex-1 resize-none rounded-xl border p-3 font-mono text-sm leading-relaxed focus-visible:ring-4 focus-visible:outline-none"
+        className="border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 min-h-0 w-full flex-1 resize-none rounded-lg border p-3 font-mono text-sm leading-relaxed focus-visible:ring-4 focus-visible:outline-none"
         value={text}
         onChange={(e) => onTextChange(e.target.value)}
       />

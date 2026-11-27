@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  */
 const buttonVariants = cva(
   [
-    "group/btn relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium",
+    "group/btn relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium",
     "transition-[transform,background-color,color,border-color,box-shadow,opacity] duration-150 ease-out",
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
     "disabled:pointer-events-none disabled:opacity-50",
@@ -25,7 +25,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/70 hover:shadow-elev-1",
         outline:
-          "border border-input bg-card text-foreground shadow-elev-1 hover:border-foreground hover:bg-foreground hover:text-background hover:shadow-elev-2 aria-pressed:border-foreground aria-pressed:bg-foreground aria-pressed:text-background",
+          "border border-border bg-card text-foreground shadow-elev-1 hover:border-foreground hover:bg-foreground hover:text-background hover:shadow-elev-2 aria-pressed:border-foreground aria-pressed:bg-foreground aria-pressed:text-background",
         ghost:
           "text-foreground/80 hover:bg-accent hover:text-accent-foreground",
         destructive:

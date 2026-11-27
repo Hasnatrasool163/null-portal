@@ -3,52 +3,52 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Change the brand in ONE place: edit --primary below. */
+/* Change the brand in ONE place: edit --primary below.
+   Clean neutral surfaces + ONE accent (deep teal). Semantic colours are for status only. */
 :root {
-  /* Paper, ink and ONE accent (deep teal). Semantic colours are for status only. */
-  --background: #faf7f2;
-  --foreground: #1b2430;
-  --card: #fffdf9;
-  --card-foreground: #1b2430;
-  --primary: #1d5c63;
+  --background: #f6f7f9;
+  --foreground: #14171c;
+  --card: #ffffff;
+  --card-foreground: #14171c;
+  --primary: #0f6b6e;
   --primary-foreground: #ffffff;
-  --secondary: #efe9dd;
-  --secondary-foreground: #1b2430;
-  --muted: #f0ebe1;
-  --muted-foreground: #5a6270;
-  --accent: #e3eeed;
-  --accent-foreground: #124047;
-  --destructive: #b42318;
-  --success: #17673a;
-  --warning: #8a5a00;
-  --border: #e0d9ca;
-  --input: #d6cfbf;
-  --ring: #1d5c63;
-  --radius: 0.75rem;
-  --sidebar: #f3eee4;
-  --shadow-color: 30 25% 20%;
+  --secondary: #eef0f3;
+  --secondary-foreground: #14171c;
+  --muted: #f0f2f5;
+  --muted-foreground: #5b6370;
+  --accent: #e8f2f1;
+  --accent-foreground: #0b4f51;
+  --destructive: #c0352b;
+  --success: #17744a;
+  --warning: #9a6400;
+  --border: #e4e7ec;
+  --input: #d5dae1;
+  --ring: #0f6b6e;
+  --radius: 0.5rem;
+  --sidebar: #ffffff;
+  --shadow-color: 220 20% 20%;
 }
 
 .dark {
-  --background: #14181f;
-  --foreground: #e8e4dc;
-  --card: #1a1f28;
-  --card-foreground: #e8e4dc;
-  --primary: #5eb3bb;
-  --primary-foreground: #0d1417;
-  --secondary: #232a35;
-  --secondary-foreground: #e8e4dc;
-  --muted: #232a35;
-  --muted-foreground: #a3abb8;
-  --accent: #1f3a3e;
-  --accent-foreground: #bfe3e7;
+  --background: #0d0f13;
+  --foreground: #e6e8eb;
+  --card: #15181d;
+  --card-foreground: #e6e8eb;
+  --primary: #3fb7ae;
+  --primary-foreground: #06201e;
+  --secondary: #1c2027;
+  --secondary-foreground: #e6e8eb;
+  --muted: #1c2027;
+  --muted-foreground: #9aa3af;
+  --accent: #12302f;
+  --accent-foreground: #a6e3dc;
   --destructive: #f2776c;
-  --success: #62c68a;
+  --success: #5cc98d;
   --warning: #e0a93b;
-  --border: #2d3544;
-  --input: #3a4354;
-  --ring: #5eb3bb;
-  --sidebar: #11151b;
+  --border: #252a33;
+  --input: #303642;
+  --ring: #3fb7ae;
+  --sidebar: #111419;
   --shadow-color: 220 40% 2%;
 }
 .high-contrast {
@@ -100,6 +100,34 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+/* Tailwind v4 defaults `border` to currentColor (near-black). Use the hairline token instead. */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--color-border);
+  }
+}
+
+/* Thin, theme-aware scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+  background-clip: padding-box;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -108,12 +136,11 @@ body {
 
 /* ---------- Elevation (one scale, used by Card / Button / menus) ---------- */
 :root {
-  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.06),
-    0 1px 1px hsl(var(--shadow-color) / 0.04);
-  --elev-2: 0 2px 4px hsl(var(--shadow-color) / 0.06),
-    0 6px 16px -4px hsl(var(--shadow-color) / 0.12);
-  --elev-3: 0 12px 32px -8px hsl(var(--shadow-color) / 0.28),
-    0 4px 8px -2px hsl(var(--shadow-color) / 0.08);
+  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+  --elev-2: 0 1px 2px hsl(var(--shadow-color) / 0.04),
+    0 4px 12px -2px hsl(var(--shadow-color) / 0.08);
+  --elev-3: 0 16px 40px -12px hsl(var(--shadow-color) / 0.25),
+    0 2px 6px hsl(var(--shadow-color) / 0.06);
 }
 .shadow-elev-1 { box-shadow: var(--elev-1); }
 .shadow-elev-2 { box-shadow: var(--elev-2); }
@@ -159,7 +186,7 @@ body {
   }
 }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 
 /* Exam workspace text size: one variable drives question, options and answer box. */
 [data-qsize="sm"] { --q-size: 0.9375rem; }

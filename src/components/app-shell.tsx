@@ -3,16 +3,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useSyncExternalStore } from "react";
 import * as D from "@radix-ui/react-dialog";
-import { motion } from "framer-motion";
 import {
   BookOpen,
+  ChevronsLeft,
+  ChevronsRight,
   ClipboardList,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
-  PanelLeftClose,
-  PanelLeftOpen,
   ShieldCheck,
   Sun,
   Users,
@@ -28,34 +27,38 @@ import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 // Per-role navigation (one place).
-const HOME: NavItem = { href: "/dashboard", label: "Home", icon: LayoutDashboard };
+const HOME: NavItem = { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard };
+const VERIFY: NavItem = { href: "/verify", label: "Verify a report", icon: ShieldCheck };
 const NAV: Record<Role, NavItem[]> = {
   ADMIN: [
     HOME,
-    { href: "/admin/users", label: "Users", icon: Users },
+    { href: "/admin/users", label: "Users & roles", icon: Users },
     { href: "/exams", label: "Exams", icon: ClipboardList },
+    VERIFY,
   ],
   EXAMINER: [
     HOME,
     { href: "/exams", label: "Exams", icon: ClipboardList },
     { href: "/questions", label: "Question bank", icon: BookOpen },
+    VERIFY,
   ],
-  CANDIDATE: [HOME],
+  CANDIDATE: [HOME, VERIFY],
 };
-const TOOLS: NavItem[] = [
-  { href: "/verify", label: "Verify a report", icon: ShieldCheck },
-];
+const CONSOLE: Record<Role, string> = {
+  ADMIN: "Admin console",
+  EXAMINER: "Examiner console",
+  CANDIDATE: "Candidate portal",
+};
 
+// Collapsed state lives in localStorage; read it as an external store so the
+// server render (expanded) and the client agree without an effect + re-render.
 const COLLAPSE_KEY = "np.sidebar.collapsed";
-
-// Sidebar collapsed state lives in localStorage; read it as an external store
-// so the server render (expanded) and the client agree without a flash.
-const collapseListeners = new Set<() => void>();
-function subscribeCollapse(cb: () => void) {
-  collapseListeners.add(cb);
+const listeners = new Set<() => void>();
+function subscribe(cb: () => void) {
+  listeners.add(cb);
   window.addEventListener("storage", cb);
   return () => {
-    collapseListeners.delete(cb);
+    listeners.delete(cb);
     window.removeEventListener("storage", cb);
   };
 }
@@ -76,140 +79,127 @@ function initials(name: string) {
     .join("");
 }
 
-function Brand({ compact }: { compact?: boolean }) {
+const rowBase =
+  "flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
+
+function Brand({ role, compact }: { role: Role; compact?: boolean }) {
   return (
-    <Link
-      href="/dashboard"
-      className="flex items-center gap-2.5 rounded-lg font-semibold tracking-tight"
-    >
+    <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5" aria-label="null-portal home">
       <span
         aria-hidden="true"
-        className="bg-foreground text-background flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-mono text-sm"
+        className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-md font-mono text-xs font-semibold"
       >
         n/
       </span>
-      {!compact && <span className="text-[15px]">null-portal</span>}
+      {!compact && (
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-sm font-semibold tracking-tight">null-portal</span>
+          <span className="text-muted-foreground block truncate text-[10px] font-medium tracking-[0.12em] uppercase">
+            {CONSOLE[role]}
+          </span>
+        </span>
+      )}
     </Link>
   );
 }
 
-function NavLinks({
-  items,
-  pathname,
-  collapsed,
-  layoutGroup,
-  onNavigate,
-}: {
-  items: NavItem[];
-  pathname: string;
-  collapsed: boolean;
-  layoutGroup: string;
-  onNavigate?: () => void;
-}) {
-  return (
-    <ul className="space-y-1">
-      {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
-        return (
-          <li key={href}>
-            <Link
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              title={collapsed ? label : undefined}
-              className={cn(
-                "group/nav relative flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
-                active
-                  ? "text-background"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                collapsed && "justify-center px-0",
-              )}
-            >
-              {active && (
-                <motion.span
-                  layoutId={layoutGroup}
-                  className="bg-foreground shadow-elev-2 absolute inset-0 rounded-lg"
-                  transition={{ type: "spring", stiffness: 500, damping: 38 }}
-                />
-              )}
-              <Icon
-                className={cn(
-                  "relative h-[18px] w-[18px] shrink-0 transition-transform duration-200",
-                  !active && "group-hover/nav:scale-110",
-                )}
-                aria-hidden="true"
-              />
-              {!collapsed && <span className="relative truncate">{label}</span>}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function UserCard({
+function SidebarBody({
   user,
   collapsed,
+  onNavigate,
   onLogout,
 }: {
   user: SessionUser;
   collapsed: boolean;
+  onNavigate?: () => void;
   onLogout: () => void;
 }) {
+  const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
-  const iconBtn =
-    "text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring flex h-9 w-9 items-center justify-center rounded-lg transition-[background-color,color,transform] focus-visible:ring-2 focus-visible:outline-none motion-safe:active:scale-90";
+  const dark = resolvedTheme === "dark";
+
   return (
-    <div
-      className={cn(
-        "bg-card shadow-elev-1 rounded-xl border p-2",
-        collapsed ? "flex flex-col items-center gap-1" : "space-y-2",
-      )}
-    >
-      <div className={cn("flex items-center gap-2.5", !collapsed && "px-1 pt-1")}>
-        <span
-          className="bg-primary text-primary-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-          title={collapsed ? `${user.name} · ${ROLE_LABEL[user.role]}` : undefined}
-        >
-          {initials(user.name)}
-        </span>
-        {!collapsed && (
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="text-muted-foreground truncate text-xs">
-              {ROLE_LABEL[user.role]}
-            </p>
-          </div>
-        )}
-      </div>
-      <div className={cn("flex gap-1", collapsed ? "flex-col" : "border-t pt-2")}>
+    <>
+      <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main">
+        <ul className="space-y-1">
+          {NAV[user.role].map(({ href, label, icon: Icon }) => {
+            const active = pathname === href || pathname.startsWith(`${href}/`);
+            return (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    rowBase,
+                    collapsed && "justify-center px-0",
+                    active
+                      ? "bg-primary text-primary-foreground shadow-elev-1"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+
+      <div className="space-y-1 border-t px-3 py-3">
         <button
           type="button"
-          className={iconBtn}
-          aria-label="Toggle theme"
-          title="Toggle theme"
-          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          onClick={() => setTheme(dark ? "light" : "dark")}
+          title={collapsed ? (dark ? "Light mode" : "Dark mode") : undefined}
+          className={cn(
+            rowBase,
+            "text-muted-foreground hover:bg-muted hover:text-foreground",
+            collapsed && "justify-center px-0",
+          )}
         >
-          <Sun className="h-4 w-4 dark:hidden" />
-          <Moon className="hidden h-4 w-4 dark:block" />
+          {dark ? (
+            <Sun className="h-[18px] w-[18px] shrink-0" />
+          ) : (
+            <Moon className="h-[18px] w-[18px] shrink-0" />
+          )}
+          {!collapsed && <span>{dark ? "Light mode" : "Dark mode"}</span>}
         </button>
+
+        <div
+          className={cn(
+            "bg-card flex items-center gap-2.5 rounded-md border p-2",
+            collapsed && "justify-center border-transparent bg-transparent p-1",
+          )}
+          title={collapsed ? `${user.name} · ${ROLE_LABEL[user.role]}` : undefined}
+        >
+          <span className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold">
+            {initials(user.name)}
+          </span>
+          {!collapsed && (
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-medium">{user.name}</p>
+              <p className="text-muted-foreground truncate text-xs">{user.email}</p>
+            </div>
+          )}
+        </div>
+
         <button
           type="button"
           onClick={onLogout}
-          title="Log out"
-          aria-label="Log out"
+          title={collapsed ? "Log out" : undefined}
           className={cn(
-            iconBtn,
-            !collapsed &&
-              "hover:bg-destructive/10 hover:text-destructive w-auto flex-1 justify-start gap-2 px-3 text-sm font-medium",
+            rowBase,
+            "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+            collapsed && "justify-center px-0",
           )}
         >
-          <LogOut className="h-4 w-4" />
-          {!collapsed && "Log out"}
+          <LogOut className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && <span>Log out</span>}
         </button>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -222,16 +212,16 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const collapsed = useSyncExternalStore(subscribeCollapse, readCollapsed, () => false);
+  const collapsed = useSyncExternalStore(subscribe, readCollapsed, () => false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   function toggleCollapsed() {
     try {
       localStorage.setItem(COLLAPSE_KEY, collapsed ? "0" : "1");
     } catch {
-      /* storage unavailable: the toggle just won't persist */
+      /* storage unavailable: toggle just won't persist */
     }
-    collapseListeners.forEach((l) => l());
+    listeners.forEach((l) => l());
   }
 
   async function logout() {
@@ -245,128 +235,69 @@ export function AppShell({
   }
 
   // Focus mode: a live exam attempt gets the whole screen, no navigation.
-  const focusMode = /^\/attempts\/[^/]+$/.test(pathname);
-  if (focusMode) {
-    return (
-      <div className="min-h-screen">
-        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6">{children}</main>
-      </div>
-    );
+  if (/^\/attempts\/[^/]+$/.test(pathname)) {
+    return <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6">{children}</main>;
   }
-
-  const items = NAV[user.role];
 
   return (
     <div className="min-h-screen">
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "bg-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r transition-[width] duration-300 ease-out lg:flex",
-          collapsed ? "w-[76px]" : "w-64",
+          "bg-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r transition-[width] duration-200 ease-out lg:flex",
+          collapsed ? "w-[72px]" : "w-60",
         )}
       >
         <div
           className={cn(
-            "flex h-16 items-center px-4",
-            collapsed ? "justify-center" : "justify-between",
+            "flex shrink-0 items-center border-b px-3",
+            collapsed ? "flex-col justify-center gap-2 py-3" : "h-16 justify-between gap-2 pl-4",
           )}
         >
-          <Brand compact={collapsed} />
-        </div>
-        <nav className="flex-1 overflow-y-auto px-3 py-2" aria-label="Main">
-          {!collapsed && (
-            <p className="text-muted-foreground mb-2 px-3 text-[11px] font-semibold tracking-wider uppercase">
-              Workspace
-            </p>
-          )}
-          <NavLinks
-            items={items}
-            pathname={pathname}
-            collapsed={collapsed}
-            layoutGroup="nav-active"
-          />
-          <div className="my-4 border-t" />
-          {!collapsed && (
-            <p className="text-muted-foreground mb-2 px-3 text-[11px] font-semibold tracking-wider uppercase">
-              Tools
-            </p>
-          )}
-          <NavLinks
-            items={TOOLS}
-            pathname={pathname}
-            collapsed={collapsed}
-            layoutGroup="nav-active"
-          />
-        </nav>
-        <div className="space-y-2 p-3">
-          <UserCard user={user} collapsed={collapsed} onLogout={logout} />
+          <Brand role={user.role} compact={collapsed} />
           <button
             type="button"
             onClick={toggleCollapsed}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={cn(
-              "text-muted-foreground hover:bg-accent hover:text-foreground flex h-9 w-full items-center gap-2 rounded-lg px-3 text-xs font-medium transition-colors",
-              collapsed && "justify-center px-0",
-            )}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
-            {collapsed ? (
-              <PanelLeftOpen className="h-4 w-4" />
-            ) : (
-              <>
-                <PanelLeftClose className="h-4 w-4" />
-                Collapse
-              </>
-            )}
+            {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
           </button>
         </div>
+        <SidebarBody user={user} collapsed={collapsed} onLogout={logout} />
       </aside>
 
       {/* Mobile top bar + drawer */}
-      <header className="bg-background/85 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 backdrop-blur lg:hidden">
-        <Brand />
+      <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
+        <Brand role={user.role} />
         <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
           <D.Trigger
-            className="hover:bg-accent focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-lg transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
             aria-label="Open navigation"
           >
             <Menu className="h-5 w-5" />
           </D.Trigger>
           <D.Portal>
-            <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/45 backdrop-blur-[2px]" />
-            <D.Content className="bg-sidebar data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r duration-300 focus:outline-none">
+            <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/40" />
+            <D.Content className="bg-sidebar data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r duration-200 focus:outline-none">
               <D.Title className="sr-only">Navigation</D.Title>
-              <D.Description className="sr-only">
-                Main navigation and account
-              </D.Description>
-              <div className="flex h-14 items-center justify-between px-4">
-                <Brand />
+              <D.Description className="sr-only">Main navigation and account</D.Description>
+              <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+                <Brand role={user.role} />
                 <D.Close
-                  className="hover:bg-accent flex h-9 w-9 items-center justify-center rounded-lg"
+                  className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md"
                   aria-label="Close navigation"
                 >
                   <X className="h-4 w-4" />
                 </D.Close>
               </div>
-              <nav className="flex-1 overflow-y-auto px-3 py-2" aria-label="Main">
-                <NavLinks
-                  items={items}
-                  pathname={pathname}
-                  collapsed={false}
-                  layoutGroup="nav-active-mobile"
-                  onNavigate={() => setMobileOpen(false)}
-                />
-                <div className="my-4 border-t" />
-                <NavLinks
-                  items={TOOLS}
-                  pathname={pathname}
-                  collapsed={false}
-                  layoutGroup="nav-active-mobile"
-                  onNavigate={() => setMobileOpen(false)}
-                />
-              </nav>
-              <div className="p-3">
-                <UserCard user={user} collapsed={false} onLogout={logout} />
-              </div>
+              <SidebarBody
+                user={user}
+                collapsed={false}
+                onNavigate={() => setMobileOpen(false)}
+                onLogout={logout}
+              />
             </D.Content>
           </D.Portal>
         </D.Root>
@@ -374,14 +305,11 @@ export function AppShell({
 
       <div
         className={cn(
-          "transition-[padding] duration-300 ease-out",
-          collapsed ? "lg:pl-[76px]" : "lg:pl-64",
+          "transition-[padding] duration-200 ease-out",
+          collapsed ? "lg:pl-[72px]" : "lg:pl-60",
         )}
       >
-        <main
-          key={pathname}
-          className="animate-page-in mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
-        >
+        <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>

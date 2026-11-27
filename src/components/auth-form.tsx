@@ -99,7 +99,7 @@ function SaveStatusDemo() {
   }, []);
   const s = SAVE_STATES[i];
   return (
-    <div className="bg-card shadow-elev-2 relative max-w-sm overflow-hidden rounded-xl border p-4">
+    <div className="bg-card shadow-elev-2 relative max-w-sm overflow-hidden rounded-lg border p-4">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={i}
@@ -148,7 +148,7 @@ function Showcase({ role }: { role: RoleKey }) {
     <aside className="bg-sidebar relative hidden w-[46%] max-w-[720px] shrink-0 flex-col justify-between gap-10 overflow-hidden border-r p-10 lg:flex xl:p-12">
       <PaletteBackdrop />
       <Link href="/" className="relative flex w-fit items-center gap-3 text-[17px] font-semibold tracking-tight">
-        <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-xl font-mono text-sm">
+        <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-lg font-mono text-sm">
           n/
         </span>
         null-portal
@@ -185,7 +185,7 @@ function Showcase({ role }: { role: RoleKey }) {
             >
               <span
                 className={cn(
-                  "bg-card shadow-elev-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border",
+                  "bg-card shadow-elev-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border",
                   i === 1 ? "text-primary" : "text-foreground",
                 )}
               >
@@ -315,19 +315,19 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
       <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-6 px-4 py-10 sm:px-6">
         <Link href="/" className="flex flex-col items-center gap-2 text-center lg:hidden">
-          <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-xl font-mono text-sm font-semibold">
+          <span className="bg-foreground text-background flex h-10 w-10 items-center justify-center rounded-lg font-mono text-sm font-semibold">
             n/
           </span>
           <strong className="font-semibold">null-portal</strong>
           <span className="text-muted-foreground text-sm">Secure examination management</span>
         </Link>
 
-        <div className="bg-card shadow-elev-2 animate-page-in w-full max-w-[420px] space-y-6 rounded-2xl border p-6 sm:p-7">
+        <div className="bg-card shadow-elev-2 animate-page-in w-full max-w-[420px] space-y-6 rounded-lg border p-6 sm:p-7">
           {!isRegister && (
             <div
               role="tablist"
               aria-label="Sign in as"
-              className="bg-muted/60 grid grid-cols-3 gap-1 rounded-xl border p-1"
+              className="bg-muted/60 grid grid-cols-3 gap-1 rounded-lg border p-1"
             >
               {ROLE_TABS.map((t) => {
                 const on = role === t.key;

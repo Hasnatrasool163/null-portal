@@ -17,7 +17,7 @@ export default function VerifyLandingPage() {
       </Link>
       <Card className="animate-page-in space-y-6 p-6 sm:p-8">
         <div className="space-y-3">
-          <span className="bg-success/12 text-success flex h-12 w-12 items-center justify-center rounded-2xl">
+          <span className="bg-success/12 text-success flex h-12 w-12 items-center justify-center rounded-lg">
             <ShieldCheck className="h-6 w-6" aria-hidden="true" />
           </span>
           <h1 className="text-2xl font-semibold tracking-tight">

@@ -139,7 +139,7 @@ export function PreferencesDialog({
 
           <div
             data-qsize={prefs.fontSize}
-            className="bg-muted/50 rounded-xl border p-3"
+            className="bg-muted/50 rounded-lg border p-3"
             aria-label="Text size preview"
           >
             <p className="text-muted-foreground mb-1 text-xs">Preview</p>

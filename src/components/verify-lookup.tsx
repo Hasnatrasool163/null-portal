@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ArrowRight, ScanLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/misc";
+import { fieldClass } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 /** Type a verification code instead of scanning the QR code on the PDF. */
 export function VerifyLookup({ initial = "" }: { initial?: string }) {
@@ -44,7 +46,7 @@ export function VerifyLookup({ initial = "" }: { initial?: string }) {
             placeholder="e.g. 7F3A9C21B0D4"
             aria-invalid={!!error}
             aria-describedby={error ? "verify-error" : undefined}
-            className="border-input bg-card shadow-elev-1 focus-visible:border-primary focus-visible:ring-primary/20 aria-[invalid=true]:border-destructive h-11 w-full rounded-lg border pr-3 pl-9 font-mono text-sm tracking-wider uppercase placeholder:normal-case placeholder:tracking-normal focus-visible:ring-4 focus-visible:outline-none"
+            className={cn(fieldClass, "h-11 pl-9 font-mono tracking-wider uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
           />
         </div>
         <Button type="submit" size="lg" disabled={pending}>

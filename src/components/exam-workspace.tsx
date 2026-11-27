@@ -818,7 +818,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                 rows={8}
                 maxLength={10_000}
                 placeholder="Type your response here..."
-                className="q-text border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 w-full rounded-xl border px-3 py-2 focus-visible:ring-4 focus-visible:outline-none"
+                className="q-text border-input bg-background focus-visible:border-primary focus-visible:ring-primary/20 w-full rounded-lg border px-3 py-2 focus-visible:ring-4 focus-visible:outline-none"
                 value={d.textAnswer}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -841,7 +841,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                 return (
                   <label
                     key={opt.id}
-                    className={`q-text flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-[background-color,border-color,transform] duration-150 motion-safe:active:scale-[0.995] ${
+                    className={`q-text flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-[background-color,border-color,transform] duration-150 motion-safe:active:scale-[0.995] ${
                       checked
                         ? "border-primary bg-accent/60"
                         : "border-border hover:bg-muted/50"
@@ -1038,7 +1038,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       {net.state !== "online" && (
         <div
           role="alert"
-          className={`animate-page-in flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium ${
+          className={`animate-page-in flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium ${
             net.state === "offline"
               ? "border-destructive bg-destructive/15 text-destructive"
               : "border-warning bg-warning/15 text-warning"

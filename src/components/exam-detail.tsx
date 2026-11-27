@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { format } from "date-fns";
 import {
   AlertTriangle,
@@ -719,13 +718,12 @@ export function ExamDetailView({
             }`}
           >
             {t.label}
-            {tab === t.id && (
-              <motion.span
-                layoutId="exam-tab-underline"
-                className="bg-primary absolute inset-x-2 -bottom-px h-0.5 rounded-full"
-                transition={{ type: "spring", stiffness: 500, damping: 40 }}
-              />
-            )}
+            <span
+              aria-hidden="true"
+              className={`bg-primary absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-transform duration-200 ${
+                tab === t.id ? "scale-x-100" : "scale-x-0"
+              }`}
+            />
           </button>
         ))}
       </div>

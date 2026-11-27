@@ -12,9 +12,9 @@ export const Card = ({
 }: React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) => (
   <div
     className={cn(
-      "bg-card text-card-foreground shadow-elev-1 rounded-xl border",
+      "bg-card text-card-foreground shadow-elev-1 rounded-lg border",
       interactive &&
-        "hover:border-foreground/25 hover:shadow-elev-2 transition-[transform,box-shadow,border-color] duration-200 motion-safe:hover:-translate-y-0.5",
+        "hover:border-foreground/15 hover:shadow-elev-2 transition-[transform,box-shadow,border-color] duration-200 motion-safe:hover:-translate-y-0.5",
       className,
     )}
     {...p}

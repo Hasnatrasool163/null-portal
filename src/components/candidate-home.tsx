@@ -193,7 +193,7 @@ export function CandidateHome({ firstName }: { firstName: string }) {
                   { icon: FileText, label: "Questions", value: confirming.questionCount },
                   { icon: CheckCircle2, label: "Total marks", value: confirming.totalMarks },
                 ].map((m) => (
-                  <div key={m.label} className="bg-muted/60 rounded-xl p-3">
+                  <div key={m.label} className="bg-muted/60 rounded-lg p-3">
                     <m.icon className="text-primary mb-1 h-4 w-4" aria-hidden="true" />
                     <p className="text-muted-foreground text-xs">{m.label}</p>
                     <p className="font-semibold tabular-nums">{m.value}</p>
@@ -204,7 +204,7 @@ export function CandidateHome({ firstName }: { firstName: string }) {
                 Closes {format(new Date(confirming.endsAt), "PP p")}. If the exam window closes first, your time ends then.
               </p>
               {confirming.instructions && (
-                <div className="max-h-44 overflow-y-auto rounded-xl border p-3">
+                <div className="max-h-44 overflow-y-auto rounded-lg border p-3">
                   <p className="mb-1 text-xs font-semibold tracking-wide uppercase">Instructions</p>
                   <p className="whitespace-pre-wrap">{confirming.instructions}</p>
                 </div>
@@ -219,7 +219,7 @@ export function CandidateHome({ firstName }: { firstName: string }) {
                   <span>Switching tabs, leaving full screen, copy/paste and disconnects are recorded for your examiner. They are advisory notes, never automatic penalties.</span>
                 </li>
               </ul>
-              <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition-colors">
+              <label className="hover:bg-accent/40 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors">
                 <input
                   type="checkbox"
                   className="accent-primary mt-0.5 h-4 w-4"

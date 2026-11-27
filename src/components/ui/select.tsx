@@ -121,10 +121,10 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               aria-label={ariaLabel}
               data-invalid={ariaInvalid ? "true" : undefined}
               className={cn(
-                "group border-input bg-card shadow-elev-1 flex h-10 w-full items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm",
-                "hover:border-foreground/40 transition-[border-color,box-shadow] duration-150",
-                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                "data-[state=open]:border-primary data-[state=open]:ring-primary/20 data-[state=open]:ring-4",
+                "group bg-muted/70 flex h-10 w-full items-center justify-between gap-2 rounded-md border border-transparent px-3 text-left text-sm",
+                "hover:bg-muted transition-[background-color,border-color,box-shadow] duration-150",
+                "focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-primary/15 focus-visible:ring-[3px] focus-visible:outline-none",
+                "data-[state=open]:border-primary/50 data-[state=open]:bg-card data-[state=open]:ring-primary/15 data-[state=open]:ring-[3px]",
                 "data-[invalid=true]:border-destructive disabled:cursor-not-allowed disabled:opacity-50",
                 className,
               )}
@@ -146,7 +146,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               sideOffset={6}
               collisionPadding={12}
               className={cn(
-                "bg-card shadow-elev-3 z-[60] max-h-[min(var(--radix-dropdown-menu-content-available-height),20rem)] min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-xl border p-1",
+                "bg-card shadow-elev-3 z-[60] border-border/80 max-h-[min(var(--radix-dropdown-menu-content-available-height),20rem)] min-w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto rounded-lg border p-1",
                 "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1",
                 "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
               )}
@@ -158,7 +158,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
                     value={o.value}
                     disabled={o.disabled}
                     className={cn(
-                      "relative flex cursor-pointer items-center rounded-lg py-2 pr-9 pl-3 text-sm outline-none select-none",
+                      "relative flex cursor-pointer items-center rounded-md py-2 pr-9 pl-3 text-sm outline-none select-none",
                       "transition-colors duration-100 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground",
                       "data-[state=checked]:font-medium data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                     )}

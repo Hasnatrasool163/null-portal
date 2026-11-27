@@ -111,9 +111,9 @@ export function SearchInput({
         }}
         placeholder={focused ? `${prefix.trim()}…` : undefined}
         className={cn(
-          "border-input bg-card shadow-elev-1 h-10 w-full rounded-lg border pr-16 pl-9 text-sm [&::-webkit-search-cancel-button]:hidden",
-          "hover:border-foreground/40 transition-[border-color,box-shadow] duration-150",
-          "focus-visible:border-primary focus-visible:ring-primary/20 focus-visible:ring-4 focus-visible:outline-none",
+          "bg-muted/70 h-10 w-full rounded-md border border-transparent pr-16 pl-9 text-sm [&::-webkit-search-cancel-button]:hidden",
+          "hover:bg-muted transition-[background-color,border-color,box-shadow] duration-150",
+          "focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-primary/15 focus-visible:ring-[3px] focus-visible:outline-none",
         )}
       />
       {showHint && (

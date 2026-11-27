@@ -5,7 +5,7 @@ export const Table = ({
   className,
   ...p
 }: React.HTMLAttributes<HTMLTableElement>) => (
-  <div className="bg-card shadow-elev-1 w-full overflow-x-auto rounded-xl border">
+  <div className="bg-card shadow-elev-1 w-full overflow-x-auto rounded-lg border">
     <table className={cn("w-full caption-bottom text-sm", className)} {...p} />
   </div>
 );

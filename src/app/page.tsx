@@ -39,7 +39,7 @@ export default async function Home() {
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 sm:px-6">
         <header className="flex items-center justify-between">
           <span className="flex items-center gap-2.5 font-semibold tracking-tight">
-            <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-xl font-mono text-sm">
+            <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-lg font-mono text-sm">
               n/
             </span>
             null-portal
@@ -77,7 +77,7 @@ export default async function Home() {
           <div className="stagger grid gap-4 md:grid-cols-3">
             {ROLES.map((r) => (
               <Card key={r.title} interactive className="space-y-2 p-5">
-                <span className="bg-accent text-accent-foreground flex h-10 w-10 items-center justify-center rounded-xl">
+                <span className="bg-accent text-accent-foreground flex h-10 w-10 items-center justify-center rounded-lg">
                   <r.icon className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <h2 className="font-semibold">{r.title}</h2>
