@@ -1,4 +1,4 @@
-import { AdminDisputes } from "@/components/admin-disputes";
+import { AdminDisputes } from "@/components/disputes/admin-disputes";
 import { PageHeader } from "@/components/ui/blocks";
 import { requireRole } from "@/server/auth/current-user";
 

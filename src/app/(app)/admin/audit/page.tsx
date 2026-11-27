@@ -1,4 +1,4 @@
-import { AuditLogView } from "@/components/audit-log-view";
+import { AuditLogView } from "@/components/audit/audit-log-view";
 import { PageHeader } from "@/components/ui/blocks";
 import { requireRole } from "@/server/auth/current-user";
 

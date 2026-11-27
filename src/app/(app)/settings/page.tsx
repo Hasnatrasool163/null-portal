@@ -1,4 +1,4 @@
-import { SettingsView } from "@/components/settings-view";
+import { SettingsView } from "@/components/settings/settings-view";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Settings" };

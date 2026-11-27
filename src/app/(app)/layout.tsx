@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/app-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { getCurrentUser } from "@/server/auth/current-user";
 import { getSidebarCollapsed } from "@/server/ui-prefs";
 

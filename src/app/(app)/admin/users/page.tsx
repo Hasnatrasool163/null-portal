@@ -1,4 +1,4 @@
-import { UsersManager } from "@/components/users-manager";
+import { UsersManager } from "@/components/users/users-manager";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Users" };

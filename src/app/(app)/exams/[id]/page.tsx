@@ -1,4 +1,4 @@
-import { ExamDetailView } from "@/components/exam-detail";
+import { ExamDetailView } from "@/components/exams/exam-detail";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Exam" };

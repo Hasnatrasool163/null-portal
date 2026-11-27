@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthForm } from "@/components/auth-form";
+import { AuthForm } from "@/components/auth/auth-form";
 import { getCurrentUser } from "@/server/auth/current-user";
 
 export const metadata = { title: "Sign in" };
