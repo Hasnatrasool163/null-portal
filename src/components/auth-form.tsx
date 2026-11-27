@@ -452,11 +452,6 @@ export function AuthForm() {
               <span className="font-mono">({tab.demo})</span>
             </button>
           </div>
-
-          <p className="text-muted-foreground px-2 text-center text-xs leading-relaxed">
-            There is no public sign-up. Accounts are created by your
-            institution&apos;s administrator.
-          </p>
         </div>
       </main>
     </div>
