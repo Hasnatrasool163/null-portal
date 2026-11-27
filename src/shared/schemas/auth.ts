@@ -21,17 +21,30 @@ export const emailSchema = z
   .email("Enter a valid email address")
   .max(120);
 
+export const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(72, "Password is too long")
+  .regex(/[A-Za-z]/, "Password needs at least one letter")
+  .regex(/\d/, "Password needs at least one number");
+
 export const registerSchema = z.object({
   name: nameSchema,
   email: emailSchema,
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .max(72, "Password is too long")
-    .regex(/[A-Za-z]/, "Password needs at least one letter")
-    .regex(/\d/, "Password needs at least one number"),
+  password: passwordSchema,
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Current password is required"),
+    newPassword: passwordSchema,
+  })
+  .refine((v) => v.currentPassword !== v.newPassword, {
+    path: ["newPassword"],
+    message: "New password must be different from current password",
+  });
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),

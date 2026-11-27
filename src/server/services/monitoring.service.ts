@@ -115,6 +115,16 @@ export const monitoringService = {
        VALUES ($1, $2, $3) RETURNING id, created_at`,
       [exam.id, user.id, message],
     );
+    if (exam.status !== "DRAFT") {
+      await audit(null, user, {
+        action: "ANNOUNCEMENT_POSTED",
+        examId: exam.id,
+        targetType: "announcement",
+        targetId: rows[0].id,
+        summary: `Posted announcement on "${exam.title}"`,
+        details: { message: message.slice(0, 200) },
+      });
+    }
     return {
       id: rows[0].id,
       message,

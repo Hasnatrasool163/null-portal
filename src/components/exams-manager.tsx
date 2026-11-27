@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
@@ -43,7 +43,12 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [q] = useDebounce(search, 300);
-  const [phase, setPhase] = useState<Phase | "">("");
+  const searchParams = useSearchParams();
+  // Dashboard KPI cards link here with ?phase=…
+  const [phase, setPhase] = useState<Phase | "">(() => {
+    const p = searchParams.get("phase");
+    return PHASES.includes(p as Phase) ? (p as Phase) : "";
+  });
   const [creating, setCreating] = useState(false);
 
   const params = new URLSearchParams();

@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/misc";
 import { applyFieldErrors } from "@/lib/api-client";
+import { editLevel, LEVEL_ALLOWED } from "@/shared/exam-lifecycle";
 import {
   MULTI_LABEL,
   MULTI_SCORING,
@@ -102,7 +103,11 @@ export function ExamForm({
   onCancel?: () => void;
   submitLabel?: string;
 }) {
-  const lockedSettings = !!exam && exam.status !== "DRAFT";
+  const level = exam ? editLevel(exam) : "FULL";
+  const allowed = LEVEL_ALLOWED[level];
+  const lockedSettings = level !== "FULL";
+  /** Per-field lock: read-only viewers, or fields the current lifecycle stage does not allow. */
+  const lock = (f: string) => !!readOnly || !allowed.includes(f);
   const def = defaultWindow();
   const {
     register,
@@ -142,14 +147,20 @@ export function ExamForm({
 
   async function submit(v: FormValues) {
     try {
-      if (lockedSettings) {
-        await onSubmit({ title: v.title, instructions: v.instructions });
+      const full = {
+        ...v,
+        startsAt: new Date(v.startsAt).toISOString(),
+        endsAt: new Date(v.endsAt).toISOString(),
+      };
+      if (exam) {
+        // Send only the fields this stage allows, plus the updatedAt concurrency token.
+        const patch: Record<string, unknown> = { updatedAt: exam.updatedAt };
+        for (const k of allowed) {
+          patch[k] = (full as Record<string, unknown>)[k];
+        }
+        await onSubmit(patch as ExamPatch);
       } else {
-        await onSubmit({
-          ...v,
-          startsAt: new Date(v.startsAt).toISOString(),
-          endsAt: new Date(v.endsAt).toISOString(),
-        });
+        await onSubmit(full);
       }
     } catch (e) {
       if (!applyFieldErrors(e, setError))
@@ -161,15 +172,16 @@ export function ExamForm({
     <form onSubmit={handleSubmit(submit)} className="space-y-4" noValidate>
       {lockedSettings && !readOnly && (
         <p className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
-          This exam is published. Schedule, duration and marking rules are
-          locked; only the title and instructions can be edited.
+          {level === "LIVE"
+            ? "This exam is ongoing. Only the title, instructions (for new starts) and a later window end can be edited."
+            : "This exam has completed. Only the title can be edited; use an answer-key rescore to correct scores."}
         </p>
       )}
 
       <Field label="Exam title" htmlFor="e-title" error={errors.title?.message}>
         <Input
           id="e-title"
-          disabled={readOnly}
+          disabled={lock("title")}
           aria-invalid={!!errors.title}
           {...register("title")}
         />
@@ -183,7 +195,7 @@ export function ExamForm({
         <textarea
           id="e-inst"
           rows={3}
-          disabled={readOnly}
+          disabled={lock("instructions")}
           className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
           {...register("instructions")}
         />
@@ -198,7 +210,7 @@ export function ExamForm({
           <Input
             id="e-start"
             type="datetime-local"
-            disabled={readOnly || lockedSettings}
+            disabled={lock("startsAt")}
             {...register("startsAt")}
           />
         </Field>
@@ -210,7 +222,7 @@ export function ExamForm({
           <Input
             id="e-end"
             type="datetime-local"
-            disabled={readOnly || lockedSettings}
+            disabled={lock("endsAt")}
             {...register("endsAt")}
           />
         </Field>
@@ -225,7 +237,7 @@ export function ExamForm({
             type="number"
             min={1}
             max={600}
-            disabled={readOnly || lockedSettings}
+            disabled={lock("durationMinutes")}
             {...register("durationMinutes", { valueAsNumber: true })}
           />
         </Field>
@@ -239,7 +251,7 @@ export function ExamForm({
         >
           <Select
             id="e-multi"
-            disabled={readOnly || lockedSettings}
+            disabled={lock("multiScoring")}
             {...register("multiScoring")}
           >
             {MULTI_SCORING.map((m) => (
@@ -261,7 +273,7 @@ export function ExamForm({
             step="0.05"
             min={0}
             max={1}
-            disabled={readOnly || lockedSettings}
+            disabled={lock("negativeMarking")}
             {...register("negativeMarking", { valueAsNumber: true })}
           />
         </Field>
@@ -276,7 +288,7 @@ export function ExamForm({
             type="number"
             min={0}
             max={600}
-            disabled={readOnly || lockedSettings}
+            disabled={lock("recoveryWindowSeconds")}
             {...register("recoveryWindowSeconds", { valueAsNumber: true })}
           />
         </Field>
@@ -286,8 +298,8 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
-            disabled={readOnly || lockedSettings}
+            className="choice"
+            disabled={lock("shuffleQuestions")}
             {...register("shuffleQuestions")}
           />
           Shuffle question order
@@ -295,8 +307,8 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
-            disabled={readOnly || lockedSettings}
+            className="choice"
+            disabled={lock("shuffleOptions")}
             {...register("shuffleOptions")}
           />
           Shuffle MCQ options
@@ -304,8 +316,8 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
-            disabled={readOnly || lockedSettings}
+            className="choice"
+            disabled={lock("showAnswers")}
             {...register("showAnswers")}
           />
           Show answer key after results are published

@@ -72,6 +72,33 @@ export const userRepo = {
         }
       : null;
   },
+  async findWithHashById(id: string) {
+    const rows = await query<Row>(
+      `SELECT ${COLS} FROM users WHERE id = $1 AND is_active`,
+      [id],
+    );
+    return rows[0]
+      ? {
+          user: toUser(rows[0]),
+          passwordHash: rows[0].password_hash,
+          sessionVersion: rows[0].session_version,
+        }
+      : null;
+  },
+  /** Replaces password hash and increments session_version atomically to revoke all active sessions. */
+  async updatePasswordAndBumpSession(
+    id: string,
+    passwordHash: string,
+  ): Promise<number | null> {
+    const rows = await query<{ session_version: number }>(
+      `UPDATE users
+       SET password_hash = $2, session_version = session_version + 1
+       WHERE id = $1
+       RETURNING session_version`,
+      [id, passwordHash],
+    );
+    return rows[0]?.session_version ?? null;
+  },
   async create(input: {
     name: string;
     email: string;

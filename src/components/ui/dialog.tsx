@@ -20,10 +20,10 @@ export function DialogContent({
 }) {
   return (
     <D.Portal>
-      <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/40" />
+      <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/35 backdrop-blur-sm" />
       <D.Content
         className={cn(
-          "bg-card shadow-elev-3 fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 focus:outline-none",
+          "bg-card shadow-elev-3 fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg border p-6 focus:outline-none",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
@@ -40,7 +40,7 @@ export function DialogContent({
         >
           {description ?? title}
         </D.Description>
-        <div className="mt-4">{children}</div>
+        <div className="-mx-6 mt-4 min-h-0 flex-1 overflow-y-auto px-6">{children}</div>
         <D.Close
           className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring absolute top-4 right-4 rounded-lg p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Close"

@@ -1,13 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   CheckCircle2,
   CopyPlus,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
@@ -35,7 +35,9 @@ import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { AuditLogView } from "@/components/audit-log-view";
 import { phaseBadgeClass } from "@/components/exams-manager";
+import { AdminExamActions, RescorePanel } from "@/components/exam-lifecycle-panels";
 import { api } from "@/lib/api-client";
+import { editLevel } from "@/shared/exam-lifecycle";
 import {
   MULTI_LABEL,
   PHASE_LABEL,
@@ -60,6 +62,7 @@ type Tab =
   | "grading"
   | "analytics"
   | "audit";
+const TABS: Tab[] = ["review", "settings", "questions", "enrollments", "monitor", "grading", "analytics", "audit"];
 
 function QuestionsTab({
   exam,
@@ -69,7 +72,7 @@ function QuestionsTab({
   readOnly: boolean;
 }) {
   const qc = useQueryClient();
-  const locked = readOnly || exam.status !== "DRAFT";
+  const locked = readOnly || editLevel(exam) !== "FULL";
   const [items, setItems] = useState(
     exam.questions.map((q) => ({
       questionId: q.questionId,
@@ -103,6 +106,7 @@ function QuestionsTab({
             questionId: x.questionId,
             marks: x.marks,
           })),
+          updatedAt: exam.updatedAt,
         },
       }),
     onSuccess: (updated) => {
@@ -333,9 +337,12 @@ function QuestionsTab({
 function EnrollmentsTab({
   examId,
   readOnly,
+  canRemove,
 }: {
   examId: string;
   readOnly: boolean;
+  /** Candidates can only be removed before the exam goes live. */
+  canRemove: boolean;
 }) {
   const qc = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
@@ -435,7 +442,7 @@ function EnrollmentsTab({
               <TH>Name</TH>
               <TH>Email</TH>
               <TH>Enrolled</TH>
-              {!readOnly && <TH className="text-right">Remove</TH>}
+              {!readOnly && canRemove && <TH className="text-right">Remove</TH>}
             </TR>
           </THead>
           <TBody>
@@ -446,7 +453,7 @@ function EnrollmentsTab({
                 <TD className="text-muted-foreground text-xs">
                   {format(new Date(c.enrolledAt), "PP p")}
                 </TD>
-                {!readOnly && (
+                {!readOnly && canRemove && (
                   <TD className="text-right">
                     <Button
                       size="icon"
@@ -502,7 +509,7 @@ function EnrollmentsTab({
                     <label className="flex flex-1 cursor-pointer items-center gap-2">
                       <input
                         type="checkbox"
-                        className="accent-primary h-4 w-4"
+                        className="choice"
                         disabled={c.enrolled}
                         checked={c.enrolled || selected.has(c.id)}
                         onChange={(e) => {
@@ -558,7 +565,11 @@ export function ExamDetailView({
 }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("review");
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get("tab");
+    return TABS.includes(t as Tab) ? (t as Tab) : "review";
+  });
   const [confirmAction, setConfirmAction] = useState<"publish" | "close" | null>(
     null,
   );
@@ -602,6 +613,11 @@ export function ExamDetailView({
       toast.success("Exam updated");
       qc.setQueryData(["exam", examId], updated);
       qc.invalidateQueries({ queryKey: ["exams"] });
+    },
+    onError: (e) => {
+      // A stale updatedAt (409) means someone else changed the exam: reload it.
+      void e;
+      qc.invalidateQueries({ queryKey: ["exam", examId] });
     },
   });
 
@@ -672,14 +688,8 @@ export function ExamDetailView({
 
   return (
     <>
-      <div className="space-y-2">
-        <Link
-          href="/exams"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          All exams
-        </Link>
+      <div className="space-y-4">
+        <BackButton href="/exams" label="All exams" />
         <PageHeader
           title={exam.title}
           subtitle={`${format(new Date(exam.startsAt), "PP p")} – ${format(new Date(exam.endsAt), "PP p")} · ${exam.durationMinutes} min`}
@@ -727,7 +737,7 @@ export function ExamDetailView({
       </div>
 
       <div
-        className="-mx-4 flex gap-1 overflow-x-auto border-b px-4 sm:mx-0 sm:px-0"
+        className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Exam sections"
       >
@@ -803,42 +813,27 @@ export function ExamDetailView({
             <CardHeader>
               <CardTitle>Configuration summary</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <span className="text-muted-foreground">Multi-choice scoring:</span>{" "}
-                <b>{MULTI_LABEL[exam.multiScoring]}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Negative marking:</span>{" "}
-                <b>{exam.negativeMarking}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Shuffling:</span>{" "}
-                <b>
-                  {exam.shuffleQuestions ? "Questions" : "Fixed order"} /{" "}
-                  {exam.shuffleOptions ? "Options shuffled" : "Fixed options"}
-                </b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Recovery window:</span>{" "}
-                <b>
-                  {exam.recoveryWindowSeconds > 0
-                    ? `${exam.recoveryWindowSeconds}s`
-                    : "Disabled"}
-                </b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Show answer key:</span>{" "}
-                <b>{exam.showAnswers ? "After results publish" : "Never"}</b>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Examiner:</span>{" "}
-                <b>{exam.ownerName}</b>
-              </div>
+            <CardContent className="space-y-5 text-sm">
+              <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[
+                  ["Multi-choice scoring", MULTI_LABEL[exam.multiScoring]],
+                  ["Negative marking", exam.negativeMarking > 0 ? `${exam.negativeMarking * 100}% per wrong answer` : "Off"],
+                  ["Question order", exam.shuffleQuestions ? "Shuffled" : "Fixed"],
+                  ["Option order", exam.shuffleOptions ? "Shuffled" : "Fixed"],
+                  ["Offline recovery window", exam.recoveryWindowSeconds > 0 ? `${exam.recoveryWindowSeconds} seconds` : "Disabled"],
+                  ["Answer key", exam.showAnswers ? "Shown after results publish" : "Never shown"],
+                  ["Examiner", exam.ownerName],
+                ].map(([label, value]) => (
+                  <div key={label} className="space-y-0.5">
+                    <dt className="text-muted-foreground text-xs">{label}</dt>
+                    <dd className="font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
               {exam.instructions && (
-                <div className="sm:col-span-2">
-                  <p className="text-muted-foreground">Instructions:</p>
-                  <p className="mt-1 whitespace-pre-wrap">{exam.instructions}</p>
+                <div className="bg-muted/50 space-y-1 rounded-md p-3">
+                  <p className="text-muted-foreground text-xs">Instructions</p>
+                  <p className="whitespace-pre-wrap">{exam.instructions}</p>
                 </div>
               )}
             </CardContent>
@@ -846,11 +841,19 @@ export function ExamDetailView({
         </div>
       )}
 
+      {exam.status === "CLOSED" && exam.closeReason && (
+        <p className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
+          {exam.cancelled ? "Cancelled" : "Closed"} by an administrator: {exam.closeReason}
+        </p>
+      )}
+      {isAdmin && <AdminExamActions exam={exam} />}
+      <RescorePanel exam={exam} readOnly={isAdmin} />
+
       {tab === "settings" && (
         <Card>
           <CardContent className="pt-6">
             <ExamForm
-              key={`${exam.id}-${exam.status}`}
+              key={`${exam.id}-${exam.updatedAt}`}
               exam={exam}
               readOnly={isAdmin}
               onSubmit={async (v) => {
@@ -870,7 +873,11 @@ export function ExamDetailView({
       )}
 
       {tab === "enrollments" && (
-        <EnrollmentsTab examId={exam.id} readOnly={isAdmin} />
+        <EnrollmentsTab
+          examId={exam.id}
+          readOnly={isAdmin || editLevel(exam) === "TITLE_ONLY"}
+          canRemove={editLevel(exam) === "FULL"}
+        />
       )}
 
       {tab === "monitor" && (

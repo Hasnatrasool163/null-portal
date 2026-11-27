@@ -245,12 +245,16 @@ async function slice2() {
     (await ex1.patch(`/api/questions/${freshQ.data.id}`, sampleQuestion(tId, { body: "Try edit locked" }))).status === 409,
   );
   check(
-    "questions cannot be changed after publish (409)",
+    "published exam must keep at least 1 question (409)",
     (await ex1.req("PUT", `/api/exams/${examId}/questions`, { items: [] })).status === 409,
   );
   check(
-    "schedule cannot be changed after publish (409)",
-    (await ex1.patch(`/api/exams/${examId}`, { durationMinutes: 40 })).status === 409,
+    "upcoming published exam with 0 attempts allows schedule edit (re-validated + audited)",
+    (await ex1.patch(`/api/exams/${examId}`, { durationMinutes: 40 })).status === 200,
+  );
+  check(
+    "upcoming published exam re-validates invalid schedule (400)",
+    (await ex1.patch(`/api/exams/${examId}`, { durationMinutes: 90 })).status === 400,
   );
   check(
     "title/instructions remain editable after publish",
@@ -1160,6 +1164,307 @@ async function featureSlice(h) {
   check("question preview returns options with answer key (owner only)", pv.status === 200 && pv.data.options.some((o) => o.isCorrect));
 }
 
+async function lifecycleSlice() {
+  console.log("Lifecycle & Admin governance (Req 2 & 3)");
+  const admin = await login("admin@demo.test");
+  const ex1 = await login("examiner1@demo.test");
+  const ex2 = await login("examiner2@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const cand2 = await login("candidate2@demo.test");
+
+  const ex1Id = (await ex1.get("/api/auth/me")).data.id;
+  const ex2Id = (await ex2.get("/api/auth/me")).data.id;
+  const c1Id = (await cand1.get("/api/auth/me")).data.id;
+  const c2Id = (await cand2.get("/api/auth/me")).data.id;
+
+  const now = Date.now();
+  const tId = (await ex1.get("/api/topics")).data[0].id;
+  const q1 = await ex1.post(
+    "/api/questions",
+    sampleQuestion(tId, {
+      body: `Lifecycle MCQ ${now}`,
+      options: [
+        { body: "Option A (initially right)", isCorrect: true },
+        { body: "Option B (initially wrong)", isCorrect: false },
+      ],
+    }),
+  );
+  const q2 = await ex1.post(
+    "/api/questions",
+    sampleQuestion(tId, { body: `Lifecycle Extra MCQ ${now}` }),
+  );
+  const q1Detail = (await ex1.get(`/api/questions/${q1.data.id}`)).data;
+  const wrongOpt = q1Detail.options.find((o) => !o.isCorrect);
+
+  // 1) UPCOMING published exam with 0 started attempts: full edit + changed note + updatedAt check
+  const up = await ex1.post("/api/exams", {
+    title: `Lifecycle Upcoming ${now}`,
+    instructions: "Original upcoming instructions",
+    startsAt: new Date(now + 3_600_000).toISOString(),
+    endsAt: new Date(now + 7_200_000).toISOString(),
+    durationMinutes: 20,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 60,
+  });
+  const upId = up.data.id;
+  await ex1.req("PUT", `/api/exams/${upId}/questions`, {
+    items: [{ questionId: q1.data.id, marks: 4 }],
+  });
+  await ex1.post(`/api/exams/${upId}/enrollments`, { candidateIds: [c1Id] });
+  const upPub = await ex1.post(`/api/exams/${upId}/publish`);
+  const staleToken = upPub.data.updatedAt;
+
+  // Admin cannot edit questions, settings, or rescore
+  check("admin cannot patch exam (403)", (await admin.patch(`/api/exams/${upId}`, { title: "Hack" })).status === 403);
+  check("admin cannot edit exam questions (403)", (await admin.req("PUT", `/api/exams/${upId}/questions`, { items: [{ questionId: q1.data.id, marks: 1 }] })).status === 403);
+  check("admin cannot rescore (403)", (await admin.post(`/api/exams/${upId}/rescore`, { questionId: q1.data.id, correctOptionIds: [wrongOpt.id], reason: "Admin try" })).status === 403);
+
+  // Edit PUBLISHED (0 attempts): questions + settings allowed, sets changedAt, audited
+  const upEdit = await ex1.patch(`/api/exams/${upId}`, {
+    durationMinutes: 25,
+    instructions: "Updated upcoming instructions",
+    updatedAt: staleToken,
+  });
+  check("published (0 attempts) edit succeeds and sets contentChangedAt", upEdit.status === 200 && !!upEdit.data.contentChangedAt);
+  check(
+    "stale updatedAt rejected with 409 on PATCH",
+    (await ex1.patch(`/api/exams/${upId}`, { title: "Overwrite attempt", updatedAt: staleToken })).status === 409,
+  );
+  const upSetQ = await ex1.req("PUT", `/api/exams/${upId}/questions`, {
+    items: [
+      { questionId: q1.data.id, marks: 4 },
+      { questionId: q2.data.id, marks: 2 },
+    ],
+    updatedAt: upEdit.data.updatedAt,
+  });
+  check("published (0 attempts) allows changing questions", upSetQ.status === 200 && upSetQ.data.questionCount === 2);
+  check(
+    "stale updatedAt rejected with 409 on PUT questions",
+    (await ex1.req("PUT", `/api/exams/${upId}/questions`, { items: [{ questionId: q1.data.id, marks: 4 }], updatedAt: staleToken })).status === 409,
+  );
+  const candMyUp = (await cand1.get("/api/my/exams")).data.find((e) => e.examId === upId);
+  check("candidate sees 'changed' note on edited published exam", !!candMyUp?.changedAt);
+
+  // Admin owner reassignment
+  check("admin reassign to non-examiner -> 400", (await admin.post(`/api/admin/exams/${upId}/owner`, { ownerId: c1Id })).status === 400);
+  check("admin reassign to same owner -> 409", (await admin.post(`/api/admin/exams/${upId}/owner`, { ownerId: ex1Id })).status === 409);
+  const reass = await admin.post(`/api/admin/exams/${upId}/owner`, { ownerId: ex2Id, reason: "Handover" });
+  check("admin reassigns owner to examiner2", reass.status === 200 && reass.data.ownerId === ex2Id);
+  check("old owner loses access (404)", (await ex1.get(`/api/exams/${upId}`)).status === 404);
+  check("new owner gains access (200)", (await ex2.get(`/api/exams/${upId}`)).status === 200);
+  check("examiner cannot reassign owner (403)", (await ex2.post(`/api/admin/exams/${upId}/owner`, { ownerId: ex1Id })).status === 403);
+
+  // Admin close/cancel with required reason
+  check("admin cancel without reason -> 400", (await admin.post(`/api/admin/exams/${upId}/close`, { action: "CANCEL", reason: "no" })).status === 400);
+  const cancelled = await admin.post(`/api/admin/exams/${upId}/close`, { action: "CANCEL", reason: "Paper leaked before start" });
+  check(
+    "admin cancels exam with reason (audited)",
+    cancelled.status === 200 && cancelled.data.status === "CLOSED" && cancelled.data.cancelled === true && cancelled.data.closeReason === "Paper leaked before start",
+  );
+  const upAudit = (await admin.get(`/api/exams/${upId}/audit`)).data.items.map((a) => a.action);
+  check(
+    "post-publish edits, reassignment and cancel all audited",
+    upAudit.includes("EXAM_UPDATED") &&
+      upAudit.includes("EXAM_QUESTIONS_CHANGED") &&
+      upAudit.includes("EXAM_OWNER_REASSIGNED") &&
+      upAudit.includes("EXAM_CANCELLED"),
+  );
+
+  // 2) ONGOING exam: edit rules + attempt snapshot isolation
+  const liveEndsAt = new Date(now + 3_600_000).toISOString();
+  const live = await ex1.post("/api/exams", {
+    title: `Lifecycle Live ${now}`,
+    instructions: "Original live instructions",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: liveEndsAt,
+    durationMinutes: 15,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 60,
+  });
+  const liveId = live.data.id;
+  await ex1.req("PUT", `/api/exams/${liveId}/questions`, {
+    items: [{ questionId: q1.data.id, marks: 4 }],
+  });
+  await ex1.post(`/api/exams/${liveId}/enrollments`, { candidateIds: [c1Id] });
+  const livePub = await ex1.post(`/api/exams/${liveId}/publish`);
+
+  // Candidate 1 starts attempt (snapshots instructions, deadline, questions)
+  const att1 = await cand1.post(`/api/exams/${liveId}/start`);
+  check("candidate1 starts live exam", att1.status === 200 && att1.data.instructions === "Original live instructions");
+  const att1Deadline = att1.data.deadlineAt;
+
+  // ONGOING disallowed edits -> 409 with reason
+  const badDur = await ex1.patch(`/api/exams/${liveId}`, { durationMinutes: 30, updatedAt: livePub.data.updatedAt });
+  check("ONGOING blocks duration change (409 with reason)", badDur.status === 409 && !!badDur.error?.message, `${badDur.status} ${JSON.stringify(badDur.error)}`);
+  const badShorten = await ex1.patch(`/api/exams/${liveId}`, { endsAt: new Date(now + 1_800_000).toISOString(), updatedAt: livePub.data.updatedAt });
+  check("ONGOING blocks shortening endsAt (409)", badShorten.status === 409, `${badShorten.status}`);
+  const badQ = await ex1.req("PUT", `/api/exams/${liveId}/questions`, { items: [{ questionId: q1.data.id, marks: 5 }] });
+  check("ONGOING blocks question changes (409)", badQ.status === 409, `${badQ.status}`);
+  const badRm = await ex1.del(`/api/exams/${liveId}/enrollments/${c1Id}`);
+  check("ONGOING blocks removing enrollment (409)", badRm.status === 409, `${badRm.status}`);
+
+  // ONGOING allowed edits: title, instructions (new starts), extend endsAt, add enrollment, announcement
+  const extendedEnd = new Date(now + 5_400_000).toISOString();
+  const liveEdit = await ex1.patch(`/api/exams/${liveId}`, {
+    title: `Lifecycle Live Extended ${now}`,
+    instructions: "Updated live instructions for new starts",
+    endsAt: extendedEnd,
+    updatedAt: livePub.data.updatedAt,
+  });
+  check("ONGOING allows title, instructions and extending endsAt", liveEdit.status === 200, `${liveEdit.status} ${JSON.stringify(liveEdit.error)}`);
+  const enr2 = await ex1.post(`/api/exams/${liveId}/enrollments`, { candidateIds: [c2Id] });
+  check("ONGOING allows adding enrollment", enr2.status === 200, `${enr2.status} ${JSON.stringify(enr2.error)}`);
+  const ann = await ex1.post(`/api/exams/${liveId}/announcements`, { message: "Extra 30 min window" });
+  check("ONGOING allows posting announcement", ann.status === 200, `${ann.status} ${JSON.stringify(ann.error)}`);
+
+  // Verify snapshot isolation: att1 keeps old instructions & deadline; cand2 gets new instructions
+  const att1Reload = await cand1.get(`/api/attempts/${att1.data.id}`);
+  check(
+    "existing attempt keeps snapshotted instructions & deadline",
+    att1Reload.data.instructions === "Original live instructions" && att1Reload.data.deadlineAt === att1Deadline,
+  );
+  const att2 = await cand2.post(`/api/exams/${liveId}/start`);
+  check(
+    "new attempt started after edit sees updated instructions",
+    att2.status === 200 && att2.data.instructions === "Updated live instructions for new starts",
+  );
+
+  // Candidate 1 answers with wrongOpt (0 marks) and submits; Candidate 2 also submits
+  const aq1 = att1.data.questions[0];
+  await cand1.req("PUT", `/api/attempts/${att1.data.id}/answers`, {
+    attemptQuestionId: aq1.id,
+    selectedOptionIds: [wrongOpt.id],
+    seq: 1,
+  });
+  await cand1.post(`/api/attempts/${att1.data.id}/submit`);
+  await cand2.post(`/api/attempts/${att2.data.id}/submit`);
+
+  // Rescore blocked before COMPLETED
+  check(
+    "rescore blocked while ONGOING (409)",
+    (await ex1.post(`/api/exams/${liveId}/rescore`, { questionId: q1.data.id, correctOptionIds: [wrongOpt.id], reason: "Too early" })).status === 409,
+  );
+
+  // 3) COMPLETED: title only + audited answer-key rescore keeping old & new values
+  const liveClosed = await ex1.post(`/api/exams/${liveId}/close`);
+  check("close live exam -> COMPLETED", liveClosed.status === 200 && liveClosed.data.phase === "COMPLETED");
+  check("COMPLETED allows title edit", (await ex1.patch(`/api/exams/${liveId}`, { title: `Lifecycle Completed ${now}`, updatedAt: liveClosed.data.updatedAt })).status === 200);
+  const afterTitle = (await ex1.get(`/api/exams/${liveId}`)).data;
+  check("COMPLETED blocks instructions edit (409)", (await ex1.patch(`/api/exams/${liveId}`, { instructions: "Nope", updatedAt: afterTitle.updatedAt })).status === 409);
+  check("COMPLETED blocks extending endsAt (409)", (await ex1.patch(`/api/exams/${liveId}`, { endsAt: new Date(now + 9_000_000).toISOString(), updatedAt: afterTitle.updatedAt })).status === 409);
+  check("COMPLETED blocks adding enrollments (409)", (await ex1.post(`/api/exams/${liveId}/enrollments`, { candidateIds: [c1Id] })).status === 409);
+
+  // Check score before rescore (0), then rescore to wrongOpt (4)
+  const gradingBefore = (await ex1.get(`/api/exams/${liveId}/grading`)).data;
+  const c1Before = gradingBefore.attempts.find((a) => a.attemptId === att1.data.id);
+  check("before rescore candidate1 has 0 marks", c1Before?.totalScore === 0);
+
+  const rescoreRes = await ex1.post(`/api/exams/${liveId}/rescore`, {
+    questionId: q1.data.id,
+    correctOptionIds: [wrongOpt.id],
+    reason: "Option B was the intended answer",
+    updatedAt: afterTitle.updatedAt,
+  });
+  check(
+    "COMPLETED answer-key rescore succeeds and updates affected attempt",
+    rescoreRes.status === 200 && rescoreRes.data.answersChanged === 1 && rescoreRes.data.attemptsAffected === 1,
+  );
+  const gradingAfter = (await ex1.get(`/api/exams/${liveId}/grading`)).data;
+  const c1After = gradingAfter.attempts.find((a) => a.attemptId === att1.data.id);
+  check("after rescore candidate1 has 4 marks", c1After?.totalScore === 4);
+
+  const hist = await ex1.get(`/api/exams/${liveId}/rescore`);
+  const run = hist.data?.[0];
+  check(
+    "rescore history keeps old and new key + old and new scores",
+    hist.status === 200 &&
+      run?.oldCorrectIds.length === 1 &&
+      run?.newCorrectIds[0] === wrongOpt.id &&
+      run?.changes[0]?.oldScore === 0 &&
+      run?.changes[0]?.newScore === 4 &&
+      run?.changes[0]?.oldTotalScore === 0 &&
+      run?.changes[0]?.newTotalScore === 4,
+  );
+  check(
+    "rescore with stale updatedAt rejected (409)",
+    (await ex1.post(`/api/exams/${liveId}/rescore`, { questionId: q1.data.id, correctOptionIds: [wrongOpt.id], reason: "Stale", updatedAt: afterTitle.updatedAt })).status === 409,
+  );
+  const liveAudit = (await ex1.get(`/api/exams/${liveId}/audit`)).data.items.map((a) => a.action);
+  check(
+    "ongoing & completed actions all audited",
+    liveAudit.includes("EXAM_UPDATED") &&
+      liveAudit.includes("ENROLLMENT_ADDED") &&
+      liveAudit.includes("ANNOUNCEMENT_POSTED") &&
+      liveAudit.includes("EXAM_RESCORED"),
+  );
+}
+
+async function passwordSlice() {
+  console.log("Password change & admin reset (all roles)");
+  const admin = await login("admin@demo.test");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const anon = new Client();
+
+  check("anonymous cannot change password (401)", (await anon.post("/api/auth/change-password", { currentPassword: "x", newPassword: "NewPassword1" })).status === 401);
+  check("anonymous cannot admin-reset password (401)", (await anon.post("/api/admin/users/00000000-0000-0000-0000-000000000000/reset-password")).status === 401);
+
+  const adminMe = (await admin.get("/api/auth/me")).data;
+  check("examiner cannot admin-reset password (403)", (await ex1.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 403);
+  check("candidate cannot admin-reset password (403)", (await cand1.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 403);
+  check("admin cannot self-reset via admin endpoint (409)", (await admin.post(`/api/admin/users/${adminMe.id}/reset-password`)).status === 409);
+
+  // Test self-service change-password + admin reset across throwaway CANDIDATE, EXAMINER, ADMIN accounts
+  // (kept to 2 logins per role so we stay well within the /api/auth/login 10/min rate limit).
+  for (const role of ["CANDIDATE", "EXAMINER", "ADMIN"]) {
+    const email = `verify.pw.${role.toLowerCase()}.${Date.now()}@demo.test`;
+    const created = await admin.post("/api/admin/users", { name: `PW ${role}`, email, role });
+    const uId = created.data.user.id;
+    const pw1 = created.data.tempPassword;
+
+    const sA = await login(email, pw1);
+    const sB = role === "CANDIDATE" ? await login(email, pw1) : null;
+
+    check(`${role}: wrong currentPassword rejected (401)`, (await sA.post("/api/auth/change-password", { currentPassword: "WrongPassword1", newPassword: "NewPassword1" })).status === 401);
+    check(`${role}: same password rejected (400)`, (await sA.post("/api/auth/change-password", { currentPassword: pw1, newPassword: pw1 })).status === 400);
+
+    const pw2 = "UpdatedPass99";
+    const ch = await sA.post("/api/auth/change-password", { currentPassword: pw1, newPassword: pw2 });
+    check(`${role}: self-service change-password succeeds`, ch.status === 200 && ch.data.changed === true);
+    check(`${role}: caller session stays valid after change-password`, (await sA.get("/api/auth/me")).status === 200);
+    if (sB) {
+      check(`${role}: other session revoked after change-password (401)`, (await sB.get("/api/auth/me")).status === 401);
+    }
+
+    // Admin reset password revokes active session and returns one-time temp password
+    const rst = await admin.post(`/api/admin/users/${uId}/reset-password`);
+    check(`${role}: admin reset-password returns one-time tempPassword`, rst.status === 200 && typeof rst.data.tempPassword === "string" && rst.data.tempPassword.length >= 10);
+    check(`${role}: active session revoked after admin reset (401)`, (await sA.get("/api/auth/me")).status === 401);
+    if (role === "ADMIN") {
+      const sC = await login(email, rst.data.tempPassword);
+      check(`${role}: new temp password logs in`, (await sC.get("/api/auth/me")).status === 200);
+    }
+
+    // Audit entries recorded without leaking password/hash
+    const auditRes = await admin.get("/api/admin/audit?pageSize=20");
+    const pwChanged = auditRes.data.items.find((i) => i.action === "PASSWORD_CHANGED" && i.targetId === uId);
+    const pwReset = auditRes.data.items.find((i) => i.action === "PASSWORD_RESET" && i.targetId === uId);
+    const serialized = JSON.stringify({ pwChanged, pwReset });
+    check(
+      `${role}: password change & reset audited without leaking secrets`,
+      !!pwChanged && !!pwReset && !serialized.includes(pw1) && !serialized.includes(pw2) && !serialized.includes(rst.data.tempPassword),
+    );
+  }
+}
+
 try {
   await slice0();
   await slice1();
@@ -1172,6 +1477,8 @@ try {
   await securityRegression();
   const h = await hardening();
   await featureSlice(h);
+  await lifecycleSlice();
+  await passwordSlice();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);
