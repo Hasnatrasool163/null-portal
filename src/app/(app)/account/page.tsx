@@ -1,4 +1,4 @@
-import { AccountView } from "@/components/settings-view";
+import { AccountView } from "@/components/settings/settings-view";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Account" };

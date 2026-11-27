@@ -3,7 +3,7 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 import { BRAND } from "@/lib/brand";
-import { Providers } from "@/components/providers";
+import { Providers } from "@/components/layout/providers";
 
 export const metadata: Metadata = {
   title: { default: BRAND.name, template: `%s | ${BRAND.name}` },

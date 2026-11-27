@@ -1,4 +1,4 @@
-import { AttemptResultView } from "@/components/attempt-result-view";
+import { AttemptResultView } from "@/components/attempt/attempt-result-view";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Exam Result" };

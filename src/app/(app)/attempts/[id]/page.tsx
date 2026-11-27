@@ -1,4 +1,4 @@
-import { ExamWorkspace } from "@/components/exam-workspace";
+import { ExamWorkspace } from "@/components/attempt/exam-workspace";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Exam" };

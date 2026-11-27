@@ -1,4 +1,4 @@
-import { ExamsManager } from "@/components/exams-manager";
+import { ExamsManager } from "@/components/exams/exams-manager";
 import { requireRole } from "@/server/auth/current-user";
 
 export const metadata = { title: "Exams" };
