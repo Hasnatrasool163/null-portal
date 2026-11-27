@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -32,7 +33,13 @@ import {
   useWorkspacePreferences,
 } from "@/components/preferences-dialog";
 import { useNetworkStatus } from "@/lib/use-network-status";
-import { ApiClientError, api } from "@/lib/api-client";
+import {
+  enqueueAnswer,
+  getQueuedAnswers,
+  removeQueuedAnswers,
+} from "@/lib/offline-queue";
+import { api } from "@/lib/api-client";
+import type { SyncBatchResponse } from "@/shared/schemas/sync";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type { AttemptState, SubmitResult } from "@/shared/schemas/attempt";
 import type {
@@ -118,6 +125,7 @@ export function ExamWorkspace({ attemptId }: { attemptId: string }) {
 
 function AttemptSession({ attempt }: { attempt: AttemptState }) {
   const attemptId = attempt.id;
+  const router = useRouter();
   const qc = useQueryClient();
   const [index, setIndex] = useState(0);
   const [reviewMode, setReviewMode] = useState(false);
@@ -128,6 +136,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const { prefs } = useWorkspacePreferences();
   const [saveChip, setSaveChip] = useState<SaveChip>("saved");
+  const [queuedCount, setQueuedCount] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, DraftAnswer>>(() =>
     buildInitialDrafts(attempt),
   );
@@ -147,13 +156,17 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     anchorPerfMs: number;
     deadlineMs: number;
   } | null>(null);
-  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
-  );
-  const inFlightRef = useRef(0);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const backoffRef = useRef(2000);
+  const syncingRef = useRef(false);
   const autoSubmittedRef = useRef(false);
   const announcedThresholdsRef = useRef<Set<number>>(new Set());
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const startedAtMs = useMemo(
+    () => Date.parse(attempt.startedAt),
+    [attempt.startedAt],
+  );
 
   useEffect(() => {
     clockRef.current = {
@@ -185,43 +198,99 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     },
   });
 
-  // Flush a single question answer immediately to the server.
-  const flushAnswer = useCallback(
-    async (aqId: string, draft: DraftAnswer) => {
-      inFlightRef.current += 1;
-      setSaveChip("saving");
-      try {
-        await api(`/api/attempts/${attemptId}/answers`, {
-          method: "PUT",
-          body: {
-            attemptQuestionId: aqId,
-            selectedOptionIds: draft.selectedOptionIds,
-            textAnswer: draft.textAnswer,
-            markedForReview: draft.markedForReview,
-            seq: draft.seq,
-          },
-        });
-        inFlightRef.current = Math.max(0, inFlightRef.current - 1);
-        if (inFlightRef.current === 0 && timersRef.current.size === 0) {
-          setSaveChip("saved");
-        }
-      } catch (e) {
-        inFlightRef.current = Math.max(0, inFlightRef.current - 1);
-        if (e instanceof ApiClientError && e.code === "ATTEMPT_CLOSED") {
-          toast.error("Exam time has ended.");
-          qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
-        } else {
-          setSaveChip("error");
-          toast.error(
-            e instanceof Error ? e.message : "Could not save answer",
-          );
-        }
-      }
-    },
-    [attemptId, qc],
-  );
+  // Flush the durable IndexedDB queue to POST /api/attempts/[id]/sync with exponential backoff.
+  const flushQueue = useCallback(async () => {
+    if (syncingRef.current) return;
+    const queued = await getQueuedAnswers(attemptId);
+    setQueuedCount(queued.length);
+    if (queued.length === 0) {
+      setSaveChip("saved");
+      return;
+    }
+    syncingRef.current = true;
+    setSaveChip("saving");
+    try {
+      const res = await api<SyncBatchResponse>(`/api/attempts/${attemptId}/sync`, {
+        method: "POST",
+        body: {
+          items: queued.map((q) => ({
+            attemptQuestionId: q.attemptQuestionId,
+            selectedOptionIds: q.selectedOptionIds,
+            textAnswer: q.textAnswer,
+            markedForReview: q.markedForReview,
+            seq: q.seq,
+            capturedElapsedMs: q.capturedElapsedMs,
+          })),
+        },
+      });
+      backoffRef.current = 2000;
+      const doneKeys = queued.map((q) => q.key);
+      await removeQueuedAnswers(attemptId, doneKeys);
+      const remaining = await getQueuedAnswers(attemptId);
+      setQueuedCount(remaining.length);
+      setSaveChip(remaining.length === 0 ? "saved" : "unsaved");
 
-  // Schedule debounced autosave (~600ms).
+      if (res.acceptedLate > 0) {
+        toast.info(
+          `${res.acceptedLate} offline answer(s) recovered within the recovery window and flagged for examiner review.`,
+        );
+      }
+      if (res.rejected > 0) {
+        toast.error(
+          `${res.rejected} answer(s) could not be accepted after the deadline.`,
+        );
+      }
+      if (res.attemptStatus === "SUBMITTED") {
+        qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
+      }
+    } catch {
+      setSaveChip("error");
+      // Schedule exponential backoff retry (2s -> 4s -> 8s -> 15s).
+      const delay = backoffRef.current;
+      backoffRef.current = Math.min(15_000, delay * 2);
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = setTimeout(() => {
+        void flushRef.current();
+      }, delay);
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [attemptId, qc]);
+
+  useEffect(() => {
+    flushRef.current = flushQueue;
+  }, [flushQueue]);
+
+  // Hydrate any durable offline answers from IndexedDB on load/refresh, then flush.
+  useEffect(() => {
+    let alive = true;
+    void getQueuedAnswers(attemptId).then((queued) => {
+      if (!alive || queued.length === 0) return;
+      setQueuedCount(queued.length);
+      setDrafts((prev) => {
+        const next = { ...prev };
+        for (const q of queued) {
+          const cur = next[q.attemptQuestionId];
+          if (!cur || q.seq > cur.seq) {
+            next[q.attemptQuestionId] = {
+              selectedOptionIds: q.selectedOptionIds,
+              textAnswer: q.textAnswer,
+              markedForReview: q.markedForReview,
+              seq: q.seq,
+            };
+          }
+        }
+        return next;
+      });
+      void flushQueue();
+    });
+    return () => {
+      alive = false;
+      if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+    };
+  }, [attemptId, flushQueue]);
+
+  // Write locally to IndexedDB first, then debounce network flush (~600ms).
   const updateDraft = useCallback(
     (aqId: string, updater: (prev: DraftAnswer) => Omit<DraftAnswer, "seq">) => {
       setDrafts((prev) => {
@@ -232,32 +301,46 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           seq: 0,
         };
         const next: DraftAnswer = { ...updater(cur), seq: cur.seq + 1 };
-        const existingTimer = timersRef.current.get(aqId);
-        if (existingTimer) clearTimeout(existingTimer);
+        const clk = clockRef.current;
+        const estServerNow = clk
+          ? clk.serverNowMs + (performance.now() - clk.anchorPerfMs)
+          : Date.now();
+        const capturedElapsedMs = Math.max(0, Math.round(estServerNow - startedAtMs));
+
         setSaveChip("unsaved");
-        const t = setTimeout(() => {
-          timersRef.current.delete(aqId);
-          void flushAnswer(aqId, next);
+        void enqueueAnswer({
+          key: `${attemptId}:${aqId}`,
+          attemptId,
+          attemptQuestionId: aqId,
+          selectedOptionIds: next.selectedOptionIds,
+          textAnswer: next.textAnswer,
+          markedForReview: next.markedForReview,
+          seq: next.seq,
+          capturedElapsedMs,
+        }).then(async () => {
+          const q = await getQueuedAnswers(attemptId);
+          setQueuedCount(q.length);
+        });
+
+        if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
+        flushTimerRef.current = setTimeout(() => {
+          void flushQueue();
         }, 600);
-        timersRef.current.set(aqId, t);
         return { ...prev, [aqId]: next };
       });
     },
-    [flushAnswer],
+    [attemptId, flushQueue, startedAtMs],
   );
 
-  // Flush all pending debounced timers before final submit.
+  // Flush durable queue before final submit.
   const flushAllAndSubmit = useCallback(async () => {
-    const pending: Promise<void>[] = [];
-    for (const [aqId, t] of timersRef.current.entries()) {
-      clearTimeout(t);
-      timersRef.current.delete(aqId);
-      const d = drafts[aqId];
-      if (d) pending.push(flushAnswer(aqId, d));
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
     }
-    if (pending.length > 0) await Promise.allSettled(pending);
+    await flushQueue();
     submitMutation.mutate();
-  }, [drafts, flushAnswer, submitMutation]);
+  }, [flushQueue, submitMutation]);
 
   // Monotonic countdown tick + accessibility announcements + auto-submit at 0.
   useEffect(() => {
@@ -301,6 +384,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       }
     },
     onReconnect: (offlineSeconds) => {
+      backoffRef.current = 2000;
+      void flushQueue();
       if (!attempt.isSandbox) {
         void api(`/api/attempts/${attemptId}/incidents`, {
           method: "POST",
@@ -317,7 +402,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
         body: { reset: true },
       }),
     onSuccess: (r) => {
-      window.location.href = `/attempts/${r.attemptId}`;
+      router.push(`/attempts/${r.attemptId}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -668,20 +753,26 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
         <div className="flex flex-wrap items-center gap-2">
           <Badge
             className={
-              saveChip === "error"
+              net.state === "offline" || saveChip === "error"
                 ? "bg-destructive/15 text-destructive"
-                : saveChip === "saved"
-                  ? "bg-success/15 text-success"
-                  : "bg-muted text-muted-foreground"
+                : queuedCount > 0
+                  ? "bg-warning/15 text-warning"
+                  : saveChip === "saved"
+                    ? "bg-success/15 text-success"
+                    : "bg-muted text-muted-foreground"
             }
           >
-            {saveChip === "saved"
-              ? "Saved"
-              : saveChip === "saving"
-                ? "Saving..."
-                : saveChip === "unsaved"
-                  ? "Unsaved changes"
-                  : "Save error"}
+            {net.state === "offline"
+              ? queuedCount > 0
+                ? `Offline · Queued ${queuedCount}`
+                : "Offline"
+              : queuedCount > 0
+                ? saveChip === "saving"
+                  ? `Syncing ${queuedCount}...`
+                  : `Queued ${queuedCount}`
+                : saveChip === "saving"
+                  ? "Saving..."
+                  : "Saved"}
           </Badge>
 
           <div

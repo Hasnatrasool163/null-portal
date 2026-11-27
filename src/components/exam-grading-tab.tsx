@@ -162,6 +162,18 @@ export function ExamGradingTab({
     },
   });
 
+  const discardLate = useMutation({
+    mutationFn: (v: { attemptId: string; answerId: string }) =>
+      api(`/api/attempts/${v.attemptId}/discard-late/${v.answerId}`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      toast.success("Late-synced answer discarded and score recomputed");
+      qc.invalidateQueries({ queryKey: ["exam-grading", examId] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   if (grading.isPending) return <Skeleton className="h-48 w-full" />;
   if (grading.isError) {
     return (
@@ -336,10 +348,38 @@ export function ExamGradingTab({
                       <p className="font-medium">
                         Q{ans.position + 1}. {ans.body}
                       </p>
-                      <Badge>
-                        {ans.score ?? 0} / {ans.marks}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        {ans.syncedLate && (
+                          <Badge className="bg-warning/15 text-warning">
+                            Late sync
+                          </Badge>
+                        )}
+                        <Badge>
+                          {ans.score ?? 0} / {ans.marks}
+                        </Badge>
+                      </div>
                     </div>
+                    {ans.syncedLate && !readOnly && ans.answerId && (
+                      <div className="flex items-center justify-between gap-2 rounded bg-warning/10 px-2.5 py-1.5 text-xs">
+                        <span>
+                          Captured offline before deadline, arrived during
+                          recovery window.
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={discardLate.isPending}
+                          onClick={() =>
+                            discardLate.mutate({
+                              attemptId: activeAttempt.attemptId,
+                              answerId: ans.answerId!,
+                            })
+                          }
+                        >
+                          Discard late answer
+                        </Button>
+                      </div>
+                    )}
                     <p className="text-muted-foreground text-xs">
                       {TYPE_LABEL[ans.type]}
                     </p>

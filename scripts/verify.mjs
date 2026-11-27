@@ -594,6 +594,148 @@ async function slice6(ctx) {
   check("examiner summary PDF generated server-side", exPdf.status === 200 && exPdf.headers.get("content-type")?.includes("pdf"));
 }
 
+async function slice7() {
+  console.log("S7 innovation 5.3 failure-resilient sync");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const now = Date.now();
+  const qs = (await ex1.get("/api/questions?pageSize=50")).data.items;
+  const singleQ = qs.find((q) => q.type === "MCQ_SINGLE");
+  const multiQ = qs.find((q) => q.type === "MCQ_MULTI");
+
+  // Create a 1-minute exam with 120s recovery window, start it, sync normally, then test recovery rules.
+  const ex = await ex1.post("/api/exams", {
+    title: `Verify Sync ${now}`,
+    instructions: "Sync test",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3600_000).toISOString(),
+    durationMinutes: 10,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const examId = ex.data.id;
+  await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+    items: [
+      { questionId: singleQ.id, marks: 2 },
+      { questionId: multiQ.id, marks: 2 },
+    ],
+  });
+  const c1Id = (await cand1.get("/api/auth/me")).data.id;
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${examId}/publish`);
+
+  const start = await cand1.post(`/api/exams/${examId}/start`);
+  const attemptId = start.data.id;
+  const q0 = start.data.questions[0];
+  const q1 = start.data.questions[1];
+
+  const batch = await cand1.post(`/api/attempts/${attemptId}/sync`, {
+    items: [
+      {
+        attemptQuestionId: q0.id,
+        selectedOptionIds: [q0.options[0].id],
+        seq: 1,
+        capturedElapsedMs: 5000,
+      },
+      {
+        attemptQuestionId: q1.id,
+        selectedOptionIds: [q1.options[0].id],
+        seq: 1,
+        capturedElapsedMs: 6000,
+      },
+    ],
+  });
+  check("normal batch /sync accepts 2 queued answers", batch.status === 200 && batch.data.accepted === 2 && batch.data.acceptedLate === 0);
+
+  // User-submitted attempt rejects further syncs with ALREADY_SUBMITTED
+  await cand1.post(`/api/attempts/${attemptId}/submit`);
+  const afterUserSubmit = await cand1.post(`/api/attempts/${attemptId}/sync`, {
+    items: [
+      {
+        attemptQuestionId: q0.id,
+        selectedOptionIds: [q0.options[1].id],
+        seq: 2,
+        capturedElapsedMs: 7000,
+      },
+    ],
+  });
+  check(
+    "sync after explicit user submit is rejected",
+    afterUserSubmit.status === 200 &&
+      afterUserSubmit.data.rejected === 1 &&
+      afterUserSubmit.data.results[0].reason === "ALREADY_SUBMITTED",
+  );
+
+  // Test bounded late-sync recovery + plausibility rejection + examiner discard using candidate2
+  const cand2 = await login("candidate2@demo.test");
+  const c2Id = (await cand2.get("/api/auth/me")).data.id;
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: [c2Id] });
+  const start2 = await cand2.post(`/api/exams/${examId}/start`);
+  const att2 = start2.data.id;
+  const q2_0 = start2.data.questions[0];
+
+  // Move att2's started_at & deadline_at back so it expired 15s ago (inside 120s recovery window)
+  const { connect } = await import("./_db.mjs");
+  const db = connect();
+  await db.connect();
+  try {
+    await db.query(
+      "UPDATE attempts SET started_at = now() - interval '615 seconds', deadline_at = now() - interval '15 seconds' WHERE id = $1",
+      [att2],
+    );
+  } finally {
+    await db.end();
+  }
+
+  // 1) Implausible capturedElapsedMs (> allowed 600s) is rejected
+  const badLate = await cand2.post(`/api/attempts/${att2}/sync`, {
+    items: [
+      {
+        attemptQuestionId: q2_0.id,
+        selectedOptionIds: [q2_0.options[0].id],
+        seq: 1,
+        capturedElapsedMs: 650_000,
+      },
+    ],
+  });
+  check(
+    "late sync captured after deadline rejected (CAPTURED_AFTER_DEADLINE)",
+    badLate.status === 200 &&
+      badLate.data.rejected === 1 &&
+      badLate.data.results[0].reason === "CAPTURED_AFTER_DEADLINE",
+  );
+
+  // 2) Valid late sync captured before deadline (at 550s < 600s) accepted within recovery window
+  const goodLate = await cand2.post(`/api/attempts/${att2}/sync`, {
+    items: [
+      {
+        attemptQuestionId: q2_0.id,
+        selectedOptionIds: [q2_0.options[0].id],
+        seq: 2,
+        capturedElapsedMs: 550_000,
+      },
+    ],
+  });
+  check(
+    "valid late sync within recovery window accepted as ACCEPTED_LATE",
+    goodLate.status === 200 && goodLate.data.acceptedLate === 1,
+  );
+
+  // 3) Examiner sees syncedLate in grading & can discard it
+  const gr = await ex1.get(`/api/exams/${examId}/grading`);
+  const a2 = gr.data.attempts.find((a) => a.attemptId === att2);
+  const lateAns = a2?.answers.find((a) => a.syncedLate);
+  check("examiner grading flags late-synced answer", !!lateAns && !!lateAns.answerId);
+  if (lateAns?.answerId) {
+    const disc = await ex1.post(`/api/attempts/${att2}/discard-late/${lateAns.answerId}`);
+    check("examiner discards late-synced answer", disc.status === 200 && disc.data.discarded === true);
+  }
+}
+
 try {
   await slice0();
   await slice1();
@@ -602,6 +744,7 @@ try {
   await slice4(s3);
   await slice5();
   await slice6(s3);
+  await slice7();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);
