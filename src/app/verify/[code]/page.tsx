@@ -57,7 +57,10 @@ export default async function VerifyReportPage({
     <VerifyFrame>
       <div className="flex justify-center pt-2 sm:pt-6">
         <div className="animate-page-in w-full max-w-lg space-y-3">
-          <BackButton href="/verify" label="Verify another code" />
+          <div className="flex flex-wrap gap-2">
+            <BackButton href="/" label="Back to home" />
+            <BackButton href="/verify" label="Verify another code" />
+          </div>
           <Card className="p-5 sm:p-6">
             <div className="flex items-start gap-4">
               <span

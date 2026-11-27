@@ -1,5 +1,6 @@
 import { QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { VerifyFrame } from "@/components/verify-frame";
 import { VerifyLookup } from "@/components/verify-lookup";
 import { VERIFY_STATUSES } from "@/components/verify-status";
@@ -12,6 +13,7 @@ export default function VerifyLandingPage() {
     <VerifyFrame>
       <div className="flex justify-center pt-2 sm:pt-6">
         <div className="animate-page-in w-full max-w-lg space-y-3">
+          <BackButton href="/" label="Back to home" />
           <Card className="p-5 sm:p-6">
             <div className="mb-5 flex items-start gap-4">
               <span className="bg-accent text-accent-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg">

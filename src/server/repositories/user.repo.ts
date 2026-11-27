@@ -38,8 +38,9 @@ const toAdminUser = (r: Row): AdminUser => ({
 
 export const userRepo = {
   /**
-   * Active users whose session_version AND active session id match only: logout, deactivation
-   * and a replaced session revoke immediately. Also refreshes session_seen_at (throttled to
+   * Active users whose session_version matches, and for candidates also the active session id:
+   * logout, deactivation and (for candidates) a replaced session revoke immediately. Examiners
+   * and admins may hold several sessions at once, so their session id is not pinned. Also refreshes session_seen_at (throttled to
    * one write per 15s) so the session counts as alive.
    */
   async findById(
@@ -51,7 +52,8 @@ export const userRepo = {
     const rows = await query<Row>(
       `WITH u AS (
          SELECT ${COLS} FROM users
-         WHERE id = $1 AND is_active AND session_version = $2 AND active_session_id = $3
+         WHERE id = $1 AND is_active AND session_version = $2
+           AND (role <> 'CANDIDATE' OR active_session_id = $3)
        ), touch AS (
          UPDATE users SET session_seen_at = now()
          WHERE id IN (SELECT id FROM u)
@@ -65,7 +67,8 @@ export const userRepo = {
 
   /**
    * Atomically makes `newSessionId` the account's only session, unless another session is
-   * still alive. Allowed when: no session, the caller already holds the active session
+   * still alive. Only candidates are limited to one session; examiners and admins always
+   * succeed. For candidates it is allowed when: no session, the caller already holds the active session
    * (`currentSessionId`), or the active one has been idle longer than `idleSeconds`.
    * Returns the session_version to sign into the cookie, or null if blocked.
    */
@@ -78,7 +81,8 @@ export const userRepo = {
     const rows = await query<{ session_version: number }>(
       `UPDATE users SET active_session_id = $2, session_seen_at = now()
        WHERE id = $1 AND (
-         active_session_id IS NULL
+         role <> 'CANDIDATE'
+         OR active_session_id IS NULL
          OR active_session_id = $3
          OR session_seen_at IS NULL
          OR session_seen_at < now() - ($4 || ' seconds')::interval
@@ -94,7 +98,11 @@ export const userRepo = {
     return rows[0]?.session_version ?? null;
   },
 
-  /** Ends the given session only if it is still the active one (a stale cookie can't log out the live session). */
+  /**
+   * Ends the given session only if it is still the active one (a stale cookie can't log out the
+   * live session). Examiners and admins share one session_version across devices, so their
+   * logout signs out every device: otherwise a copied cookie would stay valid after logout.
+   */
   async releaseSession(
     id: string,
     sessionVersion: number,
@@ -104,7 +112,8 @@ export const userRepo = {
     await query(
       `UPDATE users
        SET session_version = session_version + 1, active_session_id = NULL, session_seen_at = NULL
-       WHERE id = $1 AND session_version = $2 AND active_session_id = $3`,
+       WHERE id = $1 AND session_version = $2
+         AND (role <> 'CANDIDATE' OR active_session_id = $3)`,
       [id, sessionVersion, sessionId],
     );
   },
