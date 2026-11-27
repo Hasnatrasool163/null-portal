@@ -1,50 +1,45 @@
-# 02. Design: {{PROJECT_NAME}}
+# 02 — System Design & Data Model
 
-## 1. Design approach
-Layered architecture (route -> service -> repository -> PostgreSQL). Shared zod schemas for validation on both sides. Server-side access control; hidden records return 404.
-{{Why this approach fits the constraints in 3 sentences.}}
+## 1. Entity-Relationship Diagram
 
-## 2. Architecture
-```mermaid
-flowchart LR
-  B[Browser: React forms + zod] --> R[API routes]
-  R --> H[http.ts: auth, validation, errors]
-  H --> S[Services: rules and access]
-  S --> P[Repositories: SQL]
-  P --> D[(PostgreSQL)]
-  S -.optional.-> L[LLM wrapper]
-```
-
-## 3. Database design (ERD)
 ```mermaid
 erDiagram
-  users ||--o{ items : owns
-  users { uuid id PK
-          text email UK
-          text role }
-  items { uuid id PK
-          uuid owner_id FK
-          text title
-          text status }
+  users ||--o{ topics : owns
+  users ||--o{ questions : owns
+  users ||--o{ exams : owns
+  topics ||--o{ questions : categorizes
+  questions ||--|{ question_options : has
+  exams ||--o{ exam_questions : includes
+  questions ||--o{ exam_questions : used_in
+  exams ||--o{ enrollments : has
+  users ||--o{ enrollments : candidate
+  exams ||--o{ attempts : has
+  users ||--o{ attempts : candidate
+  attempts ||--|{ attempt_questions : snapshot
+  attempt_questions ||--o| answers : answered_by
+  attempts ||--o{ answers : has
+  attempts ||--o{ incidents : logs
+  attempts ||--o{ time_extensions : granted
+  attempts ||--o{ report_verifications : issued
+  exams ||--o{ announcements : posts
 ```
-Replace with your real entities. For each table add one line: purpose, keys, constraints, indexes, normal form.
 
-## 4. Key flows
-Sequence or numbered steps for the 2-3 most important flows (e.g. booking: validate -> check availability -> transaction -> response).
+## 2. Database Schema & Integrity Constraints (`db/migrations/001..008`)
 
-## 5. Technology selection
-| Concern | Options considered | Chosen | Why | Trade-off |
-|---|---|---|---|---|
-| Framework | Express+React, Django, Next.js | Next.js (TypeScript) | One codebase for UI and API, strong typing, fast to deploy | Server/client boundary needs care |
-| Database | MongoDB, SQLite, PostgreSQL | PostgreSQL | Relational data, constraints, transactions | Needs hosting |
-| Validation | Manual, Joi, zod | zod (shared) | Same schema in browser and server | |
-| Auth | Sessions in DB, NextAuth, JWT cookie | Signed JWT in httpOnly cookie + bcrypt | Simple, no extra service | Role re-read from DB each request |
-| UI | Bootstrap, MUI, Tailwind | Tailwind + small component kit | Consistent tokens, small bundle | |
-| Hosting | {{}} | {{}} | {{}} | |
-
-## 6. Security and quality measures
-Parameterized SQL, bcrypt hashes, httpOnly + SameSite cookies, rate limiting on auth, uniform error format, no secrets in the client, DB constraints.
-
-## 7. Design decisions log
-| Decision | Alternatives | Reason |
+| Migration | Tables / Objects | Key Constraints & Rationale |
 |---|---|---|
+| `001`–`003` | `users` (drops starter `items`) | `CHECK (role IN ('ADMIN','EXAMINER','CANDIDATE'))`, `UNIQUE (lower(email))`, `is_active boolean`, `preferences jsonb`. |
+| `004` | `topics`, `questions`, `question_options` | `UNIQUE (owner_id, lower(name))` on topics for race-free import `ON CONFLICT`; `archived` soft-delete preserves historical exams; `ON DELETE RESTRICT` on `topic_id`; `UNIQUE (question_id, position)` on options. |
+| `005` | `exams`, `exam_questions`, `enrollments` | `CHECK (starts_at < ends_at)`, `CHECK (duration_minutes > 0)`, `CHECK (negative_marking BETWEEN 0 AND 1)`, `CHECK (recovery_window_seconds BETWEEN 0 AND 600)`. Composite PK `(exam_id, question_id)` + `DEFERRABLE` unique `(exam_id, position)` for atomic reorders. Composite PK `(exam_id, candidate_id)` on enrollments. |
+| `006` | `attempts`, `attempt_questions`, `answers`, `real_attempts` view | Partial unique index `(exam_id, candidate_id) WHERE NOT is_sandbox` prevents duplicate real attempts under double-click/race; second partial unique index `WHERE is_sandbox` bounds sandbox previews; `real_attempts` view guarantees sandbox attempts are excluded from every stat, grading list, monitor, analytics, and PDF report; `answers.attempt_question_id UNIQUE` + monotonic `seq` guarantees idempotent autosave. |
+| `007` | `incidents`, `announcements`, `time_extensions` | Closed `CHECK` on incident types; `time_extensions` enforces `minutes BETWEEN 1 AND 120` and required `reason` (`3..500` chars). |
+| `008` | `report_verifications` | `code` PK (`>= 12` random uppercase hex chars), `score_at_issue` compared against live `attempts.total_score` to detect `SUPERSEDED` reports automatically. |
+
+## 3. Concurrency & Consistency Patterns
+- **Start Attempt Race Safety**: `INSERT INTO attempts ... ON CONFLICT (exam_id, candidate_id) WHERE NOT is_sandbox DO NOTHING` inside a transaction ensures two simultaneous clicks never create duplicate attempts.
+- **Row-Level Locking (`FOR UPDATE`)**: Autosave, sync, submit, lazy expiry (`finalizeIfExpiredInTx`), written grading, late-sync discard, and time extensions all lock the `attempts` row `FOR UPDATE` inside a PostgreSQL transaction, eliminating double-grading or post-submit write races.
+- **Single-Statement Score Recomputation**: `attempts.total_score` is always recomputed via `GREATEST(0, COALESCE((SELECT SUM(score) FROM answers WHERE attempt_id = a.id), 0))` in the same transaction as any score mutation.
+
+## 4. Client Resilience & Monotonic Clock
+- On load and every 10s heartbeat, the client receives `{ serverNow, deadlineAt }` and anchors `clockRef = { serverNowMs, anchorPerfMs: performance.now(), deadlineMs }`. Remaining time is computed purely from elapsed monotonic ticks, immune to local OS clock changes.
+- Every answer mutation writes to IndexedDB (`src/lib/offline-queue.ts`, `localStorage` fallback) before attempting network sync (`POST /api/attempts/[id]/sync`), retrying with exponential backoff (2s → 15s) and immediately on `online` / `/api/ping` recovery.

@@ -1,24 +1,20 @@
-# 03. Mapping design to code, and gaps
+# 03 — Requirements Traceability & Honest Gaps
 
-## 1. Requirement -> design -> code
-| Req ID | Requirement | Design element | Code (file / function) | Verified how |
-|---|---|---|---|---|
-| R1 | | | `src/...` | manual test / script |
-| R2 | | | | |
+## 1. Requirement → Code → Verification Map
 
-## 2. Validation map
-| Rule | Client | Server | Database |
+| Area | Requirement | Implementation Files | Automated Verification (`scripts/verify.mjs`) |
 |---|---|---|---|
-| Title 3-100 chars | `shared/schemas/item.ts` via form | same schema in route | CHECK constraint |
-| Unique title per owner | inline 409 error | `item.service.ts` | (add UNIQUE index if needed) |
+| **Roles & Auth** | 3 roles, public register = CANDIDATE, admin user CRUD, one-time temp password, deactivation kills session immediately | `db/migrations/002_roles.sql`, `src/server/services/auth.service.ts`, `src/server/services/user.service.ts`, `src/app/api/admin/users/**`, `src/components/users-manager.tsx` | `slice0()` (13 checks) |
+| **Question Bank** | Private topics & questions, option validation rules, duplicate, archive, locked when used in non-draft exam, CSV/JSON bulk import | `db/migrations/004_question_bank.sql`, `src/shared/schemas/question.ts`, `src/server/services/question.service.ts`, `src/server/import/questions-import.ts`, `src/components/questions-manager.tsx` | `slice1()` (25 checks) + `slice2()` lock check |
+| **Exams & Enrollment** | Draft/Published/Closed + DB-derived phases, readiness checklist, post-publish locking, admin read-only, manual & CSV candidate enrollment with temp passwords | `db/migrations/005_exams.sql`, `src/server/services/exam.service.ts`, `src/server/services/enrollment.service.ts`, `src/server/import/candidates-import.ts`, `src/components/exam-detail.tsx` | `slice2()` (17 checks) |
+| **Exam Engine** | Transactional start/resume, immutable snapshot + seeded shuffle, no early answer-key leak, monotonic timer, idempotent `seq` autosave, review/submit, lazy expiry | `db/migrations/006_attempts.sql`, `src/server/exam/prng.ts`, `src/server/exam/scoring.ts`, `src/server/services/attempt.service.ts`, `src/components/exam-workspace.tsx`, `src/components/candidate-home.tsx` | `slice3()` (16 checks) |
+| **Grading & Results** | Auto-grade MCQ (single/multi/negative), manual 0.5-step written grading, publish gate, candidate result view + conditional answer key | `src/server/services/grading.service.ts`, `src/components/exam-grading-tab.tsx`, `src/components/attempt-result-view.tsx` | `slice4()` (9 checks) |
+| **Monitoring** | 10s heartbeat, 5s live monitor, advisory incidents with disclaimer, live announcements, audited time extensions | `db/migrations/007_monitoring.sql`, `src/server/services/monitoring.service.ts`, `src/components/exam-monitor-tab.tsx` | `slice5()` (6 checks) |
+| **8 Secondary Features** | `/api/ping` network monitor, server PDFs + QR verify (`VALID`/`SUPERSEDED`), sandbox preview, bulk imports, Recharts question analytics, server preferences, digital scratchpad | `db/migrations/008_verifications.sql`, `src/server/services/secondary.service.ts`, `src/lib/use-network-status.ts`, `src/app/verify/[code]/page.tsx`, `src/components/exam-analytics-tab.tsx`, `src/components/scratchpad-drawer.tsx`, `src/components/preferences-dialog.tsx` | `slice6()` (10 checks) |
+| **Innovation 5.3** | IndexedDB local queue (survives refresh), `/sync` bounded recovery window + plausibility checks, `LATE_SYNC`/`LATE_REJECTED` logging, examiner discard | `src/lib/offline-queue.ts`, `src/server/services/sync.service.ts`, `src/app/api/attempts/[id]/sync/route.ts`, `src/app/api/attempts/[id]/discard-late/[answerId]/route.ts` | `slice7()` (6 checks) |
 
-## 3. Access control map
-| Role | Pages | API | Enforced in |
-|---|---|---|---|
-
-## 4. Gaps: where code differs from design (be honest, judges score this)
-| Gap | Why | Impact | What we would do next |
-|---|---|---|---|
-
-## 5. Test evidence
-List what you tested at the end (happy paths, validation failures, forbidden access, refresh persistence, mobile width).
+## 2. Honest Gaps & Trade-offs
+- **Innovation 5.2 (Blueprint difficulty balancing)** was scoped as optional after 5.3 and was not implemented so full focus remained on rock-solid execution and verification of 5.3 and all 8 secondary features.
+- **Sketch pad persistence**: Scratchpad text notes autosave to PostgreSQL (`attempts.scratchpad`) and persist across refreshes/devices; the optional freehand drawing canvas is session-local (cleared on page reload).
+- **Scrolling vs Single-question layout**: Workspace preferences persist `layout` (`single` / `scroll`), font size, theme (including High Contrast), palette position, and subtle timer; the exam workspace currently renders the primary paginated question view with keyboard shortcuts and jump palette.
+- **Local PostgreSQL deployment**: Currently configured and verified against local PostgreSQL 17; ready to deploy to Vercel + hosted Postgres (Neon/Supabase) by setting `DATABASE_URL`, `DATABASE_SSL=true`, and `SESSION_SECRET`.

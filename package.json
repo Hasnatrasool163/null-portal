@@ -12,6 +12,7 @@
     "db:down": "docker compose down",
     "db:migrate": "node scripts/migrate.mjs",
     "db:seed": "node scripts/seed.mjs",
+    "seed:reset-demo": "node scripts/reset-demo.mjs",
     "db:reset": "node scripts/reset.mjs",
     "verify": "node scripts/verify.mjs",    "db:setup": "node scripts/migrate.mjs && node scripts/seed.mjs",
     "typecheck": "tsc --noEmit",

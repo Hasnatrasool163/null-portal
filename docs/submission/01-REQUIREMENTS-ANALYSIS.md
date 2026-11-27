@@ -1,30 +1,27 @@
-# 01. Requirements analysis: {{PROJECT_NAME}}
-Theme (verbatim): {{PASTE THE BRIEF}}
+# 01 — Requirements Analysis & Resolved Decisions
 
-## 1. Requirement register
-Copy every sentence of the brief. Types: Clear / Unclear / Incomplete / Ambiguous / Contradictory.
+## 1. System Overview
+**null-portal** is a secure examination management system supporting three roles:
+- **Administrator (`ADMIN`)**: User lifecycle (create with one-time temporary password, change roles, deactivate/reactivate), platform statistics, and read-only oversight of all exams and results. Cannot author, take, or grade exams.
+- **Examiner (`EXAMINER`)**: Private topic & question bank (with CSV/JSON bulk import), exam authoring & lifecycle (`DRAFT` → `PUBLISHED` → `CLOSED`), candidate enrollment (manual + CSV import), sandbox preview, live monitoring & announcements, audited time extensions, manual written grading, results publishing, analytics, and summary PDF reports.
+- **Candidate (`CANDIDATE`)**: Public self-registration, assigned exam dashboard (`Available now` / `Upcoming` / `Completed` with clear lock reasons), timed exam workspace with offline resilience, digital scratchpad, customizable workspace preferences, and published results with verifiable QR PDF reports.
 
-| ID | Requirement (verbatim) | Type | Problem found | Question we would ask | Decision / assumption | Cost if wrong |
-|---|---|---|---|---|---|---|
-| R1 | | | | | | |
-| R2 | | | | | | |
+## 2. Resolved Assumptions & Business Decisions
+1. **Roles & Deactivation**: `users.role` is constrained to `ADMIN | EXAMINER | CANDIDATE`. Public `/register` creates `CANDIDATE` only. Deactivated users (`is_active = false`) cannot log in (`403`) and existing sessions immediately stop working (`401`) because `getCurrentUser()` re-reads the user from PostgreSQL on every request. Self-demotion/deactivation and removing the last active admin are blocked (`409`).
+2. **Strict Tenant & Role Isolation**: Enforced in the service layer (never UI-only). Wrong role returns `403`; hidden or cross-owner records return `404` so record existence is never leaked.
+3. **Private Question Bank & Locking**: Questions belong strictly to one examiner. Questions used by any non-draft (`PUBLISHED` or `CLOSED`) exam are read-only (`409` on edit); examiners use **Duplicate** instead. Soft-delete (`archived = true`) preserves historical exam integrity.
+4. **Server-Derived Exam Phases**: Stored `status` is `DRAFT | PUBLISHED | CLOSED`. Displayed phase (`DRAFT`, `UPCOMING`, `ONGOING`, `COMPLETED`) is derived on every query using PostgreSQL `now()` — no background cron required. Publishing requires `>= 1` question, `totalMarks > 0`, and valid window (`starts_at < ends_at`, `duration <= window`, `ends_at > now()`), warning (not blocking) if 0 candidates are enrolled. After publishing, schedule, scoring, and questions lock (`409`); only title and instructions remain editable.
+5. **Availability Window & Single Attempt**: Candidates may start anytime inside `[starts_at, ends_at]`. Attempt deadline is `LEAST(now() + duration, ends_at)`. One real attempt per candidate per exam enforced by a partial unique index; duplicate starts resume the active attempt or return `409` if already submitted.
+6. **Grading Lifecycle & Publish Gate**: `IN_PROGRESS` → `SUBMITTED` → `AUTO_GRADED` (no written questions) or `NEEDS_REVIEW` (written questions present) → `GRADED` once every written question has a mark. Results publish is explicit per exam and blocked (`409`) until every submitted real attempt is graded.
+7. **Scoring Rules**: `MCQ_SINGLE` awards full marks if correct, `-marks * negative_marking` if wrong (`0` if unanswered). `MCQ_MULTI` supports `PARTIAL` (`marks * max(0, (correctPicked - wrongPicked) / totalCorrect)`) or `ALL_OR_NOTHING`. Written questions are graded manually in `0.5` steps (`0..question.marks`). Attempt total is always recomputed in one SQL statement and clamped `>= 0` (`GREATEST(0, SUM(score))`).
+8. **Immutable Attempt Snapshot**: At start, questions, marks, options (including `isCorrect`), and marking settings are copied into `attempt_questions` and `attempts`. Grading uses only the snapshot. Answer keys (`isCorrect`) are stripped from candidate responses before results are published (and revealed only if `show_answers` is enabled).
+9. **Seeded Randomization**: Deterministic Mulberry32 PRNG seeded by `attempts.seed` shuffles questions and/or options stably across refreshes.
+10. **Server-Enforced Time & Lazy Expiry**: Client countdown uses a `performance.now()` monotonic offset anchored to `serverNow`, never trusting the device wall clock. Any request touching an attempt (and the examiner monitor/grading endpoints) runs `finalizeIfExpiredInTx` under a `FOR UPDATE` lock, recording `submitted_at = deadline_at` and `submit_reason = 'TIMEOUT'`.
+11. **Advisory Incidents**: Tab switches, window blur, fullscreen exit, copy/paste, disconnects, and late syncs are logged with server timestamps and explicitly labelled **"advisory indicator, not proof of misconduct"** — never auto-penalizing.
+12. **No Email Sending**: Admin-created users and CSV-imported candidates receive one-time generated temporary passwords displayed once (with CSV export for bulk imports).
+13. **Audited Time Extensions**: The only way a deadline moves is via an examiner-granted extension (1–120 minutes + required audit reason), persisted in `time_extensions` and delivered live to the candidate via heartbeat.
 
-## 2. Stakeholders and roles
-| Role | Goals | Can do | Cannot do |
-|---|---|---|---|
-
-## 3. Scope (MoSCoW)
-- **Must:** 
-- **Should:** 
-- **Could:** 
-- **Won't (this time):** 
-
-## 4. Functional and non-functional requirements
-FR1..., NFR1 (security: hashed passwords, server-side access control; validation: client + server; performance: pagination; usability: empty/loading/error states; responsiveness).
-
-## 5. Constraints
-10 hours, team of {{N}}, free hosting tier, free AI quotas, browsers supported, data is demo data, no external paid services.
-
-## 6. Risks
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
+## 3. Honest Residual-Risk Analysis (Innovation 5.3)
+- **What 5.3 prevents**: Accidental data loss during Wi-Fi drops, browser refreshes, or brief outages without ever pausing the exam timer; implausible future timestamps (`capturedElapsedMs > realElapsedMs + 5s`) and post-deadline edits (`capturedElapsedMs > allowedDurationMs`) are rejected.
+- **Residual risk**: A technically sophisticated candidate who deliberately disconnects before the deadline, continues working offline, and tampers with client-side memory to forge `capturedElapsedMs` before reconnecting within `recovery_window_seconds` could still submit a crafted timestamp.
+- **Mitigations**: (1) The recovery window is tightly bounded (default `120s`, configurable down to `0` to disable completely for high-stakes exams); (2) every late-recovered answer is tagged `synced_late = true` and logged as a `LATE_SYNC` incident; (3) examiners see all late-synced answers highlighted in Grading with one-click **Discard late answer**; and (4) verified hardware failures use the audited time-extension valve instead.
