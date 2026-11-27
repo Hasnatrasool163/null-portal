@@ -8,10 +8,7 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 
 const g = globalThis as unknown as { __pgPool?: Pool; __pgPoolKey?: string };
 
-/**
- * DATABASE_URL by default; USE_FALLBACK_DB=true (or an empty DATABASE_URL) switches to the hosted
- * DATABASE_FALLBACK_URL. TLS comes from the matching *_SSL flag or `sslmode=require` in the URL.
- */
+/** USE_FALLBACK_DB=true prefers the hosted DATABASE_FALLBACK_URL (e.g. Aiven); otherwise DATABASE_URL. */
 function resolveDbConfig(): { connectionString: string; useSsl: boolean } {
   const preferFallback = process.env.USE_FALLBACK_DB === "true";
   const raw = preferFallback
@@ -51,7 +48,7 @@ export const pool = () => {
   const { connectionString, useSsl } = resolveDbConfig();
   const key = `${connectionString}|${useSsl}`;
   if (!g.__pgPool || g.__pgPoolKey !== key) {
-    void g.__pgPool?.end().catch(() => {});
+    void g.__pgPool?.end().catch(() => { });
     g.__pgPool = createPool();
     g.__pgPoolKey = key;
   }

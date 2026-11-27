@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
@@ -87,12 +88,7 @@ const rowBase =
 function Brand({ role, compact }: { role: Role; compact?: boolean }) {
   return (
     <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5" aria-label="null-portal home">
-      <span
-        aria-hidden="true"
-        className="bg-foreground text-background flex h-8 w-8 shrink-0 items-center justify-center rounded-md font-mono text-xs font-semibold"
-      >
-        n/
-      </span>
+      <BrandLogo className="h-8 w-8 shrink-0" />
       {!compact && (
         <span className="min-w-0 leading-tight">
           <span className="block truncate text-sm font-semibold tracking-tight">null-portal</span>

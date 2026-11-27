@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/misc";
 import { fieldClass } from "@/components/ui/input";
 import { PaletteBackdrop } from "@/components/palette-backdrop";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { api, applyFieldErrors } from "@/lib/api-client";
 import {
@@ -123,9 +124,7 @@ function Showcase({ role }: { role: RoleKey }) {
     <aside className="bg-sidebar relative hidden w-[46%] max-w-[680px] shrink-0 flex-col justify-between gap-6 overflow-hidden border-r px-10 py-8 lg:flex xl:px-12">
       <PaletteBackdrop />
       <Link href="/" className="relative flex w-fit items-center gap-2.5 font-semibold tracking-tight">
-        <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-md font-mono text-xs">
-          n/
-        </span>
+        <BrandLogo className="h-9 w-9" />
         null-portal
       </Link>
 
@@ -251,9 +250,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
       <main className="flex min-w-0 flex-1 flex-col items-center justify-center gap-5 overflow-y-auto px-4 py-8 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 lg:hidden">
-          <span className="bg-foreground text-background flex h-9 w-9 items-center justify-center rounded-md font-mono text-xs font-semibold">
-            n/
-          </span>
+          <BrandLogo className="h-9 w-9" />
           <strong className="font-semibold tracking-tight">null-portal</strong>
         </Link>
 
