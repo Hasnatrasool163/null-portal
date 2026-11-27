@@ -217,18 +217,7 @@ See [docs/submission/01-REQUIREMENTS-ANALYSIS.md](docs/submission/01-REQUIREMENT
 
 ---
 
-## 9. Known Limitations and Not-Implemented Items
-
-- **Innovation 5.2 (Blueprint difficulty balancing)** is not implemented.
-- **Automated verification coverage**: `scripts/verify.mjs` covers migrations `001` through `013` (auth, bank, exams, attempts, grading, monitoring, secondary features, Innovation 5.3, security hardening, receipts, audit, lifecycle, password reset), but does not yet include automated test slices for single active session (`014`), in-app notifications (`015`), or result disputes (`016`).
-- **Docker build untested**: `Dockerfile` and `docker-compose.yml` are provided from the starter template but were not built or run during final verification.
-- **Freehand sketch persistence**: Text scratchpad notes persist server-side in PostgreSQL (`attempts.scratchpad`), whereas freehand sketch strokes are stored per attempt in browser `localStorage` and cleared on submission.
-- **Blind grading scope**: Grade-by-question hides candidate names to reduce bias, but the examiner can still switch to the per-candidate grading view.
-- **No email delivery**: One-time temporary passwords are displayed once in the UI (and downloadable as CSV for bulk imports); no SMTP server is configured.
-
----
-
-## 10. Data and AI Statement
+## 9. Data and AI Statement
 
 - All seeded users, question banks, exams, attempts, grades, and verification reports are **fictional and simulated** for demonstration purposes.
 - AI-assisted coding tools were used during development in accordance with the competition rules.
