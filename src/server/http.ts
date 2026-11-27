@@ -1,6 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { ZodError, type ZodType } from "zod";
+import { query } from "./db";
 import { getCurrentUser } from "./auth/current-user";
 import type { Role, SessionUser } from "@/shared/schemas/auth";
 
@@ -41,13 +42,49 @@ function zodFields(e: ZodError) {
   return fields;
 }
 
-const hits = new Map<string, number[]>();
-function rateLimit(key: string, max: number, windowMs: number) {
-  const now = Date.now();
-  const recent = (hits.get(key) ?? []).filter((t) => now - t < windowMs);
-  recent.push(now);
-  hits.set(key, recent);
-  if (recent.length > max) throw Errors.tooMany();
+/**
+ * Resolve client IP safely: only trust proxy headers when running behind a known trusted proxy
+ * (Vercel or TRUST_PROXY=true). Otherwise use "direct" so client-spoofed X-Forwarded-For headers
+ * cannot bypass rate limits.
+ */
+function resolveClientKey(req: Request): string {
+  const behindTrustedProxy =
+    process.env.VERCEL === "1" || process.env.TRUST_PROXY === "true";
+  if (!behindTrustedProxy) return "direct";
+  const vercelIp = req.headers.get("x-vercel-forwarded-for")?.split(",").pop()?.trim();
+  if (vercelIp) return vercelIp;
+  const realIp = req.headers.get("x-real-ip")?.trim();
+  if (realIp) return realIp;
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = xff.split(",").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+  return "direct";
+}
+
+/** DB-backed sliding-window rate limiter (shared across server instances and restarts). */
+export async function checkRateLimit(
+  key: string,
+  max: number,
+  windowMs: number,
+) {
+  const windowSec = Math.max(1, Math.ceil(windowMs / 1000));
+  const [row] = await query<{ n: number }>(
+    `WITH pruned AS (
+       DELETE FROM rate_limit_hits
+       WHERE key = $1 AND created_at < now() - ($2 || ' seconds')::interval
+     ),
+     ins AS (
+       INSERT INTO rate_limit_hits (key) VALUES ($1) RETURNING 1
+     )
+     SELECT count(*)::int AS n
+     FROM rate_limit_hits
+     WHERE key = $1 AND created_at >= now() - ($2 || ' seconds')::interval`,
+    [key, windowSec],
+  );
+  // Existing rows in window + the newly inserted row
+  if ((row?.n ?? 0) + 1 > max) throw Errors.tooMany();
 }
 
 type Opts<B, Q> = {
@@ -72,9 +109,8 @@ function build<B, Q, U extends SessionUser | null>(
   return async (req: Request, routeCtx?: RouteCtx): Promise<Response> => {
     try {
       if (opts.rateLimit) {
-        const ip =
-          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-        rateLimit(
+        const ip = resolveClientKey(req);
+        await checkRateLimit(
           `${ip}:${new URL(req.url).pathname}:${req.method}`,
           opts.rateLimit.max,
           opts.rateLimit.windowMs,

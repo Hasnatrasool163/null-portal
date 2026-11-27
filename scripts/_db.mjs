@@ -18,20 +18,28 @@ export function loadEnv() {
 
 export function connect() {
   loadEnv();
-  // USE_FALLBACK_DB=true switches to the hosted DATABASE_FALLBACK_URL (e.g. Aiven).
-  const useFallback =
-    process.env.USE_FALLBACK_DB === "true" &&
-    !!process.env.DATABASE_FALLBACK_URL;
-  const raw = useFallback
-    ? process.env.DATABASE_FALLBACK_URL
-    : process.env.DATABASE_URL;
-  if (!raw) throw new Error("DATABASE_URL is not set (see .env.example)");
+  const preferFallback = process.env.USE_FALLBACK_DB === "true";
+  const raw = preferFallback
+    ? process.env.DATABASE_FALLBACK_URL || process.env.DATABASE_URL
+    : process.env.DATABASE_URL || process.env.DATABASE_FALLBACK_URL;
+
+  if (!raw) {
+    throw new Error(
+      "DATABASE_URL (or DATABASE_FALLBACK_URL) is not set (see .env.example)",
+    );
+  }
   const u = new URL(raw);
+  const sslParam = u.searchParams.get("sslmode");
   u.searchParams.delete("sslmode");
-  const sslOn = useFallback
+
+  const usingFallback = raw === process.env.DATABASE_FALLBACK_URL;
+  const sslFlag = usingFallback
     ? process.env.DATABASE_FALLBACK_SSL === "true"
     : process.env.DATABASE_SSL === "true";
-  const ssl = sslOn ? { rejectUnauthorized: false } : undefined;
-  if (useFallback) console.log(`Using fallback DB at ${u.hostname}`);
-  return new pg.Client({ connectionString: u.toString(), ssl });
+  const useSsl = sslFlag || sslParam === "require" || sslParam === "verify-full";
+
+  return new pg.Client({
+    connectionString: u.toString(),
+    ssl: useSsl ? { rejectUnauthorized: false } : undefined,
+  });
 }

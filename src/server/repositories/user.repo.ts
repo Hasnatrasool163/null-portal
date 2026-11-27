@@ -14,9 +14,11 @@ type Row = {
   role: Role;
   password_hash: string;
   is_active: boolean;
+  session_version: number;
   created_at: Date;
 };
-const COLS = "id, name, email, role, password_hash, is_active, created_at";
+const COLS =
+  "id, name, email, role, password_hash, is_active, session_version, created_at";
 const toUser = ({ id, name, email, role }: Row): SessionUser => ({
   id,
   name,
@@ -33,13 +35,22 @@ const toAdminUser = (r: Row): AdminUser => ({
 });
 
 export const userRepo = {
-  /** Active users only: a deactivated user's session stops working immediately. */
-  async findById(id: string): Promise<SessionUser | null> {
+  /** Active users with matching session_version only: logout & deactivation revoke immediately. */
+  async findById(
+    id: string,
+    sessionVersion: number,
+  ): Promise<SessionUser | null> {
     const rows = await query<Row>(
-      `SELECT ${COLS} FROM users WHERE id = $1 AND is_active`,
-      [id],
+      `SELECT ${COLS} FROM users WHERE id = $1 AND is_active AND session_version = $2`,
+      [id, sessionVersion],
     );
     return rows[0] ? toUser(rows[0]) : null;
+  },
+  async bumpSessionVersion(id: string): Promise<void> {
+    await query(
+      "UPDATE users SET session_version = session_version + 1 WHERE id = $1",
+      [id],
+    );
   },
   async findAnyById(id: string): Promise<AdminUser | null> {
     const rows = await query<Row>(`SELECT ${COLS} FROM users WHERE id = $1`, [
@@ -57,6 +68,7 @@ export const userRepo = {
           user: toUser(rows[0]),
           passwordHash: rows[0].password_hash,
           isActive: rows[0].is_active,
+          sessionVersion: rows[0].session_version,
         }
       : null;
   },
