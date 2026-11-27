@@ -19,7 +19,7 @@ import {
   QrCode,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
+  UserRound,
   UserCog,
   Users,
   type LucideIcon,
@@ -444,10 +444,7 @@ export function AuthForm() {
               onClick={fillDemo}
               className="text-muted-foreground hover:bg-muted hover:text-foreground flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-xs transition-colors"
             >
-              <Sparkles
-                className="text-primary h-3.5 w-3.5"
-                aria-hidden="true"
-              />
+              <UserRound className="h-3.5 w-3.5" aria-hidden="true" />
               Fill demo {tab.label.toLowerCase()}
               <span className="font-mono">({tab.demo})</span>
             </button>

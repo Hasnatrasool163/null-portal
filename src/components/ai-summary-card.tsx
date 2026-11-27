@@ -6,12 +6,12 @@ import {
   ArrowRight,
   CheckCircle2,
   RefreshCw,
-  Sparkles,
+  FileText,
   Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/misc";
+import { Skeleton, Spinner } from "@/components/ui/misc";
 import { api } from "@/lib/api-client";
 import type {
   CandidateSummaryResponse,
@@ -57,7 +57,10 @@ function SummaryShell({
   title: string;
   emptyDescription: string;
   footnote: string;
-  data: { generatedAt: string; provider: string; stale: boolean } | null | undefined;
+  data:
+    | { generatedAt: string; provider: string; stale: boolean }
+    | null
+    | undefined;
   isInitialLoading: boolean;
   isGenerating: boolean;
   errorMessage: string | null;
@@ -80,15 +83,17 @@ function SummaryShell({
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <span className="bg-primary/10 text-primary mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              <FileText className="h-4 w-4" aria-hidden="true" />
             </span>
             <div className="space-y-0.5">
               <h2 className="text-sm font-semibold">{title}</h2>
-              <p className="text-muted-foreground text-xs">{emptyDescription}</p>
+              <p className="text-muted-foreground text-xs">
+                {emptyDescription}
+              </p>
             </div>
           </div>
           <Button size="sm" variant="outline" onClick={() => onGenerate(false)}>
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
             Generate quick summary
           </Button>
         </div>
@@ -112,7 +117,7 @@ function SummaryShell({
     return (
       <Card className="space-y-4 p-5" aria-busy="true">
         <div className="flex items-center gap-2.5 text-sm font-semibold">
-          <Sparkles className="text-primary h-4 w-4 animate-pulse" aria-hidden="true" />
+          <Spinner />
           <span>Generating {title.toLowerCase()}…</span>
         </div>
         <Skeleton className="h-4 w-5/6" />
@@ -132,7 +137,7 @@ function SummaryShell({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-2.5">
           <span className="bg-primary/10 text-primary mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -161,7 +166,11 @@ function SummaryShell({
             className={`h-3.5 w-3.5 ${isGenerating ? "animate-spin" : ""}`}
             aria-hidden="true"
           />
-          {isGenerating ? "Refreshing…" : data?.stale ? "Update summary" : "Refresh"}
+          {isGenerating
+            ? "Refreshing…"
+            : data?.stale
+              ? "Update summary"
+              : "Refresh"}
         </Button>
       </div>
 
@@ -191,14 +200,23 @@ function SummaryShell({
             return (
               <div key={sec.title} className="space-y-2">
                 <h3 className="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase">
-                  <Icon className={`h-3.5 w-3.5 ${cfg.color}`} aria-hidden="true" />
+                  <Icon
+                    className={`h-3.5 w-3.5 ${cfg.color}`}
+                    aria-hidden="true"
+                  />
                   <span>{sec.title}</span>
                 </h3>
                 <ul className="space-y-1.5 text-sm">
                   {sec.items.map((item, idx) => (
-                    <li key={idx} className="text-muted-foreground flex items-start gap-2 leading-snug">
+                    <li
+                      key={idx}
+                      className="text-muted-foreground flex items-start gap-2 leading-snug"
+                    >
                       {sec.tone === "primary" ? (
-                        <ArrowRight className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <ArrowRight
+                          className="text-primary mt-0.5 h-3.5 w-3.5 shrink-0"
+                          aria-hidden="true"
+                        />
                       ) : (
                         <span
                           className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${cfg.dot}`}
@@ -229,7 +247,9 @@ export function AttemptAiSummaryCard({ attemptId }: { attemptId: string }) {
   const cached = useQuery({
     queryKey,
     queryFn: () =>
-      api<CandidateSummaryResponse | null>(`/api/attempts/${attemptId}/summary`),
+      api<CandidateSummaryResponse | null>(
+        `/api/attempts/${attemptId}/summary`,
+      ),
   });
 
   const generate = useMutation({
@@ -258,13 +278,21 @@ export function AttemptAiSummaryCard({ attemptId }: { attemptId: string }) {
       sections={
         data
           ? [
-              { title: "Strengths", items: data.summary.strengths, tone: "success" },
+              {
+                title: "Strengths",
+                items: data.summary.strengths,
+                tone: "success",
+              },
               {
                 title: "Areas to improve",
                 items: data.summary.areasToImprove,
                 tone: "warning",
               },
-              { title: "Next steps", items: data.summary.nextSteps, tone: "primary" },
+              {
+                title: "Next steps",
+                items: data.summary.nextSteps,
+                tone: "primary",
+              },
             ]
           : []
       }
