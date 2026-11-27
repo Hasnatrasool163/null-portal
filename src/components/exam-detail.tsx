@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCircle2,
+  CopyPlus,
   Eye,
   FileUp,
   Lock,
@@ -32,6 +33,7 @@ import { CandidateImportDialog } from "@/components/candidate-import-dialog";
 import { ExamAnalyticsTab } from "@/components/exam-analytics-tab";
 import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
+import { AuditLogView } from "@/components/audit-log-view";
 import { phaseBadgeClass } from "@/components/exams-manager";
 import { api } from "@/lib/api-client";
 import {
@@ -56,7 +58,8 @@ type Tab =
   | "enrollments"
   | "monitor"
   | "grading"
-  | "analytics";
+  | "analytics"
+  | "audit";
 
 function QuestionsTab({
   exam,
@@ -570,6 +573,23 @@ export function ExamDetailView({
     onError: (e) => toast.error(e.message),
   });
 
+  const clone = useMutation({
+    mutationFn: () =>
+      api<ExamDetail & { skippedArchived: number }>(`/api/exams/${examId}/clone`, {
+        method: "POST",
+      }),
+    onSuccess: (copy) => {
+      toast.success(
+        copy.skippedArchived > 0
+          ? `Draft copy created. ${copy.skippedArchived} archived question(s) were left out.`
+          : "Draft copy created. Review the schedule, then publish.",
+      );
+      qc.invalidateQueries({ queryKey: ["exams"] });
+      router.push(`/exams/${copy.id}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const query = useQuery({
     queryKey: ["exam", examId],
     queryFn: () => api<ExamDetail>(`/api/exams/${examId}`),
@@ -647,6 +667,7 @@ export function ExamDetailView({
     { id: "monitor", label: "Live Monitor" },
     { id: "grading", label: "Grading & Results" },
     { id: "analytics", label: "Analytics" },
+    { id: "audit", label: "Audit log" },
   ];
 
   return (
@@ -675,6 +696,12 @@ export function ExamDetailView({
                 >
                   <Eye className="h-4 w-4" />
                   Preview as candidate
+                </Button>
+              )}
+              {!isAdmin && (
+                <Button variant="outline" disabled={clone.isPending} onClick={() => clone.mutate()}>
+                  {clone.isPending ? <Spinner /> : <CopyPlus className="h-4 w-4" />}
+                  Duplicate
                 </Button>
               )}
               {!isAdmin && exam.status === "DRAFT" && (
@@ -855,6 +882,7 @@ export function ExamDetailView({
       )}
 
       {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
+      {tab === "audit" && <AuditLogView examId={exam.id} />}
       </div>
 
       <Dialog

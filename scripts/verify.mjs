@@ -774,6 +774,373 @@ async function securityRegression() {
   check("ADV-131 spoofed X-Forwarded-For cannot bypass login rate limit (429)", got429);
 }
 
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function withDb(fn) {
+  const { connect } = await import("./_db.mjs");
+  const db = connect();
+  await db.connect();
+  try {
+    return await fn(db);
+  } finally {
+    await db.end();
+  }
+}
+
+/** Fresh live exam (window open now) enrolled for the given candidate clients. */
+async function makeLiveExam(ex1, candidates, label, questionIds) {
+  const now = Date.now();
+  const ex = await ex1.post("/api/exams", {
+    title: `Verify ${label} ${now}`,
+    instructions: `${label} hardening test`,
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3600_000).toISOString(),
+    durationMinutes: 15,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const examId = ex.data.id;
+  await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+    items: questionIds.map((questionId) => ({ questionId, marks: 2 })),
+  });
+  const ids = [];
+  for (const c of candidates) ids.push((await c.get("/api/auth/me")).data.id);
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: ids });
+  await ex1.post(`/api/exams/${examId}/publish`);
+  return examId;
+}
+
+async function hardening() {
+  console.log("H  hardening: judge scenarios");
+  const ex1 = await login("examiner1@demo.test");
+  const ex2 = await login("examiner2@demo.test");
+  const admin = await login("admin@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const cand2 = await login("candidate2@demo.test");
+  const qs = (await ex1.get("/api/questions?pageSize=50")).data.items;
+  const single = qs.find((q) => q.type === "MCQ_SINGLE");
+  const written = qs.find((q) => q.type === "WRITTEN");
+
+  // 1. Double-click Start and double-click Submit (concurrent requests).
+  const e1 = await makeLiveExam(ex1, [cand1], "DoubleClick", [single.id, written.id]);
+  const starts = await Promise.all(
+    Array.from({ length: 5 }, () => cand1.post(`/api/exams/${e1}/start`)),
+  );
+  const attemptId = starts[0].data?.id;
+  check(
+    "double-click Start: 5 concurrent starts -> one attempt",
+    starts.every((r) => r.status === 200 && r.data.id === attemptId),
+  );
+  check(
+    "only one real attempt row exists",
+    (await withDb((db) => db.query("SELECT count(*)::int n FROM attempts WHERE exam_id=$1", [e1]))).rows[0].n === 1,
+  );
+  const aq = starts[0].data.questions;
+  const aqW = aq.find((q) => q.type === "WRITTEN");
+  const aqS = aq.find((q) => q.type === "MCQ_SINGLE");
+
+  // 2. Two tabs on one attempt: same session, independent seq counters.
+  const tabB = new Client();
+  tabB.cookie = cand1.cookie;
+  const tabBStart = await tabB.post(`/api/exams/${e1}/start`);
+  check("second tab resumes the same attempt", tabBStart.data?.id === attemptId);
+  await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[0].id], seq: 5,
+  });
+  const staleTab = await tabB.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[1].id], seq: 3,
+  });
+  check("stale tab write is ignored, not applied", staleTab.status === 200 && staleTab.data.stale === true);
+  const racing = await Promise.all([
+    tabB.req("PUT", `/api/attempts/${attemptId}/answers`, {
+      attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[1].id], seq: 12,
+    }),
+    cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+      attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[0].id], seq: 11,
+    }),
+  ]);
+  const afterRace = (await cand1.get(`/api/attempts/${attemptId}`)).data.answers.find(
+    (a) => a.attemptQuestionId === aqS.id,
+  );
+  check(
+    "concurrent tab writes: highest seq wins regardless of arrival order",
+    racing.every((r) => r.status === 200) && afterRace.seq === 12 && afterRace.selectedOptionIds[0] === aqS.options[1].id,
+  );
+
+  // 3. Script tags in answers: stored verbatim, returned as JSON text, never as HTML.
+  const xss = `<script>alert("x")</script><img src=x onerror=alert(1)>`;
+  await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqW.id, textAnswer: xss, seq: 1,
+  });
+  const rawRes = await fetch(`${BASE}/api/attempts/${attemptId}`, { headers: { cookie: cand1.cookie } });
+  const rawJson = await rawRes.json();
+  check(
+    "script-tag answer round-trips byte-for-byte (no lossy filtering)",
+    rawJson.data.answers.find((a) => a.attemptQuestionId === aqW.id)?.textAnswer === xss,
+  );
+  check(
+    "API serves JSON with nosniff (cannot be sniffed into HTML)",
+    rawRes.headers.get("content-type")?.includes("application/json") &&
+      rawRes.headers.get("x-content-type-options") === "nosniff",
+  );
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const walk = (d) =>
+    fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)],
+    );
+  const unsafe = walk(path.join(process.cwd(), "src"))
+    .filter((f) => /\.(tsx?|jsx?)$/.test(f))
+    .filter((f) => /dangerouslySetInnerHTML|rehype-raw|\.innerHTML\s*=/.test(fs.readFileSync(f, "utf8")));
+  check("no raw-HTML rendering paths in src (React escapes on render)", unsafe.length === 0, unsafe.join(", "));
+
+  // 4. Double-click Submit.
+  const subs = await Promise.all(
+    Array.from({ length: 5 }, () => cand1.post(`/api/attempts/${attemptId}/submit`)),
+  );
+  check(
+    "double-click Submit: 5 concurrent submits -> one submission, same receipt",
+    subs.every(
+      (r) =>
+        r.status === 200 &&
+        r.data.submittedAt === subs[0].data.submittedAt &&
+        r.data.receiptCode === subs[0].data.receiptCode,
+    ) && /^NP-[0-9A-F]{4}-[0-9A-F]{4}$/.test(subs[0].data.receiptCode ?? ""),
+  );
+  check("receipt reports answered count", subs[0].data.answeredCount === 2 && subs[0].data.totalQuestions === 2);
+
+  // 5. Back button after submit: the attempt page shows the receipt; nothing is writable.
+  const back = await cand1.get(`/api/attempts/${attemptId}`);
+  check(
+    "back button after submit: attempt is SUBMITTED with the same receipt",
+    back.data.status === "SUBMITTED" && back.data.receiptCode === subs[0].data.receiptCode,
+  );
+  check("back button: re-start is refused (409)", (await cand1.post(`/api/exams/${e1}/start`)).status === 409);
+  check(
+    "back button: stale tab autosave refused (409 ATTEMPT_CLOSED)",
+    (await tabB.req("PUT", `/api/attempts/${attemptId}/answers`, {
+      attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[0].id], seq: 99,
+    })).error?.code === "ATTEMPT_CLOSED",
+  );
+  const lateSync = await tabB.post(`/api/attempts/${attemptId}/sync`, {
+    items: [{ attemptQuestionId: aqS.id, selectedOptionIds: [aqS.options[0].id], seq: 100, capturedElapsedMs: 1000 }],
+  });
+  check("back button: offline queue replay refused after submit", lateSync.data?.rejected === 1);
+
+  // 6. Opening another candidate's attempt URL.
+  const other = [
+    ["GET attempt", () => cand2.get(`/api/attempts/${attemptId}`)],
+    ["PUT answer", () => cand2.req("PUT", `/api/attempts/${attemptId}/answers`, { attemptQuestionId: aqS.id, selectedOptionIds: [], seq: 500 })],
+    ["POST submit", () => cand2.post(`/api/attempts/${attemptId}/submit`)],
+    ["POST sync", () => cand2.post(`/api/attempts/${attemptId}/sync`, { items: [{ attemptQuestionId: aqS.id, selectedOptionIds: [], seq: 500, capturedElapsedMs: 1000 }] })],
+    ["PUT scratchpad", () => cand2.req("PUT", `/api/attempts/${attemptId}/scratchpad`, { scratchpad: "x" })],
+    ["POST heartbeat", () => cand2.post(`/api/attempts/${attemptId}/heartbeat`)],
+    ["GET result", () => cand2.get(`/api/attempts/${attemptId}/result`)],
+    ["GET report.pdf", () => cand2.get(`/api/attempts/${attemptId}/report.pdf`)],
+    ["examiner1 GET as candidate", () => ex1.get(`/api/attempts/${attemptId}`)],
+    ["examiner2 grades it", () => ex2.req("PUT", `/api/attempts/${attemptId}/grade/${aqW.id}`, { score: 1 })],
+    ["examiner2 opens exam grading", () => ex2.get(`/api/exams/${e1}/grading`)],
+    ["examiner2 exports results", () => ex2.get(`/api/exams/${e1}/results.csv`)],
+  ];
+  const leaks = [];
+  for (const [name, fn] of other) {
+    const r = await fn();
+    if (![401, 403, 404].includes(r.status)) leaks.push(`${name}=${r.status}`);
+  }
+  check("another user's attempt URL: every endpoint is 403/404", leaks.length === 0, leaks.join(" "));
+  const stillMine = await cand1.get(`/api/attempts/${attemptId}`);
+  check("foreign requests changed nothing", stillMine.data.receiptCode === subs[0].data.receiptCode && stillMine.data.scratchpad === "");
+
+  // 7. Refresh exactly at the deadline (server clock decides; submitted_at = deadline).
+  const e2 = await makeLiveExam(ex1, [cand1], "Deadline", [single.id]);
+  const st = await cand1.post(`/api/exams/${e2}/start`);
+  const dAttempt = st.data.id;
+  const dq = st.data.questions[0];
+  await withDb((db) =>
+    db.query("UPDATE attempts SET deadline_at = now() + interval '1500 milliseconds' WHERE id = $1", [dAttempt]),
+  );
+  const beforeDl = await cand1.req("PUT", `/api/attempts/${dAttempt}/answers`, {
+    attemptQuestionId: dq.id, selectedOptionIds: [dq.options[0].id], seq: 1,
+  });
+  check("answer saved just before deadline accepted", beforeDl.data?.accepted === true);
+  await sleep(1700);
+  const refresh = await cand1.get(`/api/attempts/${dAttempt}`);
+  check(
+    "refresh at deadline: auto-submitted as TIMEOUT, submittedAt == deadlineAt",
+    refresh.data.status === "SUBMITTED" &&
+      refresh.data.submitReason === "TIMEOUT" &&
+      refresh.data.submittedAt === refresh.data.deadlineAt,
+  );
+  check(
+    "refresh at deadline: saved answer kept and receipt issued",
+    refresh.data.answers.find((a) => a.attemptQuestionId === dq.id)?.selectedOptionIds[0] === dq.options[0].id &&
+      !!refresh.data.receiptCode,
+  );
+  check(
+    "answer after deadline refused (409)",
+    (await cand1.req("PUT", `/api/attempts/${dAttempt}/answers`, {
+      attemptQuestionId: dq.id, selectedOptionIds: [dq.options[1].id], seq: 2,
+    })).status === 409,
+  );
+  const lateSubmit = await cand1.post(`/api/attempts/${dAttempt}/submit`);
+  check("submit after deadline stays TIMEOUT (not USER)", lateSubmit.data?.submitReason === "TIMEOUT");
+
+  // 8. Changing the device clock: the server never trusts client time.
+  const e3 = await makeLiveExam(ex1, [cand1], "Clock", [single.id]);
+  const c3 = await cand1.post(`/api/exams/${e3}/start`);
+  const skew = Math.abs(Date.parse(c3.data.serverNow) - Date.now());
+  check("timer anchored to server time (serverNow returned)", !!c3.data.serverNow && skew < 30_000);
+  check(
+    "deadline = server start + duration (not client time)",
+    Date.parse(c3.data.deadlineAt) - Date.parse(c3.data.startedAt) === 15 * 60_000,
+  );
+  const forged = await cand1.req("PUT", `/api/attempts/${c3.data.id}/answers`, {
+    attemptQuestionId: c3.data.questions[0].id,
+    selectedOptionIds: [c3.data.questions[0].options[0].id],
+    seq: 1,
+    savedAt: "2099-01-01T00:00:00.000Z",
+    clientNow: "2099-01-01T00:00:00.000Z",
+  });
+  const fRow = (await cand1.get(`/api/attempts/${c3.data.id}`)).data.answers[0];
+  check(
+    "client-sent timestamps ignored (savedAt is server time)",
+    forged.status === 200 && Math.abs(Date.parse(fRow.savedAt) - Date.now()) < 60_000,
+  );
+  // Clock set back an hour then offline answers replayed after the deadline: elapsed claims are bounded.
+  await withDb((db) =>
+    db.query("UPDATE attempts SET started_at = now() - interval '905 seconds', deadline_at = now() - interval '5 seconds' WHERE id = $1", [c3.data.id]),
+  );
+  const fakeClock = await cand1.post(`/api/attempts/${c3.data.id}/sync`, {
+    items: [{ attemptQuestionId: c3.data.questions[0].id, selectedOptionIds: [c3.data.questions[0].options[1].id], seq: 2, capturedElapsedMs: 3_600_000 }],
+  });
+  check(
+    "device clock tricks cannot buy extra time (late sync rejected)",
+    fakeClock.data?.rejected === 1 && fakeClock.data.results[0].status === "REJECTED",
+  );
+
+  // 9. CSV formula injection on import and export.
+  const inj = await ex1.post(`/api/exams/${e1}/candidates/import/validate`, {
+    content: ["name,email", `=HYPERLINK("http://evil.test","click"),verify.inj.${Date.now()}@demo.test`, `@SUM(1+1),verify.inj2.${Date.now()}@demo.test`].join("\n"),
+  });
+  check(
+    "candidate import rejects formula-leading names (row + field reported)",
+    inj.status === 200 && inj.data.valid === 0 && inj.data.rows.every((r) => r.errors.some((e) => e.field === "name")),
+  );
+  const qInj = await ex1.post("/api/questions/import/validate", {
+    format: "csv",
+    content: "topic,difficulty,type,body,marks,options,correct\n=cmd|' /C calc'!A0,EASY,WRITTEN,Formula topic question,1,,",
+  });
+  check("question import rejects formula-leading topic", qInj.status === 200 && qInj.data.valid === 0 && qInj.data.rows[0].errors.some((e) => e.field === "topic"));
+  check(
+    "registration rejects formula-leading name (400)",
+    (await new Client().post("/api/auth/register", { name: "=1+1", email: `verify.f.${Date.now()}@demo.test`, password: "Verify1234" })).status === 400,
+  );
+  // Data that bypassed validation (legacy row) must still be neutralised on export.
+  const evilEmail = `verify.evil.${Date.now()}@demo.test`;
+  const evil = await new Client().post("/api/auth/register", { name: "Evil Person", email: evilEmail, password: "Verify1234" });
+  await withDb((db) => db.query(`UPDATE users SET name = '=HYPERLINK("http://evil.test","x")' WHERE id = $1`, [evil.data.id]));
+  await ex1.post(`/api/exams/${e1}/enrollments`, { candidateIds: [evil.data.id] });
+  const csvRes = await fetch(`${BASE}/api/exams/${e1}/results.csv`, { headers: { cookie: ex1.cookie } });
+  const csvText = await csvRes.text();
+  const evilLine = csvText.split("\r\n").find((l) => l.includes(evilEmail)) ?? "";
+  check(
+    "results CSV export neutralises formulas (prefixed with ')",
+    csvRes.status === 200 &&
+      csvRes.headers.get("content-type")?.includes("text/csv") &&
+      evilLine.startsWith(`"'=HYPERLINK(`) &&
+      !/(^|,)=/.test(evilLine),
+    evilLine,
+  );
+  check("results CSV includes the submission receipt code", csvText.includes(subs[0].data.receiptCode));
+  check("admin can export results read-only", (await admin.get(`/api/exams/${e1}/results.csv`)).status !== 403);
+
+  return { examId: e1, attemptId, aqWrittenId: aqW.id, receiptCode: subs[0].data.receiptCode };
+}
+
+async function featureSlice(h) {
+  console.log("F  system check, clone, grade-by-question, audit log");
+  const ex1 = await login("examiner1@demo.test");
+  const ex2 = await login("examiner2@demo.test");
+  const admin = await login("admin@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+
+  // Pre-exam system check endpoint (autosave round-trip).
+  const sc = await cand1.post("/api/system-check", { nonce: "abcdef123456", payload: "x".repeat(4000) });
+  check("system check: autosave echo round-trips", sc.status === 200 && sc.data.nonce === "abcdef123456" && sc.data.receivedBytes === 4000);
+  check("system check requires login (401)", (await new Client().post("/api/system-check", { nonce: "abcdef123456", payload: "" })).status === 401);
+  const my = (await cand1.get("/api/my/exams")).data.find((e) => e.examId === h.examId);
+  check("candidate home shows the receipt code", my?.receiptCode === h.receiptCode);
+
+  // Grade-by-question data: the same bank question id across candidates.
+  const g = await ex1.get(`/api/exams/${h.examId}/grading`);
+  const wItem = g.data.attempts.flatMap((a) => a.answers).find((x) => x.type === "WRITTEN");
+  check("grading items expose questionId for grade-by-question", !!wItem?.questionId);
+
+  // Grade, regrade, publish -> audit entries.
+  await ex1.req("PUT", `/api/attempts/${h.attemptId}/grade/${h.aqWrittenId}`, { score: 1 });
+  await ex1.req("PUT", `/api/attempts/${h.attemptId}/grade/${h.aqWrittenId}`, { score: 1.5 });
+  await ex1.post(`/api/exams/${h.examId}/results/publish`);
+  const auditExam = await ex1.get(`/api/exams/${h.examId}/audit?pageSize=50`);
+  const actions = auditExam.data?.items.map((i) => i.action) ?? [];
+  check(
+    "audit: publish, grade and regrade recorded with actor",
+    actions.includes("EXAM_PUBLISHED") && actions.includes("RESULTS_PUBLISHED") &&
+      actions.filter((a) => a === "GRADE_CHANGED").length >= 2 &&
+      auditExam.data.items.every((i) => i.actorName),
+  );
+  const regrade = auditExam.data.items.find((i) => i.action === "GRADE_CHANGED" && i.details.from === 1);
+  check("audit: regrade keeps old and new score", regrade?.details.to === 1.5);
+  check("audit: other examiner cannot read it (404)", (await ex2.get(`/api/exams/${h.examId}/audit`)).status === 404);
+  check("audit: candidate cannot read it (403)", (await cand1.get(`/api/exams/${h.examId}/audit`)).status === 403);
+  check("audit: admin sees exam audit", (await admin.get(`/api/exams/${h.examId}/audit`)).status === 200);
+
+  // Extra time + role change are audited.
+  const e = await makeLiveExam(ex1, [cand1], "AuditExt", [(await ex1.get("/api/questions?pageSize=5")).data.items[0].id]);
+  const at = await cand1.post(`/api/exams/${e}/start`);
+  await ex1.post(`/api/attempts/${at.data.id}/extensions`, { minutes: 5, reason: "Fire alarm in hall" });
+  const extA = await ex1.get(`/api/exams/${e}/audit?action=TIME_EXTENSION_GRANTED`);
+  check("audit: extra time recorded with reason", extA.data?.items[0]?.details.reason === "Fire alarm in hall");
+  await cand1.post(`/api/attempts/${at.data.id}/submit`);
+
+  const u = await admin.post("/api/admin/users", { name: "Audit Target", email: `verify.audit.${Date.now()}@demo.test`, role: "CANDIDATE" });
+  await admin.patch(`/api/admin/users/${u.data.user.id}`, { role: "EXAMINER" });
+  const roleA = await admin.get("/api/admin/audit?action=ROLE_CHANGED&pageSize=5");
+  check(
+    "audit: role change recorded (from -> to)",
+    roleA.data?.items[0]?.targetId === u.data.user.id && roleA.data.items[0].details.from === "CANDIDATE" && roleA.data.items[0].details.to === "EXAMINER",
+  );
+  check("audit: admin-wide log is admin-only (403)", (await ex1.get("/api/admin/audit")).status === 403);
+  const tamper = await withDb((db) => db.query("UPDATE audit_log SET summary = 'x' WHERE id = (SELECT max(id) FROM audit_log)").then(() => "updated", (err) => err.message));
+  check("audit log is append-only at the DB level", /append-only/.test(tamper));
+
+  // Exam clone.
+  const cl = await ex1.post(`/api/exams/${h.examId}/clone`);
+  check(
+    "clone: new DRAFT with same questions, no enrollments, future window",
+    cl.status === 200 && cl.data.status === "DRAFT" && cl.data.id !== h.examId &&
+      cl.data.questionCount === 2 && cl.data.enrollmentCount === 0 &&
+      Date.parse(cl.data.startsAt) > Date.now() && cl.data.title.endsWith("(copy)"),
+  );
+  check("clone: other examiner cannot clone (404)", (await ex2.post(`/api/exams/${h.examId}/clone`)).status === 404);
+  check("clone: audited", (await ex1.get(`/api/exams/${cl.data.id}/audit`)).data?.items[0]?.action === "EXAM_CLONED");
+  check("clone is immediately publishable", (await ex1.post(`/api/exams/${cl.data.id}/publish`)).status === 200);
+
+  // Question bank filters + preview.
+  const t = (await ex1.get("/api/topics")).data[0];
+  const f = await ex1.get(`/api/questions?topicId=${t.id}&difficulty=EASY&type=MCQ_SINGLE&pageSize=50`);
+  check(
+    "question filters combine topic + difficulty + type",
+    f.status === 200 && f.data.items.every((q) => q.topicId === t.id && q.difficulty === "EASY" && q.type === "MCQ_SINGLE"),
+  );
+  const pv = await ex1.get(`/api/questions/${f.data.items[0]?.id ?? (await ex1.get("/api/questions")).data.items[0].id}`);
+  check("question preview returns options with answer key (owner only)", pv.status === 200 && pv.data.options.some((o) => o.isCorrect));
+}
+
 try {
   await slice0();
   await slice1();
@@ -784,6 +1151,8 @@ try {
   await slice6(s3);
   await slice7();
   await securityRegression();
+  const h = await hardening();
+  await featureSlice(h);
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

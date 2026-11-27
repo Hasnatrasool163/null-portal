@@ -30,6 +30,7 @@ export type AttemptRow = {
   recovery_window_seconds: number;
   last_seen_at: Date;
   scratchpad: string;
+  receipt_code: string;
   server_now: Date;
   exam_title: string;
   exam_instructions: string;
@@ -72,6 +73,7 @@ export const attemptRepo = {
       deadline_at: Date | null;
       submitted_at: Date | null;
       total_score: number | null;
+      receipt_code: string | null;
       server_now: Date;
     }>(
       `SELECT e.id AS exam_id, e.title, e.instructions, e.starts_at, e.ends_at,
@@ -85,7 +87,8 @@ export const attemptRepo = {
               COALESCE(eq.question_count, 0)::int AS question_count,
               COALESCE(eq.total_marks, 0)::numeric AS total_marks,
               a.id AS attempt_id, a.status AS attempt_status, a.grading_status,
-              a.deadline_at, a.submitted_at, a.total_score
+              a.deadline_at, a.submitted_at, a.total_score,
+              CASE WHEN a.status = 'SUBMITTED' THEN a.receipt_code END AS receipt_code
        FROM enrollments en
        JOIN exams e ON e.id = en.exam_id
        LEFT JOIN (
@@ -100,7 +103,10 @@ export const attemptRepo = {
     return rows;
   },
 
-  async findForCandidate(attemptId: string, candidateId: string): Promise<AttemptRow | null> {
+  async findForCandidate(
+    attemptId: string,
+    candidateId: string,
+  ): Promise<AttemptRow | null> {
     const rows = await query<AttemptRow>(
       `${ATTEMPT_SELECT} WHERE a.id = $1 AND a.candidate_id = $2`,
       [attemptId, candidateId],
@@ -108,7 +114,10 @@ export const attemptRepo = {
     return rows[0] ?? null;
   },
 
-  async findByIdForUpdate(c: PoolClient, attemptId: string): Promise<AttemptRow | null> {
+  async findByIdForUpdate(
+    c: PoolClient,
+    attemptId: string,
+  ): Promise<AttemptRow | null> {
     const r = await c.query<AttemptRow>(
       `SELECT a.*, now() AS server_now, e.title AS exam_title, e.instructions AS exam_instructions
        FROM attempts a JOIN exams e ON e.id = a.exam_id
@@ -118,7 +127,11 @@ export const attemptRepo = {
     return r.rows[0] ?? null;
   },
 
-  async findRealByExamAndCandidate(c: PoolClient, examId: string, candidateId: string) {
+  async findRealByExamAndCandidate(
+    c: PoolClient,
+    examId: string,
+    candidateId: string,
+  ) {
     const r = await c.query<AttemptRow>(
       `${ATTEMPT_SELECT} WHERE a.exam_id = $1 AND a.candidate_id = $2 AND NOT a.is_sandbox`,
       [examId, candidateId],
@@ -126,7 +139,10 @@ export const attemptRepo = {
     return r.rows[0] ?? null;
   },
 
-  async getQuestions(attemptId: string, c?: PoolClient): Promise<AttemptQuestionRow[]> {
+  async getQuestions(
+    attemptId: string,
+    c?: PoolClient,
+  ): Promise<AttemptQuestionRow[]> {
     const sql = `SELECT id, attempt_id, position, question_id, type, body, marks, options
                  FROM attempt_questions WHERE attempt_id = $1 ORDER BY position`;
     const rows = c

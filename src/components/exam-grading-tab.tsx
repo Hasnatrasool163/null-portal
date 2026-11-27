@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CheckCircle2, ClipboardCheck, Send } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, Download, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Pagination, usePaged } from "@/components/ui/pagination";
@@ -12,6 +12,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { api } from "@/lib/api-client";
+import { GradeByQuestion } from "@/components/grade-by-question";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type {
   ExamGradingResponse,
@@ -141,6 +142,7 @@ export function ExamGradingTab({
   const qc = useQueryClient();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [mode, setMode] = useState<"candidate" | "question">("candidate");
 
   const grading = useQuery({
     queryKey: ["exam-grading", examId],
@@ -189,6 +191,9 @@ export function ExamGradingTab({
   }
 
   const data = grading.data;
+  const hasWritten = data.attempts.some(
+    (a) => a.status === "SUBMITTED" && a.answers.some((x) => x.type === "WRITTEN"),
+  );
   const activeAttempt: GradingAttemptSummary | undefined = data.attempts.find(
     (a) => a.attemptId === activeId,
   );
@@ -212,18 +217,57 @@ export function ExamGradingTab({
           )}
         </div>
 
-        {!readOnly && !data.resultsPublishedAt && (
-          <Button
-            disabled={!data.canPublishResults}
-            onClick={() => setConfirmPublish(true)}
-          >
-            <Send className="h-4 w-4" />
-            Publish results
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <a href={`/api/exams/${examId}/results.csv`} download>
+              <Download className="h-4 w-4" />
+              Export CSV
+            </a>
           </Button>
-        )}
+          {!readOnly && !data.resultsPublishedAt && (
+            <Button
+              disabled={!data.canPublishResults}
+              onClick={() => setConfirmPublish(true)}
+            >
+              <Send className="h-4 w-4" />
+              Publish results
+            </Button>
+          )}
+        </div>
       </div>
 
-      {data.attempts.length === 0 ? (
+      {hasWritten && (
+        <div role="tablist" aria-label="Grading view" className="bg-muted inline-flex rounded-lg p-1 text-sm">
+          {(
+            [
+              ["candidate", "By candidate"],
+              ["question", "By question (blind)"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={mode === id}
+              onClick={() => setMode(id)}
+              className={`rounded-md px-3 py-1.5 font-medium ${
+                mode === id
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {hasWritten && mode === "question" ? (
+        <GradeByQuestion
+          data={data}
+          readOnly={readOnly}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["exam-grading", examId] })}
+        />
+      ) : data.attempts.length === 0 ? (
         <EmptyState
           title="No attempts yet"
           text="Real candidate attempts (excluding sandbox previews) will appear here once candidates start the exam."

@@ -1,4 +1,5 @@
 import "server-only";
+import { audit } from "../audit";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { examRepo } from "../repositories/exam.repo";
@@ -161,6 +162,22 @@ export const monitoringService = {
          VALUES ($1, $2, $3, $4) RETURNING id, created_at`,
         [attemptId, input.minutes, input.reason, user.id],
       );
+      const cand = await c.query<{ name: string }>(
+        "SELECT name FROM users WHERE id = $1",
+        [attempt.candidate_id],
+      );
+      await audit(c, user, {
+        action: "TIME_EXTENSION_GRANTED",
+        examId: attempt.exam_id,
+        targetType: "attempt",
+        targetId: attemptId,
+        summary: `Granted ${input.minutes} min to ${cand.rows[0]?.name ?? "candidate"}: ${input.reason}`,
+        details: {
+          minutes: input.minutes,
+          reason: input.reason,
+          newDeadlineAt: upd.rows[0].deadline_at.toISOString(),
+        },
+      });
       return {
         id: ext.rows[0].id,
         attemptId,
@@ -311,7 +328,8 @@ export const monitoringService = {
           totalQuestions: r.total_questions,
           startedAt: r.started_at.toISOString(),
           deadlineAt: r.deadline_at.toISOString(),
-          remainingSeconds: r.status === "IN_PROGRESS" ? r.remaining_seconds : 0,
+          remainingSeconds:
+            r.status === "IN_PROGRESS" ? r.remaining_seconds : 0,
           lastSeenAt: r.last_seen_at.toISOString(),
           lastSeenAgeSeconds: r.last_seen_age_seconds,
           incidentCount: incidents.length,

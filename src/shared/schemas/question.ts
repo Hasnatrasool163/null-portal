@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FORMULA_PREFIX } from "./auth";
 
 export const QUESTION_TYPES = ["MCQ_SINGLE", "MCQ_MULTI", "WRITTEN"] as const;
 export type QuestionType = (typeof QUESTION_TYPES)[number];
@@ -19,7 +20,11 @@ export const topicNameSchema = z
   .string()
   .trim()
   .min(1, "Topic name is required")
-  .max(60, "Topic name is too long");
+  .max(60, "Topic name is too long")
+  .refine(
+    (v) => !FORMULA_PREFIX.test(v),
+    "Topic name cannot start with =, +, -, @ (spreadsheet formula characters)",
+  );
 export const topicSchema = z.object({ name: topicNameSchema });
 export type Topic = { id: string; name: string; questionCount: number };
 
@@ -45,7 +50,10 @@ const base = {
     .number({ error: "Enter the marks" })
     .positive("Marks must be greater than 0")
     .max(100, "Marks cannot exceed 100")
-    .refine((v) => Number.isInteger(v * 2), "Use whole or half marks (0.5 steps)"),
+    .refine(
+      (v) => Number.isInteger(v * 2),
+      "Use whole or half marks (0.5 steps)",
+    ),
   options: z.array(optionSchema).max(8, "At most 8 options"),
 };
 

@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { Copy, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
+import { Copy, Eye, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -19,6 +19,7 @@ import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { QuestionForm } from "@/components/question-form";
 import { QuestionImportDialog } from "@/components/question-import-dialog";
+import { QuestionPreviewDialog } from "@/components/question-preview-dialog";
 import { TopicsDialog, useTopics } from "@/components/topics-dialog";
 import { api } from "@/lib/api-client";
 import {
@@ -46,6 +47,7 @@ export function QuestionsManager() {
   const [type, setType] = useState<QuestionType | "">("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<QuestionListItem | null>(null);
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -257,6 +259,15 @@ export function QuestionsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Preview question"
+                    title="Preview"
+                    onClick={() => setPreviewing(it.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     aria-label={
                       it.locked
                         ? "Locked (used in published exam)"
@@ -372,6 +383,7 @@ export function QuestionsManager() {
         </DialogContent>
       </Dialog>
 
+      <QuestionPreviewDialog questionId={previewing} onClose={() => setPreviewing(null)} />
       <TopicsDialog open={topicsOpen} onOpenChange={setTopicsOpen} />
       <QuestionImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </>

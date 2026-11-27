@@ -128,6 +128,7 @@ function toAttemptState(
     serverNow: attempt.server_now.toISOString(),
     recoveryWindowSeconds: attempt.recovery_window_seconds,
     scratchpad: attempt.scratchpad,
+    receiptCode: attempt.status === "SUBMITTED" ? attempt.receipt_code : null,
     questions: questions.map((q) => ({
       id: q.id,
       position: q.position,
@@ -168,7 +169,15 @@ export async function populateSnapshotInTx(
     await c.query(
       `INSERT INTO attempt_questions (attempt_id, position, question_id, type, body, marks, options)
        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-      [attemptId, pos, q.questionId, q.type, q.body, q.marks, JSON.stringify(opts)],
+      [
+        attemptId,
+        pos,
+        q.questionId,
+        q.type,
+        q.body,
+        q.marks,
+        JSON.stringify(opts),
+      ],
     );
   }
 }
@@ -250,12 +259,16 @@ export const attemptService = {
           resultsPublished && r.total_score !== null
             ? Number(r.total_score)
             : null,
+        receiptCode: r.receipt_code,
       };
     });
   },
 
   /** Start a new real attempt or resume an existing IN_PROGRESS one. Transactional + race-safe. */
-  async startOrResume(user: SessionUser, examIdRaw: string): Promise<AttemptState> {
+  async startOrResume(
+    user: SessionUser,
+    examIdRaw: string,
+  ): Promise<AttemptState> {
     const examId = assertUuid(examIdRaw, "Exam");
 
     return tx(async (c) => {
@@ -381,7 +394,10 @@ export const attemptService = {
   },
 
   /** Fetch current attempt state (works on refresh or another device). */
-  async getState(user: SessionUser, attemptIdRaw: string): Promise<AttemptState> {
+  async getState(
+    user: SessionUser,
+    attemptIdRaw: string,
+  ): Promise<AttemptState> {
     const attemptId = assertUuid(attemptIdRaw, "Attempt");
     const owned = await attemptRepo.findForCandidate(attemptId, user.id);
     if (!owned) throw Errors.notFound("Attempt not found");
@@ -524,6 +540,7 @@ export const attemptService = {
         submitReason: done.submit_reason ?? "USER",
         answeredCount,
         totalQuestions: qs.length,
+        receiptCode: done.receipt_code,
       };
     });
   },

@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   Moon,
+  ScrollText,
   ShieldCheck,
   Sun,
   Users,
@@ -20,9 +21,6 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/misc";
-import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
@@ -37,6 +35,7 @@ const NAV: Record<Role, NavItem[]> = {
     HOME,
     { href: "/admin/users", label: "Users & roles", icon: Users },
     { href: "/exams", label: "Exams", icon: ClipboardList },
+    { href: "/admin/audit", label: "Audit log", icon: ScrollText },
     VERIFY,
   ],
   EXAMINER: [
@@ -244,51 +243,29 @@ export function AppShell({
 
   return (
     <div className="min-h-screen">
-      <header className="bg-background/90 sticky top-0 z-30 border-b backdrop-blur">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight"
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "bg-sidebar fixed inset-y-0 left-0 z-30 hidden flex-col border-r transition-[width] duration-200 ease-out lg:flex",
+          collapsed ? "w-[72px]" : "w-60",
+        )}
+      >
+        <div
+          className={cn(
+            "flex shrink-0 items-center border-b px-3",
+            collapsed ? "flex-col justify-center gap-2 py-3" : "h-16 justify-between gap-2 pl-4",
+          )}
+        >
+          <Brand role={user.role} compact={collapsed} />
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:ring-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
           >
-            <BrandLogo className="h-7 w-7" />
-            null-portal
-          </Link>
-          <nav className="flex flex-1 items-center gap-1" aria-label="Main">
-            {NAV[user.role].map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                aria-current={pathname.startsWith(href) ? "page" : undefined}
-                className={cn(
-                  "text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium",
-                  pathname.startsWith(href) &&
-                    "bg-accent text-accent-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm sm:inline">{user.name}</span>
-            <Badge>{ROLE_LABEL[user.role]}</Badge>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Toggle theme"
-              onClick={() =>
-                setTheme(resolvedTheme === "dark" ? "light" : "dark")
-              }
-            >
-              <Sun className="h-4 w-4 dark:hidden" />
-              <Moon className="hidden h-4 w-4 dark:block" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={logout}>
-              <LogOut className="h-4 w-4" />
-              Log out
-            </Button>
-          </div>
+            {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+          </button>
         </div>
         <SidebarBody user={user} collapsed={collapsed} onLogout={logout} />
       </aside>
