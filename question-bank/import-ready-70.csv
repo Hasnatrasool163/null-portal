@@ -1,0 +1,108 @@
+topic,difficulty,type,body,marks,options,correct
+Programming Fundamentals,EASY,MCQ_SINGLE,"Which data structure removes elements in last-in, first-out (LIFO) order?",1,Stack|Queue|Array|Hash table,1
+Programming Fundamentals,EASY,MCQ_SINGLE,"In Python, what is the value of `7 // 2`?",1,4|3|3.5|2,2
+Programming Fundamentals,EASY,MCQ_SINGLE,"In languages that provide it, which loop is guaranteed to run its body at least once?",1,while loop|for loop|do-while loop|for-each loop,3
+Programming Fundamentals,MEDIUM,MCQ_SINGLE,"What does this Python code print?
+```
+total = 0
+for i in range(1, 5):
+    if i % 2 == 0:
+        total += i
+print(total)
+```",2,10|4|2|6,4
+Programming Fundamentals,MEDIUM,MCQ_SINGLE,What is the time complexity of binary search on a sorted array of n elements?,2,O(log n)|O(n)|O(n log n)|O(1),1
+Programming Fundamentals,MEDIUM,MCQ_SINGLE,"What does this Python code print?
+```
+a = [1, 2, 3]
+b = a
+b.append(4)
+print(len(a))
+```",2,3|4|7|1,2
+Programming Fundamentals,MEDIUM,MCQ_SINGLE,"What does this Python code print?
+```
+print(10 % 3, 2 ** 3)
+```",2,3 6|1 6|1 8|3 8,3
+Programming Fundamentals,HARD,MCQ_SINGLE,"What does this Python code print?
+```
+def add_item(item, items=[]):
+    items.append(item)
+    return items
+add_item(1)
+print(add_item(2))
+```",3,"[2]|[1]|An error is raised|[1, 2]",4
+Programming Fundamentals,HARD,MCQ_SINGLE,"What does this Python code print?
+```
+def f(n):
+    if n <= 1:
+        return 1
+    return f(n - 1) + f(n - 2)
+print(f(5))
+```",3,8|5|13|15,1
+Programming Fundamentals,EASY,MCQ_MULTI,Which of the following are loop constructs found in many programming languages? Select all that apply.,2,for loop|do-while loop|if statement|switch statement|while loop,1;2;5
+Programming Fundamentals,MEDIUM,MCQ_MULTI,Which statements about Python lists are true? Select all that apply.,2,A list has a fixed length once it is created|A list can hold values of different types|A list can be changed after it is created|The first element has index 0,2;3;4
+Programming Fundamentals,HARD,MCQ_MULTI,Which statements about recursion are true? Select all that apply.,3,A recursive function needs a reachable base case to stop|Any recursive algorithm can be rewritten with a loop and an explicit stack|Very deep recursion can exhaust the call stack|Recursion is always faster than an equivalent loop|All recursive calls share a single set of local variables,1;2;3
+Programming Fundamentals,MEDIUM,WRITTEN,"Explain the difference between a compiled language and an interpreted language, and give one advantage of each approach.",4,,
+Programming Fundamentals,HARD,WRITTEN,"Explain what a stack overflow caused by recursion is, why it happens, and describe two ways to avoid it.",6,,
+Databases and SQL,EASY,MCQ_SINGLE,Which SQL statement removes only the rows that match a given condition from a table?,1,DROP|DELETE|TRUNCATE|ALTER,2
+Databases and SQL,EASY,MCQ_SINGLE,Which keyword removes duplicate rows from the result of a SELECT query?,1,UNIQUE|GROUP|DISTINCT|ONLY,3
+Databases and SQL,EASY,MCQ_SINGLE,What is a foreign key?,1,A column that stores encrypted values|A column that is numbered automatically|A column that can never be empty|A column whose values must match a key in another table,4
+Databases and SQL,MEDIUM,MCQ_SINGLE,"A table `orders` has columns `customer` and `amount`. What does this query return?
+```
+SELECT customer, SUM(amount) FROM orders
+GROUP BY customer HAVING SUM(amount) > 100;
+```",2,"Each customer whose total amount is above 100, with that total|Every single order with an amount above 100|The sum of all orders, only if it is above 100|Customers with at least one order above 100",1
+Databases and SQL,MEDIUM,MCQ_SINGLE,"Table A has 5 rows and table B has 3 rows. Three rows of A each match exactly one row of B, and the other two rows of A match nothing. How many rows does A LEFT JOIN B return?",2,3|5|8|2,2
+Databases and SQL,MEDIUM,MCQ_SINGLE,"A table `enrol(student_id, course_id, student_name, course_title)` has the composite key (student_id, course_id). The column student_name depends only on student_id. Which normal form does this violate?",2,First normal form|Third normal form|Second normal form|Boyce-Codd normal form,3
+Databases and SQL,MEDIUM,MCQ_SINGLE,"A transfer debits account X and then the server crashes before account Y is credited. After restart, neither change is visible. Which ACID property guarantees this?",2,Durability|Isolation|Consistency|Atomicity,4
+Databases and SQL,HARD,MCQ_SINGLE,"A table `t` has a column `x` with the values 1, 2, NULL, 2. How many rows does `SELECT * FROM t WHERE x <> 2` return?",3,1 row|2 rows|3 rows|0 rows,1
+Databases and SQL,HARD,MCQ_SINGLE,"Why does this query fail in standard SQL?
+```
+SELECT price * qty AS total FROM sales WHERE total > 100;
+```",3,"Aliases cannot be given to arithmetic expressions|WHERE is evaluated before the alias in SELECT exists|The word total is reserved by SQL|WHERE can only compare plain columns, never expressions",2
+Databases and SQL,EASY,MCQ_MULTI,Which of the following are SQL aggregate functions? Select all that apply.,2,ORDER|COUNT|AVG|MAX,2;3;4
+Databases and SQL,MEDIUM,MCQ_MULTI,Which statements about database indexes are true? Select all that apply.,2,They can slow down inserts and updates|They use extra storage space|They make every possible query faster|They can speed up searches on the indexed column,1;2;4
+Databases and SQL,HARD,MCQ_MULTI,Which statements about NULL in SQL are true? Select all that apply.,3,IS NULL is used to test for a missing value|SUM ignores NULL values|NULL is the same as the number zero|NULL is the same as an empty text string|The expression NULL = NULL does not evaluate to TRUE,1;2;5
+Databases and SQL,MEDIUM,WRITTEN,"Explain what a primary key and a foreign key are, and how they work together to link two tables.",4,,
+Databases and SQL,HARD,WRITTEN,"Explain how a database index speeds up a query, give one trade-off of adding an index, and describe one case where an index gives little benefit.",6,,
+Computer Networks,EASY,MCQ_SINGLE,Which protocol translates a domain name such as a website address into an IP address?,1,DHCP|ARP|DNS|FTP,3
+Computer Networks,EASY,MCQ_SINGLE,Which layer of the OSI model is mainly responsible for routing packets between different networks?,1,Transport layer|Data link layer|Session layer|Network layer,4
+Computer Networks,EASY,MCQ_SINGLE,Which port number does HTTPS use by default?,1,443|80|22|25,1
+Computer Networks,MEDIUM,MCQ_SINGLE,How many usable host addresses does an IPv4 subnet with a /26 prefix have?,2,64|62|126|30,2
+Computer Networks,MEDIUM,MCQ_SINGLE,A live voice call application cares more about low delay than perfect delivery. Which transport protocol suits it better?,2,"TCP, because ordered delivery keeps the audio perfect|TCP, because it has less header overhead|UDP, because it avoids retransmission delays|UDP, because it encrypts the voice data",3
+Computer Networks,MEDIUM,MCQ_SINGLE,A client requests a page that is missing from a web server. Which HTTP status code does the server normally return?,2,403|500|301|404,4
+Computer Networks,MEDIUM,MCQ_SINGLE,Which sequence describes the TCP three-way handshake?,2,"SYN, SYN-ACK, ACK|SYN, ACK, SYN-ACK|ACK, SYN, SYN-ACK|SYN-ACK, SYN, ACK",1
+Computer Networks,HARD,MCQ_SINGLE,A 12 MB file is sent over a 48 Mbps link that is only 50% utilised by this transfer. Use 1 byte = 8 bits and ignore protocol overhead. How long does the transfer take?,3,2 seconds|4 seconds|0.5 seconds|8 seconds,2
+Computer Networks,HARD,MCQ_SINGLE,Host A (192.168.1.10/24) sends a packet to 192.168.2.20 and has no MAC addresses cached yet. Whose MAC address does it resolve first with ARP?,3,The destination host's|The DNS server's|The default gateway's|The nearest switch's,3
+Computer Networks,EASY,MCQ_MULTI,Which of the following are application-layer protocols? Select all that apply.,2,TCP|IP|HTTP|SMTP|DNS,3;4;5
+Computer Networks,MEDIUM,MCQ_MULTI,Which statements about TCP are true? Select all that apply.,2,It is always faster than UDP|It is connection-oriented|It retransmits segments that are lost|It preserves message boundaries between sends,2;3
+Computer Networks,HARD,MCQ_MULTI,Which statements about HTTPS (HTTP over TLS) are true? Select all that apply.,3,It uses public-key cryptography to agree on session keys|It hides the server's IP address from observers|It protects data stored on the server's disk|It encrypts data while it travels over the network|It lets the client check the server's identity with a certificate,1;4;5
+Computer Networks,MEDIUM,WRITTEN,"Explain the difference between a network switch and a router, and say where each is typically used.",4,,
+Computer Networks,HARD,WRITTEN,"Describe how TCP detects and recovers from a lost segment, and explain why TCP also reduces its sending rate when it detects loss.",6,,
+Operating Systems,EASY,MCQ_SINGLE,Which part of an operating system directly manages hardware resources such as the CPU and memory?,1,The shell|The compiler|The text editor|The kernel,4
+Operating Systems,EASY,MCQ_SINGLE,What is a process?,1,A program that is being executed|A file that stores machine code on disk|A hardware unit that executes instructions|A request sent by a hardware device,1
+Operating Systems,EASY,MCQ_SINGLE,Which scheduling algorithm gives each process a fixed time slice in turn?,1,"First come, first served|Round robin|Shortest job first|Priority scheduling",2
+Operating Systems,MEDIUM,MCQ_SINGLE,"Which memory management technique divides memory into fixed-size blocks, which avoids external fragmentation?",2,Segmentation|Contiguous allocation|Paging|Swapping,3
+Operating Systems,MEDIUM,MCQ_SINGLE,Which of these is NOT a necessary condition for deadlock?,2,Resources can be used by only one process at a time|Processes hold some resources while waiting for others|Processes wait for each other in a cycle|Resources can be forcibly taken from the processes holding them,4
+Operating Systems,MEDIUM,MCQ_SINGLE,Processes P1 (CPU burst 5) and P2 (CPU burst 3) both arrive at time 0 in that order. Round robin uses a time quantum of 2 and ignores switching time. At what time does P2 finish?,2,7|8|6|5,1
+Operating Systems,MEDIUM,MCQ_SINGLE,What is the key difference between a process and a thread?,2,"Threads have separate memory spaces, while processes share one|Threads of one process share its memory space, while processes have separate memory spaces|Threads can run only on a single CPU core|Processes cannot be scheduled by the operating system",2
+Operating Systems,HARD,MCQ_SINGLE,"A system has 3 page frames and uses LRU (least recently used) replacement. The page reference string is 7, 0, 1, 2, 0, 3, 0, 4 and the frames start empty. How many page faults occur?",3,7|5|6|8,3
+Operating Systems,HARD,MCQ_SINGLE,"Two threads each run `counter = counter + 1` one thousand times on a shared variable that starts at 0, with no synchronisation. What is true about the final value?",3,"It is always exactly 2000 because addition is a single step|It is always exactly 1000 because only one thread wins|It is always 2000 on a single-core CPU|It can be less than 2000 because the read, add and write steps can interleave",4
+Operating Systems,EASY,MCQ_MULTI,Which of the following are functions of an operating system? Select all that apply.,2,Checking spelling in documents|Process scheduling|Memory management|File management|Compiling source code to a new language,2;3;4
+Operating Systems,MEDIUM,MCQ_MULTI,Which statements about virtual memory are true? Select all that apply.,2,The total memory demand of programs can exceed physical RAM|It makes every memory access faster than direct RAM access|It removes the need for address translation|Each process gets its own virtual address space,1;4
+Operating Systems,HARD,MCQ_MULTI,Which situations can lead to starvation? Select all that apply.,3,"First come, first served where every job finishes|Priority scheduling with aging|Priority scheduling with no aging|Shortest job first with a steady stream of short jobs|Round robin with a fixed time quantum",3;4
+Operating Systems,MEDIUM,WRITTEN,Explain the difference between user mode and kernel mode and why operating systems use both.,4,,
+Operating Systems,HARD,WRITTEN,"Define deadlock, list the four conditions that must hold for it to occur, and describe one way to prevent it.",6,,
+Discrete Mathematics,EASY,MCQ_SINGLE,"How many subsets does the set {a, b, c} have, counting the empty set and the set itself?",1,8|6|9|3,1
+Discrete Mathematics,EASY,MCQ_SINGLE,What is the truth value of the implication p → q when p is true and q is false?,1,True|False|Undefined|It depends on other variables,2
+Discrete Mathematics,EASY,MCQ_SINGLE,What is the value of 5! (five factorial)?,1,25|60|120|24,3
+Discrete Mathematics,MEDIUM,MCQ_SINGLE,In how many ways can a committee of 3 people be chosen from 7 people when order is irrelevant?,2,210|21|343|35,4
+Discrete Mathematics,MEDIUM,MCQ_SINGLE,How many different 4-digit passcodes can be made from the digits 0 to 9 if digits may repeat?,2,10000|5040|210|40,1
+Discrete Mathematics,MEDIUM,MCQ_SINGLE,"What is the contrapositive of the statement: ""If a shape is a square, then it is a rectangle""?",2,"If a shape is a rectangle, then it is a square|If a shape is NOT a rectangle, then it is NOT a square|If a shape is NOT a square, then it is NOT a rectangle|A shape is a square and it is NOT a rectangle",2
+Discrete Mathematics,MEDIUM,MCQ_SINGLE,A simple graph has 6 vertices and the degrees of its vertices add up to 14. How many edges does it have?,2,14|28|7|6,3
+Discrete Mathematics,HARD,MCQ_SINGLE,"Let R = {(1,1), (2,2), (3,3), (1,2), (2,1)} be a relation on the set {1, 2, 3}. Which statement is correct?",3,R is reflexive and symmetric but not transitive|R is reflexive and transitive but not symmetric|R is symmetric and transitive but not reflexive|R is an equivalence relation,4
+Discrete Mathematics,HARD,MCQ_SINGLE,What is the smallest number of people that guarantees at least 3 of them were born in the same calendar month?,3,25|13|24|37,1
+Discrete Mathematics,EASY,MCQ_MULTI,Which of the following numbers are prime? Select all that apply.,2,2|11|17|21|27,1;2;3
+Discrete Mathematics,MEDIUM,MCQ_MULTI,"Let A = {1, 2, 3} and B = {3, 4}. Which statements are true? Select all that apply.",2,A \ B has 3 elements|A ∪ B has 4 elements|A × B has 6 ordered pairs|A ∩ B is the empty set,2;3
+Discrete Mathematics,HARD,MCQ_MULTI,Which of the following statements are tautologies? Select all that apply.,3,(p AND q) → p|NOT (p OR q) is equivalent to (NOT p) AND (NOT q)|p → (p AND q)|p OR (NOT p),1;2;4
+Discrete Mathematics,MEDIUM,WRITTEN,Show that the sum of two even integers is always even.,4,,
+Discrete Mathematics,HARD,WRITTEN,Use mathematical induction to prove that 1 + 2 + ... + n = n(n + 1) / 2 for every integer n ≥ 1.,6,,

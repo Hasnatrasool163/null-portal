@@ -1,0 +1,20 @@
+topic,difficulty,type,body,marks,options,correct
+Programming Fundamentals,EASY,MCQ_SINGLE,,1,Stack|Queue|Array|Hash table,1
+Programming Fundamentals,MEDIUM,MCQ_MULTI,Which statements about Python lists are true? Select all that apply.,2,,2;3;4
+Programming Fundamentals,MEDIUM,WRITTEN,"Explain the difference between a compiled language and an interpreted language, and give one advantage of each approach.",4,,
+Databases and SQL,MEDIUM,MCQ_SINGLE,"A table `orders` has columns `customer` and `amount`. What does this query return?
+```
+SELECT customer, SUM(amount) FROM orders
+GROUP BY customer HAVING SUM(amount) > 100;
+```",2,"Each customer whose total amount is above 100, with that total|Every single order with an amount above 100|The sum of all orders, only if it is above 100|Customers with at least one order above 100",1
+Databases and SQL,HARD,MCQ_MULTI,Which statements about NULL in SQL are true? Select all that apply.,3,IS NULL is used to test for a missing value|SUM ignores NULL values|NULL is the same as the number zero|NULL is the same as an empty text string|The expression NULL = NULL does not evaluate to TRUE,1;2;5
+Databases and SQL,HARD,WRITTEN,"Explain how a database index speeds up a query, give one trade-off of adding an index, and describe one case where an index gives little benefit.",6,,
+Computer Networks,EASY,MCQ_SINGLE,Which protocol translates a domain name such as a website address into an IP address?,1,DHCP|ARP|DNS|FTP,3
+Computer Networks,MEDIUM,MCQ_MULTI,Which statements about TCP are true? Select all that apply.,2,It is always faster than UDP|It is connection-oriented|It retransmits segments that are lost|It preserves message boundaries between sends,2;3
+Computer Networks,MEDIUM,WRITTEN,"Explain the difference between a network switch and a router, and say where each is typically used.",4,,
+Operating Systems,MEDIUM,MCQ_SINGLE,"Which memory management technique divides memory into fixed-size blocks, which avoids external fragmentation?",2,Segmentation|Contiguous allocation|Paging|Swapping,3
+Operating Systems,HARD,MCQ_MULTI,Which situations can lead to starvation? Select all that apply.,3,"First come, first served where every job finishes|Priority scheduling with aging|Priority scheduling with no aging|Shortest job first with a steady stream of short jobs|Round robin with a fixed time quantum",3;4
+Operating Systems,HARD,WRITTEN,"Define deadlock, list the four conditions that must hold for it to occur, and describe one way to prevent it.",6,,
+Discrete Mathematics,EASY,MCQ_SINGLE,"How many subsets does the set {a, b, c} have, counting the empty set and the set itself?",1,8|6|9|3,1
+Discrete Mathematics,MEDIUM,MCQ_MULTI,"Let A = {1, 2, 3} and B = {3, 4}. Which statements are true? Select all that apply.",2,A \ B has 3 elements|A ∪ B has 4 elements|A × B has 6 ordered pairs|A ∩ B is the empty set,2;3
+Discrete Mathematics,MEDIUM,WRITTEN,Show that the sum of two even integers is always even.,4,,

@@ -1,0 +1,38 @@
+{
+  "questions": [
+    {
+      "topic": "Databases and SQL", "difficulty": "EASY", "type": "MCQ_SINGLE", "marks": 1,
+      "body": "Which SQL clause is used to filter rows BEFORE they are grouped?",
+      "options": [
+        { "body": "WHERE", "isCorrect": true },
+        { "body": "HAVING", "isCorrect": false },
+        { "body": "ORDER BY", "isCorrect": false },
+        { "body": "LIMIT", "isCorrect": false }
+      ],
+      "explanation": "WHERE filters individual rows before GROUP BY runs. HAVING filters groups after aggregation, which is the most common confusion."
+    },
+    {
+      "topic": "Databases and SQL", "difficulty": "MEDIUM", "type": "MCQ_MULTI", "marks": 2,
+      "body": "Which of the following statements about a PRIMARY KEY are true? Select all that apply.",
+      "options": [
+        { "body": "It uniquely identifies each row in the table", "isCorrect": true },
+        { "body": "It can contain NULL values", "isCorrect": false },
+        { "body": "A table can have at most one primary key", "isCorrect": true },
+        { "body": "It must be a single column", "isCorrect": false }
+      ],
+      "explanation": "A primary key is unique and non-null, and a table has only one (it may span several columns, so a composite key is allowed)."
+    },
+    {
+      "topic": "Programming Fundamentals", "difficulty": "HARD", "type": "WRITTEN", "marks": 4,
+      "body": "Explain the difference between passing an argument by value and by reference, and describe one situation where the difference changes a program's output.",
+      "modelAnswer": "By value copies the argument so changes inside the function do not affect the caller's variable; by reference passes access to the original so changes are visible to the caller. Example: a function that increments its parameter leaves the caller's number unchanged when passed by value but updates it when passed by reference.",
+      "rubric": [
+        { "criterion": "Correctly describes pass by value (copy semantics)", "marks": 1 },
+        { "criterion": "Correctly describes pass by reference (shared original)", "marks": 1 },
+        { "criterion": "Gives a valid example where output differs", "marks": 1.5 },
+        { "criterion": "Clear, concise explanation", "marks": 0.5 }
+      ],
+      "explanation": "Tests understanding of parameter passing beyond definitions: strong answers connect the semantics to an observable effect."
+    }
+  ]
+}
