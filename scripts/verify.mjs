@@ -736,6 +736,44 @@ async function slice7() {
   }
 }
 
+async function securityRegression() {
+  console.log("Security regression (ADM-108 & ADV-131)");
+  // ADM-108: copied session cookie must return 401 after /api/auth/logout
+  const regEmail = `verify.sec.${Date.now()}@demo.test`;
+  const c = new Client();
+  const reg = await c.post("/api/auth/register", {
+    name: "Logout Test",
+    email: regEmail,
+    password: "Verify1234",
+  });
+  check("ADM-108 setup user registered", reg.status === 200);
+  const copiedCookie = c.cookie;
+  check("copied cookie works before logout (200)", (await c.get("/api/auth/me")).status === 200);
+  await c.post("/api/auth/logout");
+  const replay = new Client();
+  replay.cookie = copiedCookie;
+  check("ADM-108 copied cookie rejected after logout (401)", (await replay.get("/api/auth/me")).status === 401);
+
+  // ADV-131: 12 login guesses with rotating spoofed X-Forwarded-For headers must hit 429
+  const targetEmail = `verify.rl.${Date.now()}@demo.test`;
+  let got429 = false;
+  for (let i = 1; i <= 12; i++) {
+    const res = await fetch(`${BASE}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-For": `203.0.113.${i}`,
+      },
+      body: JSON.stringify({ email: targetEmail, password: "WrongPassword1" }),
+    });
+    if (res.status === 429) {
+      got429 = true;
+      break;
+    }
+  }
+  check("ADV-131 spoofed X-Forwarded-For cannot bypass login rate limit (429)", got429);
+}
+
 try {
   await slice0();
   await slice1();
@@ -745,6 +783,7 @@ try {
   await slice5();
   await slice6(s3);
   await slice7();
+  await securityRegression();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

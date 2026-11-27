@@ -1,7 +1,7 @@
 import { publicRoute } from "@/server/http";
-import { destroySession } from "@/server/auth/session";
+import { authService } from "@/server/services/auth.service";
 
 export const POST = publicRoute({}, async () => {
-  await destroySession();
+  await authService.logout();
   return null;
 });

@@ -18,8 +18,12 @@ function secret() {
   return new TextEncoder().encode(s);
 }
 
-export async function createSession(userId: string, role: Role) {
-  const token = await new SignJWT({ role })
+export async function createSession(
+  userId: string,
+  role: Role,
+  sessionVersion: number,
+) {
+  const token = await new SignJWT({ role, sv: sessionVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(userId)
     .setIssuedAt()
@@ -38,13 +42,22 @@ export async function destroySession() {
   (await cookies()).delete(COOKIE);
 }
 
-/** Returns the user id from a valid signed cookie, else null. Role is NEVER trusted from the cookie. */
-export async function readSessionUserId(): Promise<string | null> {
+/**
+ * Returns the user id and session version from a valid signed cookie, else null.
+ * Role is NEVER trusted from the cookie; sessionVersion is checked against users.session_version in DB.
+ */
+export async function readSession(): Promise<{
+  userId: string;
+  sessionVersion: number;
+} | null> {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secret());
-    return typeof payload.sub === "string" ? payload.sub : null;
+    if (typeof payload.sub !== "string" || typeof payload.sv !== "number") {
+      return null;
+    }
+    return { userId: payload.sub, sessionVersion: payload.sv };
   } catch {
     return null;
   }
