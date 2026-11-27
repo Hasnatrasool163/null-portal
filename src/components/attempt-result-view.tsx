@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -54,6 +54,14 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
         <PageHeader
           title={r.examTitle}
           subtitle={`${r.candidateName} · Submitted ${format(new Date(r.submittedAt), "PP p")}`}
+          actions={
+            <Button asChild variant="outline">
+              <a href={`/api/attempts/${r.attemptId}/report.pdf`} download>
+                <Download className="h-4 w-4" />
+                Download verifiable PDF
+              </a>
+            </Button>
+          }
         />
       </div>
 

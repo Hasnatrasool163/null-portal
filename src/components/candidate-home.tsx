@@ -1,14 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ArrowRight, CheckCircle2, Clock, Lock, Play } from "lucide-react";
+import { ArrowRight, CheckCircle2, Clock, Lock, Play, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
+import { PreferencesDialog } from "@/components/preferences-dialog";
 import { api } from "@/lib/api-client";
 import type { AttemptState, MyExamItem } from "@/shared/schemas/attempt";
 
@@ -121,6 +123,7 @@ function ExamCard({
 
 export function CandidateHome({ firstName }: { firstName: string }) {
   const router = useRouter();
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const list = useQuery({
     queryKey: ["my-exams"],
     queryFn: () => api<MyExamItem[]>("/api/my/exams"),
@@ -149,7 +152,14 @@ export function CandidateHome({ firstName }: { firstName: string }) {
       <PageHeader
         title={`Welcome, ${firstName}`}
         subtitle="Your assigned examinations. Timers are enforced by the server."
+        actions={
+          <Button variant="outline" onClick={() => setPrefsOpen(true)}>
+            <SlidersHorizontal className="h-4 w-4" />
+            Workspace settings
+          </Button>
+        }
       />
+      <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
 
       {list.isPending ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

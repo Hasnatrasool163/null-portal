@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -9,6 +10,7 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCircle2,
+  Eye,
   FileUp,
   Lock,
   Plus,
@@ -26,6 +28,7 @@ import { EmptyState, PageHeader, StatCard } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ExamForm } from "@/components/exam-form";
 import { CandidateImportDialog } from "@/components/candidate-import-dialog";
+import { ExamAnalyticsTab } from "@/components/exam-analytics-tab";
 import { ExamGradingTab } from "@/components/exam-grading-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { phaseBadgeClass } from "@/components/exams-manager";
@@ -51,7 +54,8 @@ type Tab =
   | "questions"
   | "enrollments"
   | "monitor"
-  | "grading";
+  | "grading"
+  | "analytics";
 
 function QuestionsTab({
   exam,
@@ -538,11 +542,22 @@ export function ExamDetailView({
   examId: string;
   isAdmin: boolean;
 }) {
+  const router = useRouter();
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("review");
   const [confirmAction, setConfirmAction] = useState<"publish" | "close" | null>(
     null,
   );
+
+  const sandbox = useMutation({
+    mutationFn: (reset: boolean) =>
+      api<{ attemptId: string }>(`/api/exams/${examId}/sandbox`, {
+        method: "POST",
+        body: { reset },
+      }),
+    onSuccess: (r) => router.push(`/attempts/${r.attemptId}`),
+    onError: (e) => toast.error(e.message),
+  });
 
   const query = useQuery({
     queryKey: ["exam", examId],
@@ -620,6 +635,7 @@ export function ExamDetailView({
     { id: "enrollments", label: `Enrollments (${exam.enrollmentCount})` },
     { id: "monitor", label: "Live Monitor" },
     { id: "grading", label: "Grading & Results" },
+    { id: "analytics", label: "Analytics" },
   ];
 
   return (
@@ -640,6 +656,16 @@ export function ExamDetailView({
               <Badge className={phaseBadgeClass(exam.phase)}>
                 {PHASE_LABEL[exam.phase]}
               </Badge>
+              {!isAdmin && exam.questionCount > 0 && (
+                <Button
+                  variant="outline"
+                  disabled={sandbox.isPending}
+                  onClick={() => sandbox.mutate(false)}
+                >
+                  <Eye className="h-4 w-4" />
+                  Preview as candidate
+                </Button>
+              )}
               {!isAdmin && exam.status === "DRAFT" && (
                 <Button
                   disabled={!exam.readiness.ready}
@@ -808,6 +834,8 @@ export function ExamDetailView({
       {tab === "grading" && (
         <ExamGradingTab examId={exam.id} readOnly={isAdmin} />
       )}
+
+      {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
 
       <Dialog
         open={confirmAction !== null}

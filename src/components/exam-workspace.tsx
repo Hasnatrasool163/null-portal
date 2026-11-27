@@ -13,7 +13,11 @@ import {
   HelpCircle,
   LayoutGrid,
   Megaphone,
+  NotebookPen,
+  RotateCcw,
   Send,
+  SlidersHorizontal,
+  WifiOff,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,6 +26,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/blocks";
+import { ScratchpadDrawer } from "@/components/scratchpad-drawer";
+import {
+  PreferencesDialog,
+  useWorkspacePreferences,
+} from "@/components/preferences-dialog";
+import { useNetworkStatus } from "@/lib/use-network-status";
 import { ApiClientError, api } from "@/lib/api-client";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type { AttemptState, SubmitResult } from "@/shared/schemas/attempt";
@@ -114,6 +124,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   const [confirmSubmit, setConfirmSubmit] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [scratchpadOpen, setScratchpadOpen] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const { prefs } = useWorkspacePreferences();
   const [saveChip, setSaveChip] = useState<SaveChip>("saved");
   const [drafts, setDrafts] = useState<Record<string, DraftAnswer>>(() =>
     buildInitialDrafts(attempt),
@@ -276,6 +289,38 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     }, 500);
     return () => clearInterval(id);
   }, [attempt, submittedResult, flushAllAndSubmit]);
+
+  const net = useNetworkStatus({
+    enabled: attempt.status === "IN_PROGRESS" && !submittedResult,
+    onDisconnect: () => {
+      if (!attempt.isSandbox) {
+        void api(`/api/attempts/${attemptId}/incidents`, {
+          method: "POST",
+          body: { type: "DISCONNECT" },
+        }).catch(() => {});
+      }
+    },
+    onReconnect: (offlineSeconds) => {
+      if (!attempt.isSandbox) {
+        void api(`/api/attempts/${attemptId}/incidents`, {
+          method: "POST",
+          body: { type: "RECONNECT", details: { offlineSeconds } },
+        }).catch(() => {});
+      }
+    },
+  });
+
+  const resetSandbox = useMutation({
+    mutationFn: () =>
+      api<{ attemptId: string }>(`/api/exams/${attempt.examId}/sandbox`, {
+        method: "POST",
+        body: { reset: true },
+      }),
+    onSuccess: (r) => {
+      window.location.href = `/attempts/${r.attemptId}`;
+    },
+    onError: (e) => toast.error(e.message),
+  });
 
   // Move focus to question heading when switching questions for screen-reader/keyboard clarity.
   useEffect(() => {
@@ -545,14 +590,41 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       </div>
 
       {attempt.isSandbox && (
-        <div className="border-warning bg-warning/15 text-warning flex items-center justify-between rounded-md border px-4 py-2 text-sm font-medium">
+        <div className="border-warning bg-warning/15 text-warning flex flex-wrap items-center justify-between gap-2 rounded-md border px-4 py-2 text-sm font-medium">
           <span>
             SANDBOX PREVIEW — This attempt is for testing only and is never
             counted in statistics or reports.
           </span>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/exams/${attempt.examId}`}>Exit sandbox</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={resetSandbox.isPending}
+              onClick={() => resetSandbox.mutate()}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset preview
+            </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/exams/${attempt.examId}`}>Exit sandbox</Link>
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {net.state !== "online" && (
+        <div
+          role="alert"
+          className={`flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium ${
+            net.state === "offline"
+              ? "border-destructive bg-destructive/15 text-destructive"
+              : "border-warning bg-warning/15 text-warning"
+          }`}
+        >
+          <WifiOff className="h-4 w-4 shrink-0" />
+          {net.state === "offline"
+            ? "Connection lost. Your timer continues on the server; keep working and reconnect before the recovery window closes."
+            : `Unstable connection (${net.latencyMs ?? "?"} ms). Saves may take longer than usual.`}
         </div>
       )}
 
@@ -613,7 +685,11 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           </Badge>
 
           <div
-            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-mono text-sm font-semibold ${urgency}`}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 font-mono text-sm font-semibold ${urgency} ${
+              prefs.timerStyle === "subtle" && ms > 5 * 60_000
+                ? "opacity-70"
+                : ""
+            }`}
             aria-label={`Time remaining ${formatClock(ms)}`}
           >
             <Clock className="h-4 w-4" aria-hidden="true" />
@@ -625,6 +701,24 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               <span className="font-sans text-xs font-medium">· &lt;5 min</span>
             )}
           </div>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setScratchpadOpen(true)}
+          >
+            <NotebookPen className="h-4 w-4" />
+            <span className="hidden sm:inline">Scratchpad</span>
+          </Button>
+
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label="Workspace settings"
+            onClick={() => setPrefsOpen(true)}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </Button>
 
           <Button
             size="icon"
@@ -648,7 +742,17 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       </div>
 
       {/* Main grid: Question / Review panel + Desktop Palette */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_240px]">
+      <div
+        className={`grid gap-6 ${
+          prefs.palettePosition === "side" ? "lg:grid-cols-[1fr_240px]" : ""
+        } ${
+          prefs.fontSize === "lg"
+            ? "text-lg"
+            : prefs.fontSize === "sm"
+              ? "text-sm"
+              : "text-base"
+        }`}
+      >
         <div>
           {reviewMode ? (
             <Card>
@@ -980,6 +1084,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ScratchpadDrawer
+        attemptId={attemptId}
+        initialText={attempt.scratchpad}
+        open={scratchpadOpen}
+        onOpenChange={setScratchpadOpen}
+      />
+
+      <PreferencesDialog open={prefsOpen} onOpenChange={setPrefsOpen} />
 
       {/* Keyboard shortcuts help */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>

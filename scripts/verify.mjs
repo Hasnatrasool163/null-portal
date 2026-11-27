@@ -525,6 +525,75 @@ async function slice5() {
   );
 }
 
+async function slice6(ctx) {
+  console.log("S6 secondary features");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const { examId, attemptId, aqWrittenId } = ctx;
+
+  // 1. /api/ping
+  const ping = await new Client().get("/api/ping");
+  check("/api/ping responds with serverNow", ping.status === 200 && !!ping.data.serverNow);
+
+  // 2. Preferences server-side persistence
+  const pSave = await cand1.patch("/api/me/preferences", { fontSize: "lg", theme: "high-contrast" });
+  const pRead = await cand1.get("/api/me/preferences");
+  check("workspace preferences persist server-side", pSave.status === 200 && pRead.data.fontSize === "lg" && pRead.data.theme === "high-contrast");
+  await cand1.patch("/api/me/preferences", { fontSize: "md", theme: "light" });
+
+  // 3. Sandbox preview & exclusion from stats/grading
+  const sb = await ex1.post(`/api/exams/${examId}/sandbox`, { reset: true });
+  check("examiner starts sandbox attempt", sb.status === 200 && !!sb.data.attemptId);
+  const sbState = await ex1.get(`/api/attempts/${sb.data.attemptId}`);
+  check("sandbox attempt flagged isSandbox=true", sbState.status === 200 && sbState.data.isSandbox === true);
+
+  // 4. Scratchpad save on sandbox attempt
+  const sp = await ex1.req("PUT", `/api/attempts/${sb.data.attemptId}/scratchpad`, { scratchpad: "Rough note 123" });
+  const sbAfter = await ex1.get(`/api/attempts/${sb.data.attemptId}`);
+  check("scratchpad autosaves and persists", sp.status === 200 && sbAfter.data.scratchpad === "Rough note 123");
+
+  await ex1.post(`/api/attempts/${sb.data.attemptId}/submit`);
+
+  // 5. Question analytics excludes sandbox
+  const an = await ex1.get(`/api/exams/${examId}/analytics`);
+  check(
+    "analytics excludes sandbox attempts (only 1 real attempt)",
+    an.status === 200 && an.data.submittedAttempts === 1 && an.data.questions.length === 3,
+  );
+
+  // 6. Server-side PDF + QR verification (VALID -> grade change -> SUPERSEDED)
+  const pdfRes = await fetch(`${BASE}/api/attempts/${attemptId}/report.pdf`, {
+    headers: { cookie: cand1.cookie },
+  });
+  const code = pdfRes.headers.get("x-verification-code");
+  const pdfBytes = new Uint8Array(await pdfRes.arrayBuffer());
+  const pdfHeader = new TextDecoder().decode(pdfBytes.slice(0, 5));
+  check(
+    "candidate PDF generated server-side with verification code",
+    pdfRes.status === 200 && pdfHeader === "%PDF-" && !!code && code.length >= 12,
+  );
+
+  const ver1 = await new Client().get(`/api/verify/${code}`);
+  check(
+    "public verify shows VALID with masked name and no email",
+    ver1.status === 200 &&
+      ver1.data.status === "VALID" &&
+      ver1.data.maskedCandidateName.includes(".") &&
+      !("email" in ver1.data),
+  );
+
+  // Change grade slightly -> old verification code becomes SUPERSEDED
+  await ex1.req("PUT", `/api/attempts/${attemptId}/grade/${aqWrittenId}`, { score: 4 });
+  const ver2 = await new Client().get(`/api/verify/${code}`);
+  check("grade change marks old PDF verification SUPERSEDED", ver2.status === 200 && ver2.data.status === "SUPERSEDED");
+
+  // 7. Examiner summary PDF
+  const exPdf = await fetch(`${BASE}/api/exams/${examId}/report.pdf`, {
+    headers: { cookie: ex1.cookie },
+  });
+  check("examiner summary PDF generated server-side", exPdf.status === 200 && exPdf.headers.get("content-type")?.includes("pdf"));
+}
+
 try {
   await slice0();
   await slice1();
@@ -532,6 +601,7 @@ try {
   const s3 = await slice3();
   await slice4(s3);
   await slice5();
+  await slice6(s3);
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

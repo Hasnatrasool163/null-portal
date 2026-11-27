@@ -48,6 +48,27 @@
   --input: #3a4354;
   --ring: #5eb3bb;
 }
+.high-contrast {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --primary: #003d4d;
+  --primary-foreground: #ffffff;
+  --secondary: #e5e5e5;
+  --secondary-foreground: #000000;
+  --muted: #f2f2f2;
+  --muted-foreground: #1f1f1f;
+  --accent: #d9f0f5;
+  --accent-foreground: #002b36;
+  --destructive: #990000;
+  --success: #005c29;
+  --warning: #663d00;
+  --border: #000000;
+  --input: #000000;
+  --ring: #003d4d;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
