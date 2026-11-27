@@ -11,6 +11,7 @@ import {
   Info,
   Lock,
   Play,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -131,9 +132,22 @@ function ExamCard({
           <CardTitle className="text-base leading-snug">{item.title}</CardTitle>
           <StatusChip status={item.accessStatus} />
         </div>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
           {item.questionCount} questions · {item.totalMarks} marks ·{" "}
           {item.durationMinutes} min
+          {item.changedAt && (
+            <Tooltip
+              content={`Changed by the examiner on ${format(new Date(item.changedAt), "PP p")}. Details are in your notifications.`}
+            >
+              <span
+                tabIndex={0}
+                className="text-warning inline-flex items-center gap-1 font-medium focus-visible:underline focus-visible:outline-none"
+              >
+                · <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                Updated
+              </span>
+            </Tooltip>
+          )}
         </p>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3 text-sm">
@@ -151,13 +165,6 @@ function ExamCard({
         {item.instructions && (
           <p className="text-muted-foreground line-clamp-2 text-xs">
             {item.instructions}
-          </p>
-        )}
-        {item.changedAt && (
-          <p className="bg-warning/10 text-warning rounded-md px-2.5 py-1.5 text-xs">
-            Updated by the examiner on{" "}
-            {format(new Date(item.changedAt), "PP p")}. Check the schedule and
-            instructions.
           </p>
         )}
 
