@@ -5,6 +5,7 @@ import { examRepo } from "../repositories/exam.repo";
 import { attemptRepo } from "../repositories/attempt.repo";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { notifyExamAvailable, notifyExamCancelled } from "../notifications";
 import { scoreObjectiveAnswer, type SnapshotOption } from "../exam/scoring";
 import {
   LEVEL_ALLOWED,
@@ -371,6 +372,7 @@ export const examService = {
         throw Errors.conflict(r.blockers[0] ?? "Exam is not ready to publish.");
       }
       await examRepo.patchInTx(c, existing.id, { status: "PUBLISHED" });
+      await notifyExamAvailable(c, existing.id, "EXAM_PUBLISHED");
       await audit(c, user, {
         action: "EXAM_PUBLISHED",
         examId: existing.id,
@@ -469,6 +471,7 @@ export const examService = {
       }
       let revokedCertificates = 0;
       if (cancel) {
+        await notifyExamCancelled(c, ex.id, input.reason);
         const rev = await c.query(
           `UPDATE report_verifications rv
            SET revoked = true

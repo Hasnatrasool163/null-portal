@@ -7,6 +7,7 @@ import { hashPassword } from "../auth/password";
 import { generateTempPassword } from "../auth/temp-password";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { clearExamNotifications, notifyExamAvailable } from "../notifications";
 import { editLevel } from "../exam/lifecycle";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type { CandidateImportResult, ExamSummary } from "@/shared/schemas/exam";
@@ -55,7 +56,9 @@ export const enrollmentService = {
         "One or more selected users are not active candidates.",
       );
     }
-    const added = await enrollmentRepo.enrollMany(exam.id, validIds);
+    const addedIds = await enrollmentRepo.enrollMany(exam.id, validIds);
+    const added = addedIds.length;
+    await notifyExamAvailable(null, exam.id, "EXAM_ENROLLED", addedIds);
     if (exam.status !== "DRAFT" && added > 0) {
       await audit(null, user, {
         action: "ENROLLMENT_ADDED",
@@ -78,6 +81,7 @@ export const enrollmentService = {
     }
     const cid = assertUuid(candidateId, "Candidate");
     await enrollmentRepo.remove(exam.id, cid);
+    await clearExamNotifications(null, exam.id, cid);
     if (exam.status !== "DRAFT") {
       await audit(null, user, {
         action: "ENROLLMENT_REMOVED",
@@ -120,6 +124,7 @@ export const enrollmentService = {
     const created: { name: string; email: string; tempPassword: string }[] = [];
     let enrolled = 0;
     let alreadyEnrolled = 0;
+    const addedIds: string[] = [];
 
     await tx(async (c) => {
       for (const row of prepared) {
@@ -148,11 +153,15 @@ export const enrollmentService = {
           }
         }
         const added = await enrollmentRepo.enrollInTx(c, exam.id, candidateId);
-        if (added) enrolled++;
+        if (added) {
+          enrolled++;
+          addedIds.push(candidateId);
+        }
         else alreadyEnrolled++;
       }
     });
 
+    await notifyExamAvailable(null, exam.id, "EXAM_ENROLLED", addedIds);
     if (exam.status !== "DRAFT" && enrolled > 0) {
       await audit(null, user, {
         action: "ENROLLMENT_ADDED",

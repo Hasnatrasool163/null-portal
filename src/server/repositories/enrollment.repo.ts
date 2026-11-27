@@ -65,8 +65,9 @@ export const enrollmentRepo = {
     return rows.map((r) => r.id);
   },
 
-  async enrollMany(examId: string, candidateIds: string[]): Promise<number> {
-    if (candidateIds.length === 0) return 0;
+  /** Returns the ids that were newly enrolled (already-enrolled ones are skipped). */
+  async enrollMany(examId: string, candidateIds: string[]): Promise<string[]> {
+    if (candidateIds.length === 0) return [];
     const rows = await query<{ candidate_id: string }>(
       `INSERT INTO enrollments (exam_id, candidate_id)
        SELECT $1, unnest($2::uuid[])
@@ -74,7 +75,7 @@ export const enrollmentRepo = {
        RETURNING candidate_id`,
       [examId, candidateIds],
     );
-    return rows.length;
+    return rows.map((r) => r.candidate_id);
   },
 
   async enrollInTx(c: PoolClient, examId: string, candidateId: string): Promise<boolean> {

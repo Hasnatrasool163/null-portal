@@ -2,6 +2,7 @@ import "server-only";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { notifyResultsPublished } from "../notifications";
 import { toCsv } from "../csv";
 import { examRepo } from "../repositories/exam.repo";
 import {
@@ -361,6 +362,7 @@ export const gradingService = {
         [exam.id],
       );
       if (!exam.resultsPublishedAt) {
+        await notifyResultsPublished(c, exam.id);
         await audit(c, user, {
           action: "RESULTS_PUBLISHED",
           examId: exam.id,
