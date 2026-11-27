@@ -8,7 +8,15 @@ import { fieldClass } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 /** Type a verification code instead of scanning the QR code on the PDF. */
-export function VerifyLookup({ initial = "" }: { initial?: string }) {
+export function VerifyLookup({
+  initial = "",
+  label = "Verification code",
+  buttonLabel = "Verify",
+}: {
+  initial?: string;
+  label?: string;
+  buttonLabel?: string;
+}) {
   const router = useRouter();
   const [code, setCode] = useState(initial);
   const [error, setError] = useState("");
@@ -29,7 +37,7 @@ export function VerifyLookup({ initial = "" }: { initial?: string }) {
   return (
     <form onSubmit={submit} noValidate className="space-y-2">
       <label htmlFor="verify-code" className="text-sm font-medium">
-        Verification code
+        {label}
       </label>
       <div className="flex flex-col gap-2 min-[420px]:flex-row">
         <div className="relative flex-1">
@@ -51,7 +59,7 @@ export function VerifyLookup({ initial = "" }: { initial?: string }) {
         </div>
         <Button type="submit" size="lg" disabled={pending} className="w-full min-[420px]:w-auto">
           {pending ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
-          Verify
+          {buttonLabel}
         </Button>
       </div>
       {error && (
