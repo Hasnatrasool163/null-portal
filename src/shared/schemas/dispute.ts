@@ -5,6 +5,12 @@ import type { Role } from "./auth";
 export const DISPUTE_FILING_DAYS = 7;
 /** Days after an examiner's resolution during which the candidate may escalate it. */
 export const DISPUTE_ESCALATION_DAYS = 7;
+/** The examiner is reminded when a dispute has had no resolution for this long. */
+export const DISPUTE_REMINDER_HOURS = 48;
+/** An unresolved dispute is escalated to the admins automatically after this many days. */
+export const DISPUTE_AUTO_ESCALATE_DAYS = 5;
+/** Distinct candidates disputing the same question before admins are alerted to a likely flawed question. */
+export const DISPUTE_PATTERN_THRESHOLD = 3;
 /** Cap per attempt, so the process can't be flooded. */
 export const MAX_DISPUTES_PER_ATTEMPT = 5;
 
