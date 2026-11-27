@@ -12,7 +12,9 @@ import {
   Flag,
   HelpCircle,
   LayoutGrid,
+  Megaphone,
   Send,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,11 @@ import { EmptyState } from "@/components/ui/blocks";
 import { ApiClientError, api } from "@/lib/api-client";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type { AttemptState, SubmitResult } from "@/shared/schemas/attempt";
+import type {
+  AnnouncementItem,
+  HeartbeatResponse,
+  IncidentType,
+} from "@/shared/schemas/monitoring";
 
 type DraftAnswer = {
   selectedOptionIds: number[];
@@ -115,6 +122,8 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     Math.max(0, Date.parse(attempt.deadlineAt) - Date.parse(attempt.serverNow)),
   );
   const [announcement, setAnnouncement] = useState("");
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
+  const [dismissedAnn, setDismissedAnn] = useState<Set<string>>(new Set());
   const [submittedResult, setSubmittedResult] = useState<SubmitResult | null>(
     null,
   );
@@ -272,6 +281,75 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
   useEffect(() => {
     if (!reviewMode) headingRef.current?.focus();
   }, [index, reviewMode]);
+
+  // Heartbeat (~10s): updates last_seen_at, syncs deadline (picks up time extensions), fetches announcements.
+  useEffect(() => {
+    if (attempt.status !== "IN_PROGRESS" || submittedResult) return;
+    let active = true;
+    async function beat() {
+      try {
+        const res = await api<HeartbeatResponse>(
+          `/api/attempts/${attemptId}/heartbeat`,
+          { method: "POST" },
+        );
+        if (!active) return;
+        const newDeadline = Date.parse(res.deadlineAt);
+        const prevDeadline = clockRef.current?.deadlineMs;
+        clockRef.current = {
+          serverNowMs: Date.parse(res.serverNow),
+          anchorPerfMs: performance.now(),
+          deadlineMs: newDeadline,
+        };
+        if (prevDeadline && newDeadline > prevDeadline) {
+          toast.info("Your examiner granted additional time.");
+        }
+        setAnnouncements(res.announcements);
+        if (res.status === "SUBMITTED") {
+          qc.invalidateQueries({ queryKey: ["attempt", attemptId] });
+        }
+      } catch {
+        // Network drops are handled gracefully without interrupting the candidate.
+      }
+    }
+    void beat();
+    const id = setInterval(() => void beat(), 10_000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [attempt.status, attemptId, qc, submittedResult]);
+
+  // Advisory browser-signal listeners (never penalize; skipped in sandbox).
+  useEffect(() => {
+    if (attempt.status !== "IN_PROGRESS" || attempt.isSandbox || submittedResult)
+      return;
+    const report = (type: IncidentType) => {
+      void api(`/api/attempts/${attemptId}/incidents`, {
+        method: "POST",
+        body: { type },
+      }).catch(() => {});
+    };
+    const onVis = () => {
+      if (document.hidden) report("TAB_HIDDEN");
+    };
+    const onBlur = () => report("WINDOW_BLUR");
+    const onCopyPaste = () => report("COPY_PASTE");
+    const onFs = () => {
+      if (!document.fullscreenElement) report("FULLSCREEN_EXIT");
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("blur", onBlur);
+    document.addEventListener("copy", onCopyPaste);
+    document.addEventListener("paste", onCopyPaste);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("blur", onBlur);
+      document.removeEventListener("copy", onCopyPaste);
+      document.removeEventListener("paste", onCopyPaste);
+      document.removeEventListener("fullscreenchange", onFs);
+    };
+  }, [attempt.status, attempt.isSandbox, attemptId, submittedResult]);
 
   const currentQuestion = attempt?.questions[index];
   const currentDraft = currentQuestion ? drafts[currentQuestion.id] : undefined;
@@ -477,6 +555,34 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
           </Button>
         </div>
       )}
+
+      {/* Dismissible examiner announcements */}
+      {announcements
+        .filter((a) => !dismissedAnn.has(a.id))
+        .map((a) => (
+          <div
+            key={a.id}
+            role="status"
+            className="border-primary/40 bg-accent text-accent-foreground flex items-start justify-between gap-3 rounded-md border px-4 py-2.5 text-sm"
+          >
+            <div className="flex items-start gap-2">
+              <Megaphone className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <span className="font-medium">Announcement:</span> {a.message}
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss announcement"
+              className="hover:opacity-75"
+              onClick={() =>
+                setDismissedAnn((prev) => new Set(prev).add(a.id))
+              }
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
 
       {/* Top exam bar */}
       <div className="bg-card flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3">

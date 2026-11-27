@@ -451,12 +451,87 @@ async function slice4(ctx) {
   );
 }
 
+async function slice5() {
+  console.log("S5 monitoring, incidents, announcements, extensions");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const now = Date.now();
+  const qs = (await ex1.get("/api/questions?pageSize=5")).data.items;
+  const ex = await ex1.post("/api/exams", {
+    title: `Verify Monitor ${now}`,
+    instructions: "Monitor test",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3600_000).toISOString(),
+    durationMinutes: 10,
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const examId = ex.data.id;
+  await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+    items: [{ questionId: qs[0].id, marks: 1 }],
+  });
+  const c1Id = (await cand1.get("/api/auth/me")).data.id;
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${examId}/publish`);
+
+  const started = await cand1.post(`/api/exams/${examId}/start`);
+  const attemptId = started.data.id;
+  const origDeadline = Date.parse(started.data.deadlineAt);
+
+  const ann = await ex1.post(`/api/exams/${examId}/announcements`, {
+    message: "Clarification: question 1 has one answer.",
+  });
+  check("examiner posts announcement", ann.status === 200);
+
+  const inc = await cand1.post(`/api/attempts/${attemptId}/incidents`, {
+    type: "TAB_HIDDEN",
+  });
+  check("advisory incident logged", inc.status === 200 && inc.data.recorded === true);
+
+  const ext = await ex1.post(`/api/attempts/${attemptId}/extensions`, {
+    minutes: 5,
+    reason: "Verified power outage in lab",
+  });
+  check(
+    "examiner grants audited time extension",
+    ext.status === 200 && Date.parse(ext.data.newDeadlineAt) > origDeadline,
+  );
+
+  const hb = await cand1.post(`/api/attempts/${attemptId}/heartbeat`);
+  check(
+    "heartbeat delivers announcement and extended deadline",
+    hb.status === 200 &&
+      hb.data.announcements.length === 1 &&
+      Date.parse(hb.data.deadlineAt) > origDeadline,
+  );
+
+  const mon = await ex1.get(`/api/exams/${examId}/monitor`);
+  check(
+    "live monitor shows attempt, incident count, and extension",
+    mon.status === 200 &&
+      mon.data.attempts.length === 1 &&
+      mon.data.attempts[0].incidentCount === 1 &&
+      mon.data.attempts[0].extensions.length === 1,
+  );
+
+  await cand1.post(`/api/attempts/${attemptId}/submit`);
+  check(
+    "cannot extend already submitted attempt (409)",
+    (await ex1.post(`/api/attempts/${attemptId}/extensions`, { minutes: 5, reason: "Too late" })).status === 409,
+  );
+}
+
 try {
   await slice0();
   await slice1();
   await slice2();
   const s3 = await slice3();
   await slice4(s3);
+  await slice5();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);
