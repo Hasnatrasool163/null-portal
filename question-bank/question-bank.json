@@ -1,0 +1,1882 @@
+{
+  "questions": [
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which data structure removes elements in last-in, first-out (LIFO) order?",
+      "options": [
+        {
+          "body": "Stack",
+          "isCorrect": true
+        },
+        {
+          "body": "Queue",
+          "isCorrect": false
+        },
+        {
+          "body": "Array",
+          "isCorrect": false
+        },
+        {
+          "body": "Hash table",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A stack removes the most recently added element first. A queue is first-in, first-out, which is the usual confusion."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "In Python, what is the value of `7 // 2`?",
+      "options": [
+        {
+          "body": "4",
+          "isCorrect": false
+        },
+        {
+          "body": "3",
+          "isCorrect": true
+        },
+        {
+          "body": "3.5",
+          "isCorrect": false
+        },
+        {
+          "body": "2",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The `//` operator is floor division, so 7 // 2 is 3. 3.5 is the result of normal division `7 / 2`, and 4 would come from rounding up."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "In languages that provide it, which loop is guaranteed to run its body at least once?",
+      "options": [
+        {
+          "body": "while loop",
+          "isCorrect": false
+        },
+        {
+          "body": "for loop",
+          "isCorrect": false
+        },
+        {
+          "body": "do-while loop",
+          "isCorrect": true
+        },
+        {
+          "body": "for-each loop",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A do-while loop checks its condition after running the body. The other loops check first, so they can run zero times."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What does this Python code print?\n```\ntotal = 0\nfor i in range(1, 5):\n    if i % 2 == 0:\n        total += i\nprint(total)\n```",
+      "options": [
+        {
+          "body": "10",
+          "isCorrect": false
+        },
+        {
+          "body": "4",
+          "isCorrect": false
+        },
+        {
+          "body": "2",
+          "isCorrect": false
+        },
+        {
+          "body": "6",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "range(1, 5) gives 1, 2, 3, 4 and only the even values 2 and 4 are added, so total is 6. 10 adds every value, and 4 is the sum of the odd values."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What is the time complexity of binary search on a sorted array of n elements?",
+      "options": [
+        {
+          "body": "O(log n)",
+          "isCorrect": true
+        },
+        {
+          "body": "O(n)",
+          "isCorrect": false
+        },
+        {
+          "body": "O(n log n)",
+          "isCorrect": false
+        },
+        {
+          "body": "O(1)",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Each comparison halves the remaining range, so about log2(n) steps are needed. O(n) describes linear search."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What does this Python code print?\n```\na = [1, 2, 3]\nb = a\nb.append(4)\nprint(len(a))\n```",
+      "options": [
+        {
+          "body": "3",
+          "isCorrect": false
+        },
+        {
+          "body": "4",
+          "isCorrect": true
+        },
+        {
+          "body": "7",
+          "isCorrect": false
+        },
+        {
+          "body": "1",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The assignment b = a does not copy the list; both names refer to the same object, so appending through b also changes a. The length is 4."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What does this Python code print?\n```\nprint(10 % 3, 2 ** 3)\n```",
+      "options": [
+        {
+          "body": "3 6",
+          "isCorrect": false
+        },
+        {
+          "body": "1 6",
+          "isCorrect": false
+        },
+        {
+          "body": "1 8",
+          "isCorrect": true
+        },
+        {
+          "body": "3 8",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "10 % 3 is the remainder 1, and 2 ** 3 is 2 raised to the power 3, which is 8. The other options mix up remainder with quotient or power with multiplication."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "What does this Python code print?\n```\ndef add_item(item, items=[]):\n    items.append(item)\n    return items\nadd_item(1)\nprint(add_item(2))\n```",
+      "options": [
+        {
+          "body": "[2]",
+          "isCorrect": false
+        },
+        {
+          "body": "[1]",
+          "isCorrect": false
+        },
+        {
+          "body": "An error is raised",
+          "isCorrect": false
+        },
+        {
+          "body": "[1, 2]",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The default list is created once when the function is defined and reused by every call that omits the argument, so the second call sees the item from the first. Many learners expect a fresh list each call and answer [2]."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "What does this Python code print?\n```\ndef f(n):\n    if n <= 1:\n        return 1\n    return f(n - 1) + f(n - 2)\nprint(f(5))\n```",
+      "options": [
+        {
+          "body": "8",
+          "isCorrect": true
+        },
+        {
+          "body": "5",
+          "isCorrect": false
+        },
+        {
+          "body": "13",
+          "isCorrect": false
+        },
+        {
+          "body": "15",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "f(1)=1, f(2)=2, f(3)=3, f(4)=5, f(5)=8. 5 is the value of f(4), and 13 is the value of f(6)."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "EASY",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which of the following are loop constructs found in many programming languages? Select all that apply.",
+      "options": [
+        {
+          "body": "for loop",
+          "isCorrect": true
+        },
+        {
+          "body": "do-while loop",
+          "isCorrect": true
+        },
+        {
+          "body": "if statement",
+          "isCorrect": false
+        },
+        {
+          "body": "switch statement",
+          "isCorrect": false
+        },
+        {
+          "body": "while loop",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "while, for and do-while repeat a block of code. if and switch choose between branches and do not repeat anything."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which statements about Python lists are true? Select all that apply.",
+      "options": [
+        {
+          "body": "A list has a fixed length once it is created",
+          "isCorrect": false
+        },
+        {
+          "body": "A list can hold values of different types",
+          "isCorrect": true
+        },
+        {
+          "body": "A list can be changed after it is created",
+          "isCorrect": true
+        },
+        {
+          "body": "The first element has index 0",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "Lists are mutable, can mix types, grow and shrink, and use zero-based indexing. The fixed-length claim describes a tuple-like fixed array, not a Python list."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "HARD",
+      "type": "MCQ_MULTI",
+      "marks": 3,
+      "body": "Which statements about recursion are true? Select all that apply.",
+      "options": [
+        {
+          "body": "A recursive function needs a reachable base case to stop",
+          "isCorrect": true
+        },
+        {
+          "body": "Any recursive algorithm can be rewritten with a loop and an explicit stack",
+          "isCorrect": true
+        },
+        {
+          "body": "Very deep recursion can exhaust the call stack",
+          "isCorrect": true
+        },
+        {
+          "body": "Recursion is always faster than an equivalent loop",
+          "isCorrect": false
+        },
+        {
+          "body": "All recursive calls share a single set of local variables",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Each call has its own frame with its own locals, and function-call overhead usually makes recursion no faster than a loop. The three true statements are standard facts about termination, equivalence and stack limits."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "MEDIUM",
+      "type": "WRITTEN",
+      "marks": 4,
+      "body": "Explain the difference between a compiled language and an interpreted language, and give one advantage of each approach.",
+      "modelAnswer": "A compiled language is translated ahead of time into machine code (or similar) that the computer runs directly, which usually gives faster execution. An interpreted language is read and executed by an interpreter at run time, which makes it easier to test code quickly and run it on different platforms.",
+      "rubric": [
+        {
+          "criterion": "Correctly describes compilation as translating the program before it runs",
+          "marks": 1
+        },
+        {
+          "criterion": "Correctly describes interpretation as executing the program through an interpreter at run time",
+          "marks": 1
+        },
+        {
+          "criterion": "Gives one valid advantage for each approach",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "Tests whether the student can separate when translation happens from the speed and portability consequences."
+    },
+    {
+      "topic": "Programming Fundamentals",
+      "difficulty": "HARD",
+      "type": "WRITTEN",
+      "marks": 6,
+      "body": "Explain what a stack overflow caused by recursion is, why it happens, and describe two ways to avoid it.",
+      "modelAnswer": "Each function call adds a frame with its parameters and local variables to the call stack. A stack overflow happens when recursion goes so deep that the stack limit is exceeded, for example when the base case is missing or can never be reached. It can be avoided by making sure every path reaches a correct base case, or by rewriting the algorithm iteratively or reducing the depth of recursion.",
+      "rubric": [
+        {
+          "criterion": "Explains that each call adds a frame to the call stack",
+          "marks": 2
+        },
+        {
+          "criterion": "Explains that overflow happens when depth exceeds the limit, such as a missing or unreachable base case",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Gives a first valid way to avoid it",
+          "marks": 1
+        },
+        {
+          "criterion": "Gives a second valid way to avoid it",
+          "marks": 1
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "A strong answer links the call stack mechanism to the failure and gives practical remedies."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which SQL statement removes only the rows that match a given condition from a table?",
+      "options": [
+        {
+          "body": "DROP",
+          "isCorrect": false
+        },
+        {
+          "body": "DELETE",
+          "isCorrect": true
+        },
+        {
+          "body": "TRUNCATE",
+          "isCorrect": false
+        },
+        {
+          "body": "ALTER",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "DELETE with a WHERE clause removes matching rows. DROP removes the whole table, TRUNCATE removes every row, and ALTER changes the table structure."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which keyword removes duplicate rows from the result of a SELECT query?",
+      "options": [
+        {
+          "body": "UNIQUE",
+          "isCorrect": false
+        },
+        {
+          "body": "GROUP",
+          "isCorrect": false
+        },
+        {
+          "body": "DISTINCT",
+          "isCorrect": true
+        },
+        {
+          "body": "ONLY",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "SELECT DISTINCT returns each different row once. UNIQUE is a constraint on a column, not a query keyword for the result set."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "What is a foreign key?",
+      "options": [
+        {
+          "body": "A column that stores encrypted values",
+          "isCorrect": false
+        },
+        {
+          "body": "A column that is numbered automatically",
+          "isCorrect": false
+        },
+        {
+          "body": "A column that can never be empty",
+          "isCorrect": false
+        },
+        {
+          "body": "A column whose values must match a key in another table",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "A foreign key links rows to another table and enforces that each value exists there. Automatic numbering and non-empty values are different features."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A table `orders` has columns `customer` and `amount`. What does this query return?\n```\nSELECT customer, SUM(amount) FROM orders\nGROUP BY customer HAVING SUM(amount) > 100;\n```",
+      "options": [
+        {
+          "body": "Each customer whose total amount is above 100, with that total",
+          "isCorrect": true
+        },
+        {
+          "body": "Every single order with an amount above 100",
+          "isCorrect": false
+        },
+        {
+          "body": "The sum of all orders, only if it is above 100",
+          "isCorrect": false
+        },
+        {
+          "body": "Customers with at least one order above 100",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "HAVING filters groups after aggregation, so customers are kept only when their total exceeds 100. Filtering individual orders would need WHERE amount > 100."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "Table A has 5 rows and table B has 3 rows. Three rows of A each match exactly one row of B, and the other two rows of A match nothing. How many rows does A LEFT JOIN B return?",
+      "options": [
+        {
+          "body": "3",
+          "isCorrect": false
+        },
+        {
+          "body": "5",
+          "isCorrect": true
+        },
+        {
+          "body": "8",
+          "isCorrect": false
+        },
+        {
+          "body": "2",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A LEFT JOIN keeps every row of A: 3 matched rows plus 2 unmatched rows padded with NULLs gives 5. An INNER JOIN would return only 3."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A table `enrol(student_id, course_id, student_name, course_title)` has the composite key (student_id, course_id). The column student_name depends only on student_id. Which normal form does this violate?",
+      "options": [
+        {
+          "body": "First normal form",
+          "isCorrect": false
+        },
+        {
+          "body": "Third normal form",
+          "isCorrect": false
+        },
+        {
+          "body": "Second normal form",
+          "isCorrect": true
+        },
+        {
+          "body": "Boyce-Codd normal form",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A non-key column that depends on only part of a composite key is a partial dependency, which violates second normal form. The table can still be in first normal form because its values are atomic."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A transfer debits account X and then the server crashes before account Y is credited. After restart, neither change is visible. Which ACID property guarantees this?",
+      "options": [
+        {
+          "body": "Durability",
+          "isCorrect": false
+        },
+        {
+          "body": "Isolation",
+          "isCorrect": false
+        },
+        {
+          "body": "Consistency",
+          "isCorrect": false
+        },
+        {
+          "body": "Atomicity",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "Atomicity means a transaction is applied entirely or not at all. Durability is about committed changes surviving a crash, which does not apply here because the transaction never committed."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "A table `t` has a column `x` with the values 1, 2, NULL, 2. How many rows does `SELECT * FROM t WHERE x <> 2` return?",
+      "options": [
+        {
+          "body": "1 row",
+          "isCorrect": true
+        },
+        {
+          "body": "2 rows",
+          "isCorrect": false
+        },
+        {
+          "body": "3 rows",
+          "isCorrect": false
+        },
+        {
+          "body": "0 rows",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Comparing NULL with 2 gives UNKNOWN, not TRUE, so the NULL row is filtered out. Only the row with x = 1 matches. Many learners expect the NULL row to count as not equal to 2."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "Why does this query fail in standard SQL?\n```\nSELECT price * qty AS total FROM sales WHERE total > 100;\n```",
+      "options": [
+        {
+          "body": "Aliases cannot be given to arithmetic expressions",
+          "isCorrect": false
+        },
+        {
+          "body": "WHERE is evaluated before the alias in SELECT exists",
+          "isCorrect": true
+        },
+        {
+          "body": "The word total is reserved by SQL",
+          "isCorrect": false
+        },
+        {
+          "body": "WHERE can only compare plain columns, never expressions",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Logically, FROM and WHERE are processed before SELECT, so the alias is not yet defined. The fix is to repeat the expression in WHERE or use a subquery."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "EASY",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which of the following are SQL aggregate functions? Select all that apply.",
+      "options": [
+        {
+          "body": "ORDER",
+          "isCorrect": false
+        },
+        {
+          "body": "COUNT",
+          "isCorrect": true
+        },
+        {
+          "body": "AVG",
+          "isCorrect": true
+        },
+        {
+          "body": "MAX",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "COUNT, AVG and MAX each summarise many rows into one value. ORDER is part of the ORDER BY clause, not a function."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which statements about database indexes are true? Select all that apply.",
+      "options": [
+        {
+          "body": "They can slow down inserts and updates",
+          "isCorrect": true
+        },
+        {
+          "body": "They use extra storage space",
+          "isCorrect": true
+        },
+        {
+          "body": "They make every possible query faster",
+          "isCorrect": false
+        },
+        {
+          "body": "They can speed up searches on the indexed column",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "Indexes trade write speed and space for faster reads on matching queries. They do not help queries that cannot use them, such as full scans of every row."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "HARD",
+      "type": "MCQ_MULTI",
+      "marks": 3,
+      "body": "Which statements about NULL in SQL are true? Select all that apply.",
+      "options": [
+        {
+          "body": "IS NULL is used to test for a missing value",
+          "isCorrect": true
+        },
+        {
+          "body": "SUM ignores NULL values",
+          "isCorrect": true
+        },
+        {
+          "body": "NULL is the same as the number zero",
+          "isCorrect": false
+        },
+        {
+          "body": "NULL is the same as an empty text string",
+          "isCorrect": false
+        },
+        {
+          "body": "The expression NULL = NULL does not evaluate to TRUE",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "NULL means an unknown or missing value and is neither zero nor an empty string. Comparisons with NULL give UNKNOWN, so IS NULL must be used, and aggregates such as SUM skip NULLs."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "MEDIUM",
+      "type": "WRITTEN",
+      "marks": 4,
+      "body": "Explain what a primary key and a foreign key are, and how they work together to link two tables.",
+      "modelAnswer": "A primary key uniquely identifies each row in a table and cannot be NULL. A foreign key is a column in another table that stores a primary key value from the first table, which links rows between the tables and prevents references to rows that do not exist. For example, an orders table can hold a customer_id that refers to the customers table.",
+      "rubric": [
+        {
+          "criterion": "Defines a primary key as a unique, non-null row identifier",
+          "marks": 1
+        },
+        {
+          "criterion": "Defines a foreign key as a reference to a key in another table",
+          "marks": 1
+        },
+        {
+          "criterion": "Explains how they link tables or enforce valid references, with an example",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "Checks that the student understands the relationship between the two kinds of key rather than reciting each definition."
+    },
+    {
+      "topic": "Databases and SQL",
+      "difficulty": "HARD",
+      "type": "WRITTEN",
+      "marks": 6,
+      "body": "Explain how a database index speeds up a query, give one trade-off of adding an index, and describe one case where an index gives little benefit.",
+      "modelAnswer": "An index, usually a sorted tree structure, lets the database jump to matching rows instead of reading the whole table, so a lookup such as WHERE email = 'a@b.test' is fast. The trade-off is that every insert, update or delete must also update the index, and the index uses extra storage. An index gives little benefit on a very small table or on a column where most rows share the same value, because the database still has to read most rows.",
+      "rubric": [
+        {
+          "criterion": "Explains that an index avoids scanning every row, for example with a sorted or tree structure",
+          "marks": 2
+        },
+        {
+          "criterion": "Gives an example of a query that benefits",
+          "marks": 1
+        },
+        {
+          "criterion": "Names a valid trade-off such as slower writes or extra storage",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Describes a case where an index helps little, such as a tiny table or low-selectivity column",
+          "marks": 1
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "A strong answer explains the mechanism and shows awareness that indexes are not free."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which protocol translates a domain name such as a website address into an IP address?",
+      "options": [
+        {
+          "body": "DHCP",
+          "isCorrect": false
+        },
+        {
+          "body": "ARP",
+          "isCorrect": false
+        },
+        {
+          "body": "DNS",
+          "isCorrect": true
+        },
+        {
+          "body": "FTP",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The Domain Name System maps names to IP addresses. DHCP hands out addresses to devices and ARP maps IP addresses to MAC addresses."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which layer of the OSI model is mainly responsible for routing packets between different networks?",
+      "options": [
+        {
+          "body": "Transport layer",
+          "isCorrect": false
+        },
+        {
+          "body": "Data link layer",
+          "isCorrect": false
+        },
+        {
+          "body": "Session layer",
+          "isCorrect": false
+        },
+        {
+          "body": "Network layer",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The network layer (IP) chooses paths between networks. The data link layer only moves frames within one local network."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which port number does HTTPS use by default?",
+      "options": [
+        {
+          "body": "443",
+          "isCorrect": true
+        },
+        {
+          "body": "80",
+          "isCorrect": false
+        },
+        {
+          "body": "22",
+          "isCorrect": false
+        },
+        {
+          "body": "25",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "HTTPS uses port 443 by default. Port 80 is plain HTTP, port 22 is SSH and port 25 is SMTP."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "How many usable host addresses does an IPv4 subnet with a /26 prefix have?",
+      "options": [
+        {
+          "body": "64",
+          "isCorrect": false
+        },
+        {
+          "body": "62",
+          "isCorrect": true
+        },
+        {
+          "body": "126",
+          "isCorrect": false
+        },
+        {
+          "body": "30",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A /26 leaves 6 host bits, giving 2^6 = 64 addresses. Two are reserved for the network and broadcast addresses, so 62 are usable."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A live voice call application cares more about low delay than perfect delivery. Which transport protocol suits it better?",
+      "options": [
+        {
+          "body": "TCP, because ordered delivery keeps the audio perfect",
+          "isCorrect": false
+        },
+        {
+          "body": "TCP, because it has less header overhead",
+          "isCorrect": false
+        },
+        {
+          "body": "UDP, because it avoids retransmission delays",
+          "isCorrect": true
+        },
+        {
+          "body": "UDP, because it encrypts the voice data",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "UDP does not wait for retransmissions, so late packets cause a small glitch rather than a long pause. UDP has no built-in encryption, and TCP headers are larger, not smaller."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A client requests a page that is missing from a web server. Which HTTP status code does the server normally return?",
+      "options": [
+        {
+          "body": "403",
+          "isCorrect": false
+        },
+        {
+          "body": "500",
+          "isCorrect": false
+        },
+        {
+          "body": "301",
+          "isCorrect": false
+        },
+        {
+          "body": "404",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "404 means the resource was not found. 403 means access is forbidden, 500 is a server error and 301 is a permanent redirect."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "Which sequence describes the TCP three-way handshake?",
+      "options": [
+        {
+          "body": "SYN, SYN-ACK, ACK",
+          "isCorrect": true
+        },
+        {
+          "body": "SYN, ACK, SYN-ACK",
+          "isCorrect": false
+        },
+        {
+          "body": "ACK, SYN, SYN-ACK",
+          "isCorrect": false
+        },
+        {
+          "body": "SYN-ACK, SYN, ACK",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The client sends SYN, the server answers SYN-ACK, and the client finishes with ACK. Each other order sends an acknowledgement before there is anything to acknowledge."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "A 12 MB file is sent over a 48 Mbps link that is only 50% utilised by this transfer. Use 1 byte = 8 bits and ignore protocol overhead. How long does the transfer take?",
+      "options": [
+        {
+          "body": "2 seconds",
+          "isCorrect": false
+        },
+        {
+          "body": "4 seconds",
+          "isCorrect": true
+        },
+        {
+          "body": "0.5 seconds",
+          "isCorrect": false
+        },
+        {
+          "body": "8 seconds",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "12 MB is 96 megabits and the effective rate is 24 Mbps, so the time is 96 / 24 = 4 seconds. 2 seconds ignores the 50% utilisation, and 0.5 seconds treats the size as bits."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "Host A (192.168.1.10/24) sends a packet to 192.168.2.20 and has no MAC addresses cached yet. Whose MAC address does it resolve first with ARP?",
+      "options": [
+        {
+          "body": "The destination host's",
+          "isCorrect": false
+        },
+        {
+          "body": "The DNS server's",
+          "isCorrect": false
+        },
+        {
+          "body": "The default gateway's",
+          "isCorrect": true
+        },
+        {
+          "body": "The nearest switch's",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The destination is on another network, so A sends the frame to the gateway and needs the gateway's MAC address. ARP only resolves addresses on the local network, so the destination host cannot answer."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "EASY",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which of the following are application-layer protocols? Select all that apply.",
+      "options": [
+        {
+          "body": "TCP",
+          "isCorrect": false
+        },
+        {
+          "body": "IP",
+          "isCorrect": false
+        },
+        {
+          "body": "HTTP",
+          "isCorrect": true
+        },
+        {
+          "body": "SMTP",
+          "isCorrect": true
+        },
+        {
+          "body": "DNS",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "HTTP, SMTP and DNS are used directly by applications. TCP is a transport protocol and IP is a network protocol."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which statements about TCP are true? Select all that apply.",
+      "options": [
+        {
+          "body": "It is always faster than UDP",
+          "isCorrect": false
+        },
+        {
+          "body": "It is connection-oriented",
+          "isCorrect": true
+        },
+        {
+          "body": "It retransmits segments that are lost",
+          "isCorrect": true
+        },
+        {
+          "body": "It preserves message boundaries between sends",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "TCP sets up a connection and retransmits lost data, but it delivers a continuous byte stream and adds overhead, so it is not always faster than UDP."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "HARD",
+      "type": "MCQ_MULTI",
+      "marks": 3,
+      "body": "Which statements about HTTPS (HTTP over TLS) are true? Select all that apply.",
+      "options": [
+        {
+          "body": "It uses public-key cryptography to agree on session keys",
+          "isCorrect": true
+        },
+        {
+          "body": "It hides the server's IP address from observers",
+          "isCorrect": false
+        },
+        {
+          "body": "It protects data stored on the server's disk",
+          "isCorrect": false
+        },
+        {
+          "body": "It encrypts data while it travels over the network",
+          "isCorrect": true
+        },
+        {
+          "body": "It lets the client check the server's identity with a certificate",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "TLS protects data in transit and authenticates the server. Observers can still see destination IP addresses, and data at rest on the server is not covered by TLS."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "MEDIUM",
+      "type": "WRITTEN",
+      "marks": 4,
+      "body": "Explain the difference between a network switch and a router, and say where each is typically used.",
+      "modelAnswer": "A switch connects devices inside one local network and forwards Ethernet frames using MAC addresses. A router connects different networks and forwards packets using IP addresses, for example between a home network and the internet.",
+      "rubric": [
+        {
+          "criterion": "Describes a switch as forwarding frames within one LAN using MAC addresses",
+          "marks": 1
+        },
+        {
+          "criterion": "Describes a router as forwarding packets between networks using IP addresses",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Gives a sensible example of where each is used",
+          "marks": 1
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "Checks the link between device type, address type and scope of the network."
+    },
+    {
+      "topic": "Computer Networks",
+      "difficulty": "HARD",
+      "type": "WRITTEN",
+      "marks": 6,
+      "body": "Describe how TCP detects and recovers from a lost segment, and explain why TCP also reduces its sending rate when it detects loss.",
+      "modelAnswer": "TCP detects loss when an acknowledgement does not arrive before a timeout or when duplicate acknowledgements arrive, and then it retransmits the missing segment. TCP also treats loss as a sign of congestion and reduces its sending rate, which prevents senders from overloading the network and lets the load be shared fairly among connections.",
+      "rubric": [
+        {
+          "criterion": "Explains detection using acknowledgements, timeouts or duplicate acknowledgements",
+          "marks": 1.5
+        },
+        {
+          "criterion": "States that the lost segment is retransmitted",
+          "marks": 1
+        },
+        {
+          "criterion": "Identifies loss as a sign of congestion and describes rate reduction",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Explains the purpose: avoid overloading the network and share capacity fairly",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "A strong answer separates reliability from congestion control and connects them through the loss signal."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which part of an operating system directly manages hardware resources such as the CPU and memory?",
+      "options": [
+        {
+          "body": "The shell",
+          "isCorrect": false
+        },
+        {
+          "body": "The compiler",
+          "isCorrect": false
+        },
+        {
+          "body": "The text editor",
+          "isCorrect": false
+        },
+        {
+          "body": "The kernel",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The kernel is the core that manages hardware. The shell is only a user interface to the system."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "What is a process?",
+      "options": [
+        {
+          "body": "A program that is being executed",
+          "isCorrect": true
+        },
+        {
+          "body": "A file that stores machine code on disk",
+          "isCorrect": false
+        },
+        {
+          "body": "A hardware unit that executes instructions",
+          "isCorrect": false
+        },
+        {
+          "body": "A request sent by a hardware device",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A process is a running instance of a program with its own resources. The file on disk is only the program, and the CPU is the hardware unit."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "Which scheduling algorithm gives each process a fixed time slice in turn?",
+      "options": [
+        {
+          "body": "First come, first served",
+          "isCorrect": false
+        },
+        {
+          "body": "Round robin",
+          "isCorrect": true
+        },
+        {
+          "body": "Shortest job first",
+          "isCorrect": false
+        },
+        {
+          "body": "Priority scheduling",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Round robin cycles through processes using a time quantum. First come, first served runs each process to completion in arrival order."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "Which memory management technique divides memory into fixed-size blocks, which avoids external fragmentation?",
+      "options": [
+        {
+          "body": "Segmentation",
+          "isCorrect": false
+        },
+        {
+          "body": "Contiguous allocation",
+          "isCorrect": false
+        },
+        {
+          "body": "Paging",
+          "isCorrect": true
+        },
+        {
+          "body": "Swapping",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Paging uses equal-sized pages and frames, so any free frame can be used. Segmentation uses variable-sized pieces and can suffer from external fragmentation."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "Which of these is NOT a necessary condition for deadlock?",
+      "options": [
+        {
+          "body": "Resources can be used by only one process at a time",
+          "isCorrect": false
+        },
+        {
+          "body": "Processes hold some resources while waiting for others",
+          "isCorrect": false
+        },
+        {
+          "body": "Processes wait for each other in a cycle",
+          "isCorrect": false
+        },
+        {
+          "body": "Resources can be forcibly taken from the processes holding them",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The four conditions are mutual exclusion, hold and wait, no preemption and circular wait. Being able to take resources away is the opposite of no preemption, so it breaks deadlock."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "Processes P1 (CPU burst 5) and P2 (CPU burst 3) both arrive at time 0 in that order. Round robin uses a time quantum of 2 and ignores switching time. At what time does P2 finish?",
+      "options": [
+        {
+          "body": "7",
+          "isCorrect": true
+        },
+        {
+          "body": "8",
+          "isCorrect": false
+        },
+        {
+          "body": "6",
+          "isCorrect": false
+        },
+        {
+          "body": "5",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The schedule is P1 0-2, P2 2-4, P1 4-6, P2 6-7, P1 7-8. P2 finishes at 7, while 8 is the finish time of P1."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What is the key difference between a process and a thread?",
+      "options": [
+        {
+          "body": "Threads have separate memory spaces, while processes share one",
+          "isCorrect": false
+        },
+        {
+          "body": "Threads of one process share its memory space, while processes have separate memory spaces",
+          "isCorrect": true
+        },
+        {
+          "body": "Threads can run only on a single CPU core",
+          "isCorrect": false
+        },
+        {
+          "body": "Processes cannot be scheduled by the operating system",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Threads inside the same process share code, heap and open files, which makes communication cheap. Processes are isolated from each other."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "A system has 3 page frames and uses LRU (least recently used) replacement. The page reference string is 7, 0, 1, 2, 0, 3, 0, 4 and the frames start empty. How many page faults occur?",
+      "options": [
+        {
+          "body": "7",
+          "isCorrect": false
+        },
+        {
+          "body": "5",
+          "isCorrect": false
+        },
+        {
+          "body": "6",
+          "isCorrect": true
+        },
+        {
+          "body": "8",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Faults occur on 7, 0, 1, 2, 3 and 4, while the two references to 0 are hits, giving 6. FIFO replacement would give 7 faults on this string, which is the tempting wrong answer."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "Two threads each run `counter = counter + 1` one thousand times on a shared variable that starts at 0, with no synchronisation. What is true about the final value?",
+      "options": [
+        {
+          "body": "It is always exactly 2000 because addition is a single step",
+          "isCorrect": false
+        },
+        {
+          "body": "It is always exactly 1000 because only one thread wins",
+          "isCorrect": false
+        },
+        {
+          "body": "It is always 2000 on a single-core CPU",
+          "isCorrect": false
+        },
+        {
+          "body": "It can be less than 2000 because the read, add and write steps can interleave",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The increment is read-modify-write, so the threads can overwrite each other's updates. A single core can still switch threads between those steps, so a lost update is possible."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "EASY",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which of the following are functions of an operating system? Select all that apply.",
+      "options": [
+        {
+          "body": "Checking spelling in documents",
+          "isCorrect": false
+        },
+        {
+          "body": "Process scheduling",
+          "isCorrect": true
+        },
+        {
+          "body": "Memory management",
+          "isCorrect": true
+        },
+        {
+          "body": "File management",
+          "isCorrect": true
+        },
+        {
+          "body": "Compiling source code to a new language",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Scheduling, memory and file management are core operating system duties. Compiling and spell checking are done by application programs."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which statements about virtual memory are true? Select all that apply.",
+      "options": [
+        {
+          "body": "The total memory demand of programs can exceed physical RAM",
+          "isCorrect": true
+        },
+        {
+          "body": "It makes every memory access faster than direct RAM access",
+          "isCorrect": false
+        },
+        {
+          "body": "It removes the need for address translation",
+          "isCorrect": false
+        },
+        {
+          "body": "Each process gets its own virtual address space",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "Virtual memory gives each process a private address space and lets the system move pages to disk. Translation is still needed, and it adds some cost rather than speed."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "HARD",
+      "type": "MCQ_MULTI",
+      "marks": 3,
+      "body": "Which situations can lead to starvation? Select all that apply.",
+      "options": [
+        {
+          "body": "First come, first served where every job finishes",
+          "isCorrect": false
+        },
+        {
+          "body": "Priority scheduling with aging",
+          "isCorrect": false
+        },
+        {
+          "body": "Priority scheduling with no aging",
+          "isCorrect": true
+        },
+        {
+          "body": "Shortest job first with a steady stream of short jobs",
+          "isCorrect": true
+        },
+        {
+          "body": "Round robin with a fixed time quantum",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Starvation is when a process waits indefinitely. Low-priority or long jobs can wait forever in the first two cases, while round robin, first come first served and aging all give every process a turn."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "MEDIUM",
+      "type": "WRITTEN",
+      "marks": 4,
+      "body": "Explain the difference between user mode and kernel mode and why operating systems use both.",
+      "modelAnswer": "In user mode a program runs with restricted privileges and cannot directly access hardware or other programs' memory. In kernel mode the operating system can run any instruction and access all hardware. Using both protects the system, because faulty or malicious programs cannot damage it and must ask the kernel through system calls.",
+      "rubric": [
+        {
+          "criterion": "Describes user mode as restricted",
+          "marks": 1
+        },
+        {
+          "criterion": "Describes kernel mode as having full hardware access",
+          "marks": 1
+        },
+        {
+          "criterion": "Explains the protection or stability reason, e.g. through system calls",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "Checks understanding of privilege separation as the basis of operating system protection."
+    },
+    {
+      "topic": "Operating Systems",
+      "difficulty": "HARD",
+      "type": "WRITTEN",
+      "marks": 6,
+      "body": "Define deadlock, list the four conditions that must hold for it to occur, and describe one way to prevent it.",
+      "modelAnswer": "Deadlock is a state where a set of processes are each waiting for a resource held by another, so none can continue. The four conditions are mutual exclusion, hold and wait, no preemption and circular wait. It can be prevented by breaking one condition, for example by requiring all resources to be requested at once, which removes hold and wait.",
+      "rubric": [
+        {
+          "criterion": "Defines deadlock as processes waiting on each other indefinitely",
+          "marks": 1.5
+        },
+        {
+          "criterion": "Lists the four conditions correctly (0.5 each)",
+          "marks": 2
+        },
+        {
+          "criterion": "Describes a prevention method that breaks one named condition",
+          "marks": 2
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "A strong answer links the prevention method to the specific condition it eliminates."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "How many subsets does the set {a, b, c} have, counting the empty set and the set itself?",
+      "options": [
+        {
+          "body": "8",
+          "isCorrect": true
+        },
+        {
+          "body": "6",
+          "isCorrect": false
+        },
+        {
+          "body": "9",
+          "isCorrect": false
+        },
+        {
+          "body": "3",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A set with n elements has 2^n subsets, so 2^3 = 8. Counting only non-empty proper subsets would give 6."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "What is the truth value of the implication p → q when p is true and q is false?",
+      "options": [
+        {
+          "body": "True",
+          "isCorrect": false
+        },
+        {
+          "body": "False",
+          "isCorrect": true
+        },
+        {
+          "body": "Undefined",
+          "isCorrect": false
+        },
+        {
+          "body": "It depends on other variables",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "An implication is false only when the premise is true and the conclusion is false."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "EASY",
+      "type": "MCQ_SINGLE",
+      "marks": 1,
+      "body": "What is the value of 5! (five factorial)?",
+      "options": [
+        {
+          "body": "25",
+          "isCorrect": false
+        },
+        {
+          "body": "60",
+          "isCorrect": false
+        },
+        {
+          "body": "120",
+          "isCorrect": true
+        },
+        {
+          "body": "24",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "5! = 5 × 4 × 3 × 2 × 1 = 120. 24 is 4!, and 25 is 5 squared."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "In how many ways can a committee of 3 people be chosen from 7 people when order is irrelevant?",
+      "options": [
+        {
+          "body": "210",
+          "isCorrect": false
+        },
+        {
+          "body": "21",
+          "isCorrect": false
+        },
+        {
+          "body": "343",
+          "isCorrect": false
+        },
+        {
+          "body": "35",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The count is C(7,3) = 7! / (3! × 4!) = 35. 210 is the number of ordered selections, and 343 is 7^3."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "How many different 4-digit passcodes can be made from the digits 0 to 9 if digits may repeat?",
+      "options": [
+        {
+          "body": "10000",
+          "isCorrect": true
+        },
+        {
+          "body": "5040",
+          "isCorrect": false
+        },
+        {
+          "body": "210",
+          "isCorrect": false
+        },
+        {
+          "body": "40",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "Each of the 4 positions has 10 choices, so 10^4 = 10000. 5040 counts codes with no repeated digits."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "What is the contrapositive of the statement: \"If a shape is a square, then it is a rectangle\"?",
+      "options": [
+        {
+          "body": "If a shape is a rectangle, then it is a square",
+          "isCorrect": false
+        },
+        {
+          "body": "If a shape is NOT a rectangle, then it is NOT a square",
+          "isCorrect": true
+        },
+        {
+          "body": "If a shape is NOT a square, then it is NOT a rectangle",
+          "isCorrect": false
+        },
+        {
+          "body": "A shape is a square and it is NOT a rectangle",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "The contrapositive swaps and negates both parts and is logically equivalent to the original. The first option is the converse and the second is the inverse, which are not equivalent."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_SINGLE",
+      "marks": 2,
+      "body": "A simple graph has 6 vertices and the degrees of its vertices add up to 14. How many edges does it have?",
+      "options": [
+        {
+          "body": "14",
+          "isCorrect": false
+        },
+        {
+          "body": "28",
+          "isCorrect": false
+        },
+        {
+          "body": "7",
+          "isCorrect": true
+        },
+        {
+          "body": "6",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "By the handshake lemma the sum of degrees is twice the number of edges, so there are 14 / 2 = 7 edges."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "Let R = {(1,1), (2,2), (3,3), (1,2), (2,1)} be a relation on the set {1, 2, 3}. Which statement is correct?",
+      "options": [
+        {
+          "body": "R is reflexive and symmetric but not transitive",
+          "isCorrect": false
+        },
+        {
+          "body": "R is reflexive and transitive but not symmetric",
+          "isCorrect": false
+        },
+        {
+          "body": "R is symmetric and transitive but not reflexive",
+          "isCorrect": false
+        },
+        {
+          "body": "R is an equivalence relation",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "R contains every pair (x,x), contains (2,1) for every (1,2), and every chain such as (1,2),(2,1) gives (1,1), which is present. It is reflexive, symmetric and transitive."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "HARD",
+      "type": "MCQ_SINGLE",
+      "marks": 3,
+      "body": "What is the smallest number of people that guarantees at least 3 of them were born in the same calendar month?",
+      "options": [
+        {
+          "body": "25",
+          "isCorrect": true
+        },
+        {
+          "body": "13",
+          "isCorrect": false
+        },
+        {
+          "body": "24",
+          "isCorrect": false
+        },
+        {
+          "body": "37",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "By the generalised pigeonhole principle, 12 months with at most 2 people each hold 24 people, so the 25th person forces a third in one month. 13 only guarantees 2 in the same month."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "EASY",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Which of the following numbers are prime? Select all that apply.",
+      "options": [
+        {
+          "body": "2",
+          "isCorrect": true
+        },
+        {
+          "body": "11",
+          "isCorrect": true
+        },
+        {
+          "body": "17",
+          "isCorrect": true
+        },
+        {
+          "body": "21",
+          "isCorrect": false
+        },
+        {
+          "body": "27",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "2, 11 and 17 have no divisors other than 1 and themselves. 21 = 3 × 7 and 27 = 3 × 9."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "MCQ_MULTI",
+      "marks": 2,
+      "body": "Let A = {1, 2, 3} and B = {3, 4}. Which statements are true? Select all that apply.",
+      "options": [
+        {
+          "body": "A \\ B has 3 elements",
+          "isCorrect": false
+        },
+        {
+          "body": "A ∪ B has 4 elements",
+          "isCorrect": true
+        },
+        {
+          "body": "A × B has 6 ordered pairs",
+          "isCorrect": true
+        },
+        {
+          "body": "A ∩ B is the empty set",
+          "isCorrect": false
+        }
+      ],
+      "explanation": "A ∪ B = {1, 2, 3, 4}, and |A × B| = 3 × 2 = 6. A ∩ B = {3} and A \\ B = {1, 2}, so the last two statements are false."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "HARD",
+      "type": "MCQ_MULTI",
+      "marks": 3,
+      "body": "Which of the following statements are tautologies? Select all that apply.",
+      "options": [
+        {
+          "body": "(p AND q) → p",
+          "isCorrect": true
+        },
+        {
+          "body": "NOT (p OR q) is equivalent to (NOT p) AND (NOT q)",
+          "isCorrect": true
+        },
+        {
+          "body": "p → (p AND q)",
+          "isCorrect": false
+        },
+        {
+          "body": "p OR (NOT p)",
+          "isCorrect": true
+        }
+      ],
+      "explanation": "The first is the law of the excluded middle, the second holds because a conjunction implies each part, and the third is De Morgan's law. The last fails when p is true and q is false."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "MEDIUM",
+      "type": "WRITTEN",
+      "marks": 4,
+      "body": "Show that the sum of two even integers is always even.",
+      "modelAnswer": "Let the two even integers be 2a and 2b for some integers a and b. Their sum is 2a + 2b = 2(a + b). Since a + b is an integer, the sum is 2 times an integer, so it is even.",
+      "rubric": [
+        {
+          "criterion": "Writes both numbers in the form 2a and 2b with integers a and b",
+          "marks": 1
+        },
+        {
+          "criterion": "Correctly adds them and factors out 2",
+          "marks": 1.5
+        },
+        {
+          "criterion": "States the conclusion that the sum is a multiple of 2",
+          "marks": 1
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "Tests the ability to turn a definition into a short direct proof."
+    },
+    {
+      "topic": "Discrete Mathematics",
+      "difficulty": "HARD",
+      "type": "WRITTEN",
+      "marks": 6,
+      "body": "Use mathematical induction to prove that 1 + 2 + ... + n = n(n + 1) / 2 for every integer n ≥ 1.",
+      "modelAnswer": "Base case: for n = 1 the left side is 1 and the right side is 1(2)/2 = 1, so it holds. Inductive step: assume 1 + ... + k = k(k + 1)/2. Then 1 + ... + k + (k + 1) = k(k + 1)/2 + (k + 1) = (k + 1)(k + 2)/2, which is the formula for n = k + 1. By induction the formula holds for all n ≥ 1.",
+      "rubric": [
+        {
+          "criterion": "Verifies the base case n = 1",
+          "marks": 1
+        },
+        {
+          "criterion": "States the inductive hypothesis for n = k",
+          "marks": 1
+        },
+        {
+          "criterion": "Correctly performs the algebra for the step from k to k + 1",
+          "marks": 2.5
+        },
+        {
+          "criterion": "Concludes the result by the principle of induction",
+          "marks": 1
+        },
+        {
+          "criterion": "Clear, concise explanation",
+          "marks": 0.5
+        }
+      ],
+      "explanation": "A strong answer shows all three parts of an induction proof: base case, hypothesis and step."
+    }
+  ]
+}

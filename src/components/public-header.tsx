@@ -2,9 +2,10 @@ import Link from "next/link";
 import { ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { BRAND } from "@/lib/brand";
 
-/** Header for public pages (landing, verify). Logged-out visitors only need two things. */
+/** Header for public pages (landing, verify). */
 export function PublicHeader({ verifyHref }: { verifyHref?: string }) {
   return (
     <header className="flex h-16 items-center justify-between gap-3">
@@ -19,6 +20,7 @@ export function PublicHeader({ verifyHref }: { verifyHref?: string }) {
         </span>
       </Link>
       <nav className="flex items-center gap-2" aria-label="Primary">
+        <ThemeToggle />
         {verifyHref && (
           <Button
             asChild

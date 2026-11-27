@@ -1,0 +1,300 @@
+[
+  {
+    "topic": "Programming Fundamentals",
+    "difficulty": "EASY",
+    "type": "MCQ_SINGLE",
+    "body": "Which data structure removes elements in last-in, first-out (LIFO) order?",
+    "marks": 1,
+    "options": [
+      {
+        "body": "Stack",
+        "isCorrect": true
+      },
+      {
+        "body": "Queue",
+        "isCorrect": false
+      },
+      {
+        "body": "Array",
+        "isCorrect": false
+      },
+      {
+        "body": "Hash table",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Programming Fundamentals",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_MULTI",
+    "body": "Which statements about Python lists are true? Select all that apply.",
+    "marks": 2,
+    "options": [
+      {
+        "body": "A list has a fixed length once it is created",
+        "isCorrect": false
+      },
+      {
+        "body": "A list can hold values of different types",
+        "isCorrect": true
+      },
+      {
+        "body": "A list can be changed after it is created",
+        "isCorrect": true
+      },
+      {
+        "body": "The first element has index 0",
+        "isCorrect": true
+      }
+    ]
+  },
+  {
+    "topic": "Programming Fundamentals",
+    "difficulty": "MEDIUM",
+    "type": "WRITTEN",
+    "body": "Explain the difference between a compiled language and an interpreted language, and give one advantage of each approach.",
+    "marks": 4,
+    "options": []
+  },
+  {
+    "topic": "Databases and SQL",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_SINGLE",
+    "body": "A table `orders` has columns `customer` and `amount`. What does this query return?\n```\nSELECT customer, SUM(amount) FROM orders\nGROUP BY customer HAVING SUM(amount) > 100;\n```",
+    "marks": 2,
+    "options": [
+      {
+        "body": "Each customer whose total amount is above 100, with that total",
+        "isCorrect": true
+      },
+      {
+        "body": "Every single order with an amount above 100",
+        "isCorrect": false
+      },
+      {
+        "body": "The sum of all orders, only if it is above 100",
+        "isCorrect": false
+      },
+      {
+        "body": "Customers with at least one order above 100",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Databases and SQL",
+    "difficulty": "HARD",
+    "type": "MCQ_MULTI",
+    "body": "Which statements about NULL in SQL are true? Select all that apply.",
+    "marks": 3,
+    "options": [
+      {
+        "body": "IS NULL is used to test for a missing value",
+        "isCorrect": true
+      },
+      {
+        "body": "SUM ignores NULL values",
+        "isCorrect": true
+      },
+      {
+        "body": "NULL is the same as the number zero",
+        "isCorrect": false
+      },
+      {
+        "body": "NULL is the same as an empty text string",
+        "isCorrect": false
+      },
+      {
+        "body": "The expression NULL = NULL does not evaluate to TRUE",
+        "isCorrect": true
+      }
+    ]
+  },
+  {
+    "topic": "Databases and SQL",
+    "difficulty": "HARD",
+    "type": "WRITTEN",
+    "body": "Explain how a database index speeds up a query, give one trade-off of adding an index, and describe one case where an index gives little benefit.",
+    "marks": 6,
+    "options": []
+  },
+  {
+    "topic": "Computer Networks",
+    "difficulty": "EASY",
+    "type": "MCQ_SINGLE",
+    "body": "Which protocol translates a domain name such as a website address into an IP address?",
+    "marks": 1,
+    "options": [
+      {
+        "body": "DHCP",
+        "isCorrect": false
+      },
+      {
+        "body": "ARP",
+        "isCorrect": false
+      },
+      {
+        "body": "DNS",
+        "isCorrect": true
+      },
+      {
+        "body": "FTP",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Computer Networks",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_MULTI",
+    "body": "Which statements about TCP are true? Select all that apply.",
+    "marks": 2,
+    "options": [
+      {
+        "body": "It is always faster than UDP",
+        "isCorrect": false
+      },
+      {
+        "body": "It is connection-oriented",
+        "isCorrect": true
+      },
+      {
+        "body": "It retransmits segments that are lost",
+        "isCorrect": true
+      },
+      {
+        "body": "It preserves message boundaries between sends",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Computer Networks",
+    "difficulty": "MEDIUM",
+    "type": "WRITTEN",
+    "body": "Explain the difference between a network switch and a router, and say where each is typically used.",
+    "marks": 4,
+    "options": []
+  },
+  {
+    "topic": "Operating Systems",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_SINGLE",
+    "body": "Which memory management technique divides memory into fixed-size blocks, which avoids external fragmentation?",
+    "marks": 2,
+    "options": [
+      {
+        "body": "Segmentation",
+        "isCorrect": false
+      },
+      {
+        "body": "Contiguous allocation",
+        "isCorrect": false
+      },
+      {
+        "body": "Paging",
+        "isCorrect": true
+      },
+      {
+        "body": "Swapping",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Operating Systems",
+    "difficulty": "HARD",
+    "type": "MCQ_MULTI",
+    "body": "Which situations can lead to starvation? Select all that apply.",
+    "marks": 3,
+    "options": [
+      {
+        "body": "First come, first served where every job finishes",
+        "isCorrect": false
+      },
+      {
+        "body": "Priority scheduling with aging",
+        "isCorrect": false
+      },
+      {
+        "body": "Priority scheduling with no aging",
+        "isCorrect": true
+      },
+      {
+        "body": "Shortest job first with a steady stream of short jobs",
+        "isCorrect": true
+      },
+      {
+        "body": "Round robin with a fixed time quantum",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Operating Systems",
+    "difficulty": "HARD",
+    "type": "WRITTEN",
+    "body": "Define deadlock, list the four conditions that must hold for it to occur, and describe one way to prevent it.",
+    "marks": 6,
+    "options": []
+  },
+  {
+    "topic": "Discrete Mathematics",
+    "difficulty": "EASY",
+    "type": "MCQ_SINGLE",
+    "body": "How many subsets does the set {a, b, c} have, counting the empty set and the set itself?",
+    "marks": 1,
+    "options": [
+      {
+        "body": "8",
+        "isCorrect": true
+      },
+      {
+        "body": "6",
+        "isCorrect": false
+      },
+      {
+        "body": "9",
+        "isCorrect": false
+      },
+      {
+        "body": "3",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Discrete Mathematics",
+    "difficulty": "MEDIUM",
+    "type": "MCQ_MULTI",
+    "body": "Let A = {1, 2, 3} and B = {3, 4}. Which statements are true? Select all that apply.",
+    "marks": 2,
+    "options": [
+      {
+        "body": "A \\ B has 3 elements",
+        "isCorrect": false
+      },
+      {
+        "body": "A ∪ B has 4 elements",
+        "isCorrect": true
+      },
+      {
+        "body": "A × B has 6 ordered pairs",
+        "isCorrect": true
+      },
+      {
+        "body": "A ∩ B is the empty set",
+        "isCorrect": false
+      }
+    ]
+  },
+  {
+    "topic": "Discrete Mathematics",
+    "difficulty": "MEDIUM",
+    "type": "WRITTEN",
+    "body": "Show that the sum of two even integers is always even.",
+    "marks": 4,
+    "options": []
+  }
+]
