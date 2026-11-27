@@ -9,8 +9,7 @@ Full-stack web application for institutions to create, schedule, conduct, monito
 - **Live URL**: https://null-portal.vercel.app/
 - **Repository**: https://github.com/Hasnatrasool163/null-portal
 - **Docker Image**: https://hub.docker.com/r/hasnat163/null-portal (`hasnat163/null-portal:latest`)
-- **Team**: Muhammad Hasnat Rasool, Muhammad Hamad Jamal, Syed-Muhammad-Hussnain-Raza
-- **Final Commit SHA / Deploy Time**: See Releases/Deployments (documentation prepared on branch `docs/submission-release-hygiene` from `dev` commit `9bb37ca`)
+- **Team**: Null Stack ~ Muhammad Hasnat Rasool, Hamad Jamil, Syed-Muhammad-Hussnain-Raza
 
 ---
 
@@ -26,23 +25,6 @@ All seeded accounts share the password **`Demo1234`** (defined in `scripts/seed.
 | Candidates (1-8) | `candidate1@demo.test` through `candidate8@demo.test` | `Demo1234` | Enrolled in Upcoming, Live, Timer Demo, and Completed exams (`/dashboard`). All 8 have graded, published results and verifiable QR PDF reports on **Mathematics Diagnostic (Completed)**; candidates can take live exams, test offline sync, and file result disputes. |
 
 > **Single-session note**: Each account allows one active session at a time (`SESSION_IDLE_SECONDS = 120`). Sign out before switching browsers on the same account, or wait 2 minutes after closing the previous tab.
-
-### Seeded Demo Exams (Owned by `examiner1@demo.test`)
-
-1. **CS Midterm Draft** (`DRAFT`) - 6 questions, 45 min, 5 candidates enrolled; ready to edit, preview in sandbox, or publish.
-2. **General Science Quiz (Upcoming)** (`PUBLISHED`, phase `UPCOMING`) - 6 questions, 30 min, starts 24 hours from seed time, 8 candidates enrolled.
-3. **Computer Science Assessment (Live)** (`PUBLISHED`, phase `ONGOING`) - 10 questions (MCQ single with 25% negative marking, MCQ multi with partial credit, and written), 20 min, 8 candidates enrolled. Recommended for full exam-taking and Innovation 5.3 offline-sync demos.
-4. **Timer Demo (3 Minutes)** (`PUBLISHED`, phase `ONGOING`) - 4 questions, 3 min, all-or-nothing multi-select; designed for demonstrating real-time countdown and server-enforced timeout.
-5. **Mathematics Diagnostic (Completed)** (`CLOSED`, phase `COMPLETED`, results published) - 10 questions, 8 graded real attempts with written feedback, analytics charts, downloadable PDFs, and verifiable QR codes.
-
-### Resetting Demo State
-
-```bash
-npm run seed:reset-demo   # refreshes Live/Upcoming exam windows, clears live attempts/announcements, removes verify.* test rows; keeps Mathematics Diagnostic intact
-npm run db:reset          # destructive full reset: drops schema public, re-runs migrations 001..016, and re-seeds
-```
-
----
 
 ## 2. Implementation Status
 
@@ -139,58 +121,10 @@ flowchart TD
 - **npm**: 10.x (verified on `10.9.8`)
 - **PostgreSQL**: 16+ (local installation, hosted instance, or Docker via `npm run db:up`)
 
-### Clean-Clone Setup Commands
-
-```bash
-git clone https://github.com/Hasnatrasool163/null-portal.git
-cd null-portal
-npm ci
-cp .env.example .env.local
-# Edit .env.local: set DATABASE_URL (and DATABASE_SSL=true if hosted) and a 32+ char SESSION_SECRET
-npm run db:setup       # runs migrations 001..016 and seeds demo data
-npm run dev            # starts development server at http://localhost:3000
-```
-
-Generate a `SESSION_SECRET` with:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-### Environment Variables
-
-Only variables actually read in code (`src/` and `scripts/`) are listed below. Never commit real values.
-
-| Variable | Purpose | Required | Example Format |
-|---|---|---|---|
-| `DATABASE_URL` | Primary PostgreSQL connection string | Yes (unless fallback is set) | `postgres://user:pass@localhost:5432/app` |
-| `DATABASE_SSL` | Enable TLS for primary DB (`true`/`false`) | No | `false` |
-| `DATABASE_FALLBACK_URL` | Optional secondary PostgreSQL URL (used if `DATABASE_URL` is empty or `USE_FALLBACK_DB=true`) | No | `postgres://user:pass@host:5432/db` |
-| `DATABASE_FALLBACK_SSL` | Enable TLS for fallback DB (`true`/`false`) | No | `true` |
-| `USE_FALLBACK_DB` | Route app and scripts to `DATABASE_FALLBACK_URL` | No | `false` |
-| `SESSION_SECRET` | 32+ char secret signing `sid` JWT cookies | Yes (production) | `<64-char-hex-string>` |
-| `TRUST_PROXY` | Set `true` behind a custom reverse proxy for rate limiting (auto-enabled on Vercel via `VERCEL=1`) | No | `false` |
-| `BASE` | Target URL for `npm run verify` | No (test only) | `http://localhost:3000` |
-
-*Note on starter AI variables*: `.env.example` also lists `LLM_PROVIDER_ORDER`, `GEMINI_API_KEY`, `GEMINI_MODELS`, `GROQ_API_KEY`, `GROQ_MODELS`, `OPENROUTER_API_KEY`, and `OPENROUTER_MODELS` for the unused starter helper `src/lib/llm.ts` (referenced only by `/api/health` and unused `/api/ai`). Null Portal examination features do not use any LLM or paid API; leave all AI keys blank.
-
-### Checks and Verification
-
-```bash
-npm run check          # TypeScript (tsc --noEmit) + ESLint + production next build
-npm run verify         # Black-box API/security/business-rule suite against running server (default http://localhost:3000)
-npm run seed:reset-demo # Reset live/upcoming demo windows and remove verify.* test artifacts
-```
-
-*Verification transparency*: In a fresh clone on 2026-11-27, `npm ci` and `npm run check` passed cleanly (0 TypeScript errors, 0 ESLint errors, production build succeeded). Running `npm run verify` requires that no demo account has an active browser session within the last 120 seconds (otherwise single-active-session enforcement returns `409 SESSION_ACTIVE`).
-
----
-
 ## 6. Deployment
 
 - **Hosting**: Vercel (Next.js App Router)
-- **Database**: Managed PostgreSQL (e.g., Aiven, Neon, or Supabase) with TLS (`DATABASE_SSL=true`)
-- **Configured Environment Variable Names**: `DATABASE_URL`, `DATABASE_SSL`, `SESSION_SECRET` (and optionally `DATABASE_FALLBACK_URL`, `DATABASE_FALLBACK_SSL`, `USE_FALLBACK_DB`)
+- **Database**: Managed PostgreSQL (Aiven) with TLS (`DATABASE_SSL=true`)
 - **Migrations and Seeding**: Applied via `npm run db:setup` (`node scripts/migrate.mjs && node scripts/seed.mjs`) pointing to the production database.
 - **Judge Notes**:
   - Serverless cold starts and free-tier managed PostgreSQL wake-ups may add a brief delay on the first request after idle periods.
