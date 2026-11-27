@@ -66,4 +66,35 @@ export const topicRepo = {
     );
     return r.rows[0].id;
   },
+
+  /** Bulk find-or-create by case-insensitive name in 2 queries (returns Map<lowerName, id>). */
+  async ensureManyByNames(
+    c: PoolClient,
+    ownerId: string,
+    names: string[],
+  ): Promise<Map<string, string>> {
+    const dedup = new Map<string, string>();
+    for (const n of names) {
+      const k = n.toLowerCase();
+      if (!dedup.has(k)) dedup.set(k, n);
+    }
+    const uniqueNames = [...dedup.values()];
+    const uniqueLower = [...dedup.keys()];
+    if (uniqueNames.length === 0) return new Map();
+
+    await c.query(
+      `INSERT INTO topics (owner_id, name)
+       SELECT $1, n FROM unnest($2::text[]) AS t(n)
+       ON CONFLICT (owner_id, (lower(name))) DO NOTHING`,
+      [ownerId, uniqueNames],
+    );
+    const rows = (
+      await c.query<{ id: string; key: string }>(
+        `SELECT id, lower(name) AS key FROM topics
+         WHERE owner_id = $1 AND lower(name) = ANY($2::text[])`,
+        [ownerId, uniqueLower],
+      )
+    ).rows;
+    return new Map(rows.map((r) => [r.key, r.id]));
+  },
 };
