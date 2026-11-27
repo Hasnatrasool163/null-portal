@@ -34,6 +34,7 @@ erDiagram
 | `006` | `attempts`, `attempt_questions`, `answers`, `real_attempts` view | Partial unique index `(exam_id, candidate_id) WHERE NOT is_sandbox` prevents duplicate real attempts under double-click/race; second partial unique index `WHERE is_sandbox` bounds sandbox previews; `real_attempts` view guarantees sandbox attempts are excluded from every stat, grading list, monitor, analytics, and PDF report; `answers.attempt_question_id UNIQUE` + monotonic `seq` guarantees idempotent autosave. |
 | `007` | `incidents`, `announcements`, `time_extensions` | Closed `CHECK` on incident types; `time_extensions` enforces `minutes BETWEEN 1 AND 120` and required `reason` (`3..500` chars). |
 | `008` | `report_verifications` | `code` PK (`>= 12` random uppercase hex chars), `score_at_issue` compared against live `attempts.total_score` to detect `SUPERSEDED` reports automatically. |
+| `009` | `users.session_version`, `rate_limit_hits` | Server-side session revocation on logout (`sv` claim checked in `userRepo.findById`) and DB-backed sliding-window rate limiting shared across instances. |
 
 ## 3. Concurrency & Consistency Patterns
 - **Start Attempt Race Safety**: `INSERT INTO attempts ... ON CONFLICT (exam_id, candidate_id) WHERE NOT is_sandbox DO NOTHING` inside a transaction ensures two simultaneous clicks never create duplicate attempts.

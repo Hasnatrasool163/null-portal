@@ -1,24 +1,36 @@
-# Deployment notes
+# Deployment & Environment Guide
 
-Any host is allowed (Vercel not required). Pick ONE before the event and rehearse.
+## 1. Environment Variables
 
-## Option A: Vercel (app) + hosted Postgres (Neon / Supabase / Aiven / Render)
-1. Create the DB, copy its connection string. Set `DATABASE_SSL=true` for hosted TLS databases.
-2. Locally: put that URL in `.env.local`, run `npm run db:setup` (migrates and seeds the hosted DB).
-3. Push repo to GitHub, import in Vercel, add env vars: `DATABASE_URL`, `DATABASE_SSL`, `SESSION_SECRET`, AI keys.
-4. Open `/api/health` on the live URL: db must say "ok".
-Set a project-level limit: `export const maxDuration = 60` is already on the AI route.
+Copy `.env.example` to `.env.local` for local development (never commit `.env.local`).
 
-## Option B: Render / Railway / Fly with the Dockerfile
-Create a Postgres + a web service from the repo (Dockerfile). Set the same env vars. The container applies migrations on start.
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes* | Primary PostgreSQL connection string (local Postgres or hosted). |
+| `DATABASE_SSL` | No | Set `true` for hosted Postgres requiring TLS (auto-detected if `sslmode=require` is in the URL). |
+| `DATABASE_FALLBACK_URL` | No* | Optional secondary/hosted PostgreSQL URL (e.g. Aiven/Neon/Supabase). Used automatically if `DATABASE_URL` is empty or `USE_FALLBACK_DB=true`. |
+| `DATABASE_FALLBACK_SSL` | No | Set `true` if the fallback DB requires TLS. |
+| `USE_FALLBACK_DB` | No | Set `true` to route traffic and scripts to `DATABASE_FALLBACK_URL`. |
+| `SESSION_SECRET` | Yes (prod) | 32+ character random hex string (`node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`). |
+| `TRUST_PROXY` | No | Set `true` only when running behind your own reverse proxy (not needed on Vercel, which sets `VERCEL=1` automatically). |
 
-## Option C: Docker only (rules allow submitting Docker / compose files)
-`docker compose --profile full up --build` (app + Postgres). Untested in the build sandbox: try it once on your machine.
+## 2. Database Setup & Migrations
 
-## Freeze checklist (rules: any commit, push, build or deployment after the deadline = disqualification)
-- [ ] Final `npm run check` passes locally.
-- [ ] Final commit pushed BEFORE the deadline, deploy finished and smoke tested.
-- [ ] Auto-deploy / preview deploys turned OFF. No scheduled jobs that redeploy.
-- [ ] Do not rotate env vars or run seed/reset scripts on production after the deadline.
-- [ ] Note the final commit SHA and deploy time in the README.
-- [ ] Free tiers: sleeping services wake on the first request; free DBs may pause. Warm everything up before your Day 2 slot.
+Migrations live in `db/migrations/001..009` and are idempotent:
+
+```bash
+npm run db:migrate        # apply any pending migrations
+npm run db:seed           # seed demo users, questions, exams, and completed results
+npm run seed:reset-demo   # refresh live demo exam windows & remove test artifacts
+```
+
+## 3. Deploying to Vercel
+
+1. Import the GitHub repository in Vercel.
+2. Add `DATABASE_URL` (your hosted PostgreSQL URL), `DATABASE_SSL=true`, and a 32+ char `SESSION_SECRET` in **Project Settings → Environment Variables**.
+3. Run `npm run db:setup` locally pointed at the production DB (or via `USE_FALLBACK_DB=true`) to apply migrations `001`–`009` and seed demo data.
+4. Deploy and verify `GET /api/health` returns `{"ok":true,"data":{"db":"ok",...}}`.
+5. Run the automated verification suite against the deployed URL:
+   ```bash
+   BASE=https://your-deployment.vercel.app npm run verify
+   ```
