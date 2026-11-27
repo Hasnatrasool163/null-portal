@@ -353,7 +353,7 @@ function ResponseGrader({
       }}
     >
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium tracking-wide uppercase">
+        <p className="text-xs font-medium">
           Candidate response
         </p>
         <div className="flex gap-1.5">

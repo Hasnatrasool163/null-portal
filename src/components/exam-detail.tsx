@@ -5,10 +5,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
-  CheckCircle2,
+  Award,
+  CalendarClock,
+  Check,
+  ListChecks,
+  Pencil,
+  Timer,
+  UserPlus,
+  Users,
+  type LucideIcon,
   CopyPlus,
   Eye,
   FileUp,
@@ -16,11 +23,14 @@ import {
   Plus,
   Send,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
+import {
+  UnderlineTabs,
+  type UnderlineTab,
+} from "@/components/ui/underline-tabs";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
@@ -29,13 +39,19 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { ExamForm } from "@/components/exam-form";
+import { QuestionPickerDialog } from "@/components/question-picker-dialog";
+import { cn } from "@/lib/utils";
 import { CandidateImportDialog } from "@/components/candidate-import-dialog";
 import { ExamAnalyticsTab } from "@/components/exam-analytics-tab";
 import { ExamGradingTab } from "@/components/exam-grading-tab";
+import { ExamDisputesTab } from "@/components/exam-disputes-tab";
 import { ExamMonitorTab } from "@/components/exam-monitor-tab";
 import { AuditLogView } from "@/components/audit-log-view";
 import { PhaseStatus } from "@/components/exams-manager";
-import { AdminExamActions, RescorePanel } from "@/components/exam-lifecycle-panels";
+import {
+  AdminExamActions,
+  RescorePanel,
+} from "@/components/exam-lifecycle-panels";
 import { api } from "@/lib/api-client";
 import { editLevel } from "@/shared/exam-lifecycle";
 import {
@@ -46,11 +62,7 @@ import {
   type ExamPatch,
   type ExamValues,
 } from "@/shared/schemas/exam";
-import {
-  DIFFICULTY_LABEL,
-  TYPE_LABEL,
-  type QuestionList,
-} from "@/shared/schemas/question";
+import { TYPE_LABEL } from "@/shared/schemas/question";
 
 type Tab =
   | "review"
@@ -59,9 +71,20 @@ type Tab =
   | "enrollments"
   | "monitor"
   | "grading"
+  | "disputes"
   | "analytics"
   | "audit";
-const TABS: Tab[] = ["review", "settings", "questions", "enrollments", "monitor", "grading", "analytics", "audit"];
+const TABS: Tab[] = [
+  "review",
+  "settings",
+  "questions",
+  "enrollments",
+  "monitor",
+  "grading",
+  "disputes",
+  "analytics",
+  "audit",
+];
 
 function QuestionsTab({
   exam,
@@ -84,17 +107,6 @@ function QuestionsTab({
   );
   const [dirty, setDirty] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const bank = useQuery({
-    queryKey: ["bank-picker", search],
-    queryFn: () => {
-      const p = new URLSearchParams({ pageSize: "50" });
-      if (search.trim()) p.set("q", search.trim());
-      return api<QuestionList>(`/api/questions?${p}`);
-    },
-    enabled: pickerOpen,
-  });
 
   const save = useMutation({
     mutationFn: () =>
@@ -141,10 +153,22 @@ function QuestionsTab({
           )}
         </p>
         {!locked && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {dirty && (
+              <span
+                className="text-warning flex items-center gap-1.5 text-xs font-medium"
+                role="status"
+              >
+                <span
+                  className="bg-warning h-1.5 w-1.5 rounded-full"
+                  aria-hidden="true"
+                />
+                Unsaved changes
+              </span>
+            )}
             <Button variant="outline" onClick={() => setPickerOpen(true)}>
               <Plus className="h-4 w-4" />
-              Add from bank
+              Add questions
             </Button>
             <Button
               disabled={!dirty || save.isPending}
@@ -163,11 +187,14 @@ function QuestionsTab({
           text={
             locked
               ? "This exam has no questions."
-              : "Pick questions from your bank and adjust their marks for this exam."
+              : "Choose questions from your bank, or draw them at random by topic and difficulty."
           }
           action={
             !locked ? (
-              <Button onClick={() => setPickerOpen(true)}>Add from bank</Button>
+              <Button onClick={() => setPickerOpen(true)}>
+                <Plus className="h-4 w-4" />
+                Add questions
+              </Button>
             ) : undefined
           }
         />
@@ -210,7 +237,9 @@ function QuestionsTab({
                         const v = parseFloat(e.target.value);
                         setItems((prev) =>
                           prev.map((p, k) =>
-                            k === idx ? { ...p, marks: Number.isNaN(v) ? 0 : v } : p,
+                            k === idx
+                              ? { ...p, marks: Number.isNaN(v) ? 0 : v }
+                              : p,
                           ),
                         );
                         setDirty(true);
@@ -257,79 +286,220 @@ function QuestionsTab({
         </Table>
       )}
 
-      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent
-          className="max-h-[85vh] max-w-2xl overflow-y-auto"
-          title="Add questions from your bank"
-          description="Click Add to include a question. Save the question set when done."
-        >
-          <div className="space-y-3">
-            <Input
-              placeholder="Search your questions..."
-              aria-label="Search question bank"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {bank.isPending ? (
-              <Skeleton className="h-32 w-full" />
-            ) : bank.isError ? (
-              <p className="text-destructive text-sm">{bank.error.message}</p>
-            ) : bank.data.items.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No matching questions in your bank.
-              </p>
-            ) : (
-              <ul className="max-h-96 divide-y overflow-y-auto rounded-md border">
-                {bank.data.items.map((q) => {
-                  const added = assignedIds.has(q.id);
-                  return (
-                    <li
-                      key={q.id}
-                      className="flex items-start justify-between gap-3 p-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="line-clamp-2 text-sm font-medium">
-                          {q.body}
-                        </p>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
-                          {q.topicName} · {TYPE_LABEL[q.type]} ·{" "}
-                          {DIFFICULTY_LABEL[q.difficulty]} · {q.defaultMarks}{" "}
-                          pts
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={added ? "secondary" : "outline"}
-                        disabled={added}
-                        onClick={() => {
-                          setItems((prev) => [
-                            ...prev,
-                            {
-                              questionId: q.id,
-                              body: q.body,
-                              topicName: q.topicName,
-                              type: q.type,
-                              difficulty: q.difficulty,
-                              marks: q.defaultMarks,
-                            },
-                          ]);
-                          setDirty(true);
-                        }}
-                      >
-                        {added ? "Added" : "Add"}
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <div className="flex justify-end">
-              <Button onClick={() => setPickerOpen(false)}>Done</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <QuestionPickerDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        assignedIds={assignedIds}
+        onAdd={(picked) => {
+          setItems((prev) => [
+            ...prev,
+            ...picked
+              .filter((q) => !prev.some((x) => x.questionId === q.id))
+              .map((q) => ({
+                questionId: q.id,
+                body: q.body,
+                topicName: q.topicName,
+                type: q.type,
+                difficulty: q.difficulty,
+                marks: q.defaultMarks,
+              })),
+          ]);
+          setDirty(true);
+        }}
+      />
     </div>
+  );
+}
+
+/** Draft setup as a short guided flow: what's done, what's next, one action per step. */
+function SetupSteps({
+  exam,
+  onOpenTab,
+  onPublish,
+}: {
+  exam: ExamDetail;
+  onOpenTab: (t: Tab) => void;
+  onPublish: () => void;
+}) {
+  // Blockers that aren't covered by a step (e.g. schedule problems) belong to the schedule step.
+  const scheduleIssues = exam.readiness.blockers.filter(
+    (b) => !/question|marks|candidate/i.test(b),
+  );
+  const steps: {
+    title: string;
+    done: boolean;
+    detail: string;
+    action?: { label: string; icon: LucideIcon; onClick: () => void };
+  }[] = [
+    {
+      title: "Schedule and rules",
+      done: scheduleIssues.length === 0,
+      detail:
+        scheduleIssues[0] ??
+        `${exam.durationMinutes} min, ${MULTI_LABEL[exam.multiScoring].toLowerCase()} scoring`,
+      action: {
+        label: scheduleIssues.length ? "Fix schedule" : "Edit",
+        icon: scheduleIssues.length ? CalendarClock : Pencil,
+        onClick: () => onOpenTab("settings"),
+      },
+    },
+    {
+      title: "Add questions",
+      done: exam.questionCount > 0 && exam.totalMarks > 0,
+      detail:
+        exam.questionCount > 0
+          ? `${exam.questionCount} question${exam.questionCount === 1 ? "" : "s"} · ${exam.totalMarks} marks`
+          : "Choose from your bank or draw at random by rules.",
+      action: {
+        label: exam.questionCount > 0 ? "Edit" : "Add questions",
+        icon: exam.questionCount > 0 ? Pencil : Plus,
+        onClick: () => onOpenTab("questions"),
+      },
+    },
+    {
+      title: "Enroll candidates",
+      done: exam.enrollmentCount > 0,
+      detail:
+        exam.enrollmentCount > 0
+          ? `${exam.enrollmentCount} candidate${exam.enrollmentCount === 1 ? "" : "s"} enrolled`
+          : "Pick candidates or import a list.",
+      action: {
+        label: exam.enrollmentCount > 0 ? "Edit" : "Enroll",
+        icon: exam.enrollmentCount > 0 ? Pencil : UserPlus,
+        onClick: () => onOpenTab("enrollments"),
+      },
+    },
+  ];
+  const doneCount = steps.filter((x) => x.done).length;
+  const ready = exam.readiness.ready;
+  const next = steps.findIndex((x) => !x.done);
+
+  return (
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between gap-3 border-b px-5 py-3.5">
+        <div>
+          <h3 className="font-semibold">Set up this exam</h3>
+          <p className="text-muted-foreground text-xs">
+            {ready
+              ? "Everything is in place. Review and publish."
+              : `${doneCount} of ${steps.length} steps done`}
+          </p>
+        </div>
+        <div
+          className="bg-muted h-1.5 w-28 overflow-hidden rounded-full"
+          aria-hidden="true"
+        >
+          <div
+            className="bg-primary h-full rounded-full transition-[width] duration-500"
+            style={{ width: `${(doneCount / steps.length) * 100}%` }}
+          />
+        </div>
+      </div>
+      <ol className="divide-y">
+        {steps.map((st, i) => (
+          <li key={st.title} className="flex items-center gap-4 px-5 py-3.5">
+            <span
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums",
+                st.done
+                  ? "bg-primary border-primary text-primary-foreground"
+                  : i === next
+                    ? "border-primary text-primary"
+                    : "text-muted-foreground",
+              )}
+              aria-hidden="true"
+            >
+              {st.done ? (
+                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+              ) : (
+                i + 1
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {st.title}
+                <span className="sr-only">
+                  {st.done ? " (done)" : " (to do)"}
+                </span>
+              </p>
+              <p className="text-muted-foreground truncate text-xs">
+                {st.detail}
+              </p>
+            </div>
+            {st.action && (
+              <Button
+                size="sm"
+                className="min-w-24"
+                variant={i === next ? "default" : "outline"}
+                onClick={st.action.onClick}
+              >
+                <st.action.icon className="h-3.5 w-3.5" />
+                {st.action.label}
+              </Button>
+            )}
+          </li>
+        ))}
+        <li className="flex items-center gap-4 px-5 py-3.5">
+          <span
+            className={cn(
+              "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold",
+              ready ? "border-primary text-primary" : "text-muted-foreground",
+            )}
+            aria-hidden="true"
+          >
+            {steps.length + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">Review and publish</p>
+            <p className="text-muted-foreground text-xs">
+              {ready
+                ? "Candidates see it once the window opens."
+                : "Available once the steps above are done."}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="min-w-24"
+            disabled={!ready}
+            onClick={onPublish}
+          >
+            <Send className="h-3.5 w-3.5" />
+            Publish
+          </Button>
+        </li>
+      </ol>
+    </Card>
+  );
+}
+
+/** What publishing will lock, shown in the confirmation dialog. */
+function PublishSummary({ exam }: { exam: ExamDetail }) {
+  const rows: [string, string][] = [
+    [
+      "Window",
+      `${format(new Date(exam.startsAt), "PP p")} – ${format(new Date(exam.endsAt), "PP p")}`,
+    ],
+    ["Duration", `${exam.durationMinutes} min`],
+    ["Questions", `${exam.questionCount} · ${exam.totalMarks} marks`],
+    ["Candidates", String(exam.enrollmentCount)],
+    [
+      "Scoring",
+      `${MULTI_LABEL[exam.multiScoring]}${exam.negativeMarking > 0 ? `, −${exam.negativeMarking * 100}% per wrong answer` : ""}`,
+    ],
+    [
+      "Order",
+      `${exam.shuffleQuestions ? "Shuffled" : "Fixed"} questions, ${exam.shuffleOptions ? "shuffled" : "fixed"} options`,
+    ],
+  ];
+  return (
+    <dl className="mb-5 divide-y rounded-md border text-sm">
+      {rows.map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[6.5rem_1fr] gap-3 px-3 py-2.5">
+          <dt className="text-muted-foreground">{k}</dt>
+          <dd className="font-medium">{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -351,8 +521,7 @@ function EnrollmentsTab({
 
   const list = useQuery({
     queryKey: ["exam-enrollments", examId],
-    queryFn: () =>
-      api<EnrolledCandidate[]>(`/api/exams/${examId}/enrollments`),
+    queryFn: () => api<EnrolledCandidate[]>(`/api/exams/${examId}/enrollments`),
   });
 
   const candidates = useQuery({
@@ -569,9 +738,9 @@ export function ExamDetailView({
     const t = searchParams.get("tab");
     return TABS.includes(t as Tab) ? (t as Tab) : "review";
   });
-  const [confirmAction, setConfirmAction] = useState<"publish" | "close" | null>(
-    null,
-  );
+  const [confirmAction, setConfirmAction] = useState<
+    "publish" | "close" | null
+  >(null);
 
   const sandbox = useMutation({
     mutationFn: (reset: boolean) =>
@@ -585,9 +754,12 @@ export function ExamDetailView({
 
   const clone = useMutation({
     mutationFn: () =>
-      api<ExamDetail & { skippedArchived: number }>(`/api/exams/${examId}/clone`, {
-        method: "POST",
-      }),
+      api<ExamDetail & { skippedArchived: number }>(
+        `/api/exams/${examId}/clone`,
+        {
+          method: "POST",
+        },
+      ),
     onSuccess: (copy) => {
       toast.success(
         copy.skippedArchived > 0
@@ -674,16 +846,22 @@ export function ExamDetailView({
   }
 
   const exam = query.data;
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "review", label: "Review & Publish" },
+  const tabs: UnderlineTab<Tab>[] = [
+    { id: "review", label: "Review & publish" },
     { id: "settings", label: "Settings" },
-    { id: "questions", label: `Questions (${exam.questionCount})` },
-    { id: "enrollments", label: `Enrollments (${exam.enrollmentCount})` },
-    { id: "monitor", label: "Live Monitor" },
-    { id: "grading", label: "Grading & Results" },
+    { id: "questions", label: "Questions", count: exam.questionCount },
+    { id: "enrollments", label: "Enrollments", count: exam.enrollmentCount },
+    { id: "monitor", label: "Live monitor" },
+    { id: "grading", label: "Grading & results" },
+    { id: "disputes", label: "Disputes" },
     { id: "analytics", label: "Analytics" },
     { id: "audit", label: "Audit log" },
   ];
+  // Keep the tab in the URL (refresh + shareable links) without a navigation.
+  const openTab = (t: Tab) => {
+    setTab(t);
+    window.history.replaceState(null, "", `?tab=${t}`);
+  };
 
   return (
     <>
@@ -694,7 +872,10 @@ export function ExamDetailView({
           subtitle={`${format(new Date(exam.startsAt), "PP p")} – ${format(new Date(exam.endsAt), "PP p")} · ${exam.durationMinutes} min`}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <PhaseStatus phase={exam.phase} className="bg-card shadow-elev-1 h-10 rounded-md border px-3" />
+              <PhaseStatus
+                phase={exam.phase}
+                className="bg-card shadow-elev-1 h-10 rounded-md border px-3"
+              />
               {!isAdmin && exam.questionCount > 0 && (
                 <Button
                   variant="outline"
@@ -706,14 +887,27 @@ export function ExamDetailView({
                 </Button>
               )}
               {!isAdmin && (
-                <Button variant="outline" disabled={clone.isPending} onClick={() => clone.mutate()}>
-                  {clone.isPending ? <Spinner /> : <CopyPlus className="h-4 w-4" />}
+                <Button
+                  variant="outline"
+                  disabled={clone.isPending}
+                  onClick={() => clone.mutate()}
+                >
+                  {clone.isPending ? (
+                    <Spinner />
+                  ) : (
+                    <CopyPlus className="h-4 w-4" />
+                  )}
                   Duplicate
                 </Button>
               )}
               {!isAdmin && exam.status === "DRAFT" && (
                 <Button
                   disabled={!exam.readiness.ready}
+                  tooltip={
+                    exam.readiness.ready
+                      ? undefined
+                      : `Finish setup first: ${exam.readiness.blockers[0] ?? ""}`
+                  }
                   onClick={() => setConfirmAction("publish")}
                 >
                   <Send className="h-4 w-4" />
@@ -733,173 +927,180 @@ export function ExamDetailView({
         />
       </div>
 
-      <div
-        className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label="Exam sections"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`relative shrink-0 rounded-t-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-              tab === t.id
-                ? "text-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            <span
-              aria-hidden="true"
-              className={`bg-primary absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-transform duration-200 ${
-                tab === t.id ? "scale-x-100" : "scale-x-0"
-              }`}
-            />
-          </button>
-        ))}
-      </div>
+      <UnderlineTabs
+        tabs={tabs}
+        value={tab}
+        onChange={openTab}
+        label="Exam sections"
+        className="-mx-4 px-4 sm:mx-0 sm:px-0"
+      />
       <div key={tab} className="animate-page-in space-y-6">
-
-      {tab === "review" && (
-        <div className="space-y-6">
-          <Card className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
-            {[
-              { label: "Questions", value: exam.questionCount, tab: "questions" as Tab },
-              { label: "Total marks", value: exam.totalMarks, tab: "questions" as Tab },
-              { label: "Candidates", value: exam.enrollmentCount, tab: "enrollments" as Tab },
-              { label: "Duration", value: `${exam.durationMinutes} min`, tab: "settings" as Tab },
-            ].map((st) => (
-              <button
-                key={st.label}
-                type="button"
-                onClick={() => setTab(st.tab)}
-                className="hover:bg-muted/40 focus-visible:ring-ring px-5 py-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
-              >
-                <p className="text-muted-foreground text-xs">{st.label}</p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{st.value}</p>
-              </button>
-            ))}
-          </Card>
-
-          {exam.status === "DRAFT" && (
-            <Card className="overflow-hidden">
-              <div className="flex items-center justify-between gap-3 border-b px-5 py-3.5">
-                <h3 className="font-semibold">Publish checklist</h3>
-                <span
-                  className={`text-xs font-medium ${exam.readiness.ready ? "text-success" : "text-muted-foreground"}`}
+        {tab === "review" && (
+          <div className="space-y-6">
+            <Card className="grid grid-cols-2 divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+              {[
+                {
+                  label: "Questions",
+                  value: exam.questionCount,
+                  tab: "questions" as Tab,
+                  icon: ListChecks,
+                },
+                {
+                  label: "Total marks",
+                  value: exam.totalMarks,
+                  tab: "questions" as Tab,
+                  icon: Award,
+                },
+                {
+                  label: "Candidates",
+                  value: exam.enrollmentCount,
+                  tab: "enrollments" as Tab,
+                  icon: Users,
+                },
+                {
+                  label: "Duration",
+                  value: `${exam.durationMinutes} min`,
+                  tab: "settings" as Tab,
+                  icon: Timer,
+                },
+              ].map((st) => (
+                <button
+                  key={st.label}
+                  type="button"
+                  onClick={() => openTab(st.tab)}
+                  className="group hover:bg-muted/40 focus-visible:ring-ring flex items-center gap-3.5 px-5 py-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
                 >
-                  {exam.readiness.ready
-                    ? "Ready to publish"
-                    : `${exam.readiness.blockers.length} item${exam.readiness.blockers.length === 1 ? "" : "s"} left`}
-                </span>
-              </div>
-              <ul className="divide-y text-sm">
-                {exam.readiness.blockers.map((b, i) => (
-                  <li key={`b${i}`} className="flex items-center gap-3 px-5 py-3">
-                    <XCircle className="text-destructive h-4 w-4 shrink-0" aria-hidden="true" />
-                    {b}
-                  </li>
-                ))}
-                {exam.readiness.warnings.map((w, i) => (
-                  <li key={`w${i}`} className="flex items-center gap-3 px-5 py-3">
-                    <AlertTriangle className="text-warning h-4 w-4 shrink-0" aria-hidden="true" />
-                    {w}
-                  </li>
-                ))}
-                {exam.readiness.blockers.length === 0 && (
-                  <li className="flex items-center gap-3 px-5 py-3">
-                    <CheckCircle2 className="text-success h-4 w-4 shrink-0" aria-hidden="true" />
-                    Questions, marks and schedule are valid. Publishing locks them.
-                  </li>
-                )}
-              </ul>
+                  <span className="bg-accent text-accent-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-transform group-hover:scale-105">
+                    <st.icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="text-muted-foreground block text-xs">
+                      {st.label}
+                    </span>
+                    <span className="mt-0.5 block text-2xl leading-tight font-semibold tracking-tight tabular-nums">
+                      {st.value}
+                    </span>
+                  </span>
+                </button>
+              ))}
             </Card>
-          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Configuration summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5 text-sm">
-              <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[
-                  ["Multi-choice scoring", MULTI_LABEL[exam.multiScoring]],
-                  ["Negative marking", exam.negativeMarking > 0 ? `${exam.negativeMarking * 100}% per wrong answer` : "Off"],
-                  ["Question order", exam.shuffleQuestions ? "Shuffled" : "Fixed"],
-                  ["Option order", exam.shuffleOptions ? "Shuffled" : "Fixed"],
-                  ["Offline recovery window", exam.recoveryWindowSeconds > 0 ? `${exam.recoveryWindowSeconds} seconds` : "Disabled"],
-                  ["Answer key", exam.showAnswers ? "Shown after results publish" : "Never shown"],
-                  ["Examiner", exam.ownerName],
-                ].map(([label, value]) => (
-                  <div key={label} className="space-y-0.5">
-                    <dt className="text-muted-foreground text-xs">{label}</dt>
-                    <dd className="font-medium">{value}</dd>
+            {exam.status === "DRAFT" && !isAdmin && (
+              <SetupSteps
+                exam={exam}
+                onOpenTab={openTab}
+                onPublish={() => setConfirmAction("publish")}
+              />
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Configuration summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5 text-sm">
+                <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {[
+                    ["Multi-choice scoring", MULTI_LABEL[exam.multiScoring]],
+                    [
+                      "Negative marking",
+                      exam.negativeMarking > 0
+                        ? `${exam.negativeMarking * 100}% per wrong answer`
+                        : "Off",
+                    ],
+                    [
+                      "Question order",
+                      exam.shuffleQuestions ? "Shuffled" : "Fixed",
+                    ],
+                    [
+                      "Option order",
+                      exam.shuffleOptions ? "Shuffled" : "Fixed",
+                    ],
+                    [
+                      "Offline recovery window",
+                      exam.recoveryWindowSeconds > 0
+                        ? `${exam.recoveryWindowSeconds} seconds`
+                        : "Disabled",
+                    ],
+                    [
+                      "Answer key",
+                      exam.showAnswers
+                        ? "Shown after results publish"
+                        : "Never shown",
+                    ],
+                    ["Examiner", exam.ownerName],
+                  ].map(([label, value]) => (
+                    <div key={label} className="space-y-0.5">
+                      <dt className="text-muted-foreground text-xs">{label}</dt>
+                      <dd className="font-medium">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                {exam.instructions && (
+                  <div className="bg-muted/50 space-y-1 rounded-md p-3">
+                    <p className="text-muted-foreground text-xs">
+                      Instructions
+                    </p>
+                    <p className="whitespace-pre-wrap">{exam.instructions}</p>
                   </div>
-                ))}
-              </dl>
-              {exam.instructions && (
-                <div className="bg-muted/50 space-y-1 rounded-md p-3">
-                  <p className="text-muted-foreground text-xs">Instructions</p>
-                  <p className="whitespace-pre-wrap">{exam.instructions}</p>
-                </div>
-              )}
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {exam.status === "CLOSED" && exam.closeReason && (
+          <p className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
+            {exam.cancelled ? "Cancelled" : "Closed"} by an administrator:{" "}
+            {exam.closeReason}
+          </p>
+        )}
+        {isAdmin && <AdminExamActions exam={exam} />}
+        <RescorePanel exam={exam} readOnly={isAdmin} />
+
+        {tab === "settings" && (
+          <Card>
+            <CardContent className="pt-6">
+              <ExamForm
+                key={`${exam.id}-${exam.updatedAt}`}
+                exam={exam}
+                readOnly={isAdmin}
+                onSubmit={async (v) => {
+                  await update.mutateAsync(v);
+                }}
+              />
             </CardContent>
           </Card>
-        </div>
-      )}
+        )}
 
-      {exam.status === "CLOSED" && exam.closeReason && (
-        <p className="bg-muted text-muted-foreground rounded-md p-3 text-sm">
-          {exam.cancelled ? "Cancelled" : "Closed"} by an administrator: {exam.closeReason}
-        </p>
-      )}
-      {isAdmin && <AdminExamActions exam={exam} />}
-      <RescorePanel exam={exam} readOnly={isAdmin} />
+        {tab === "questions" && (
+          <QuestionsTab
+            key={`${exam.id}-${exam.status}-${exam.questions.length}`}
+            exam={exam}
+            readOnly={isAdmin}
+          />
+        )}
 
-      {tab === "settings" && (
-        <Card>
-          <CardContent className="pt-6">
-            <ExamForm
-              key={`${exam.id}-${exam.updatedAt}`}
-              exam={exam}
-              readOnly={isAdmin}
-              onSubmit={async (v) => {
-                await update.mutateAsync(v);
-              }}
-            />
-          </CardContent>
-        </Card>
-      )}
+        {tab === "enrollments" && (
+          <EnrollmentsTab
+            examId={exam.id}
+            readOnly={isAdmin || editLevel(exam) === "TITLE_ONLY"}
+            canRemove={editLevel(exam) === "FULL"}
+          />
+        )}
 
-      {tab === "questions" && (
-        <QuestionsTab
-          key={`${exam.id}-${exam.status}-${exam.questions.length}`}
-          exam={exam}
-          readOnly={isAdmin}
-        />
-      )}
+        {tab === "monitor" && (
+          <ExamMonitorTab examId={exam.id} readOnly={isAdmin} />
+        )}
 
-      {tab === "enrollments" && (
-        <EnrollmentsTab
-          examId={exam.id}
-          readOnly={isAdmin || editLevel(exam) === "TITLE_ONLY"}
-          canRemove={editLevel(exam) === "FULL"}
-        />
-      )}
+        {tab === "grading" && (
+          <ExamGradingTab examId={exam.id} readOnly={isAdmin} />
+        )}
 
-      {tab === "monitor" && (
-        <ExamMonitorTab examId={exam.id} readOnly={isAdmin} />
-      )}
-
-      {tab === "grading" && (
-        <ExamGradingTab examId={exam.id} readOnly={isAdmin} />
-      )}
-
-      {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
-      {tab === "audit" && <AuditLogView examId={exam.id} />}
+        {tab === "disputes" && (
+          <ExamDisputesTab examId={exam.id} isAdmin={isAdmin} />
+        )}
+        {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
+        {tab === "audit" && <AuditLogView examId={exam.id} />}
       </div>
 
       <Dialog
@@ -912,10 +1113,11 @@ export function ExamDetailView({
           }
           description={
             confirmAction === "publish"
-              ? "Once published, the question set, marks, schedule and scoring rules are locked. Only title and instructions remain editable."
+              ? "Check the details below. Publishing locks the questions, marks, schedule and scoring; only the title and instructions stay editable."
               : "Closing prevents any new attempts from starting and moves the exam to Completed."
           }
         >
+          {confirmAction === "publish" && <PublishSummary exam={exam} />}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setConfirmAction(null)}>
               Cancel
@@ -928,7 +1130,7 @@ export function ExamDetailView({
               }
             >
               {(publish.isPending || close.isPending) && <Spinner />}
-              {confirmAction === "publish" ? "Publish" : "Close exam"}
+              {confirmAction === "publish" ? "Publish exam" : "Close exam"}
             </Button>
           </div>
         </DialogContent>

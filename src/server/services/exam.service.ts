@@ -5,6 +5,7 @@ import { examRepo } from "../repositories/exam.repo";
 import { attemptRepo } from "../repositories/attempt.repo";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { notifyExamAvailable, notifyExamCancelled } from "../notifications";
 import { scoreObjectiveAnswer, type SnapshotOption } from "../exam/scoring";
 import {
   LEVEL_ALLOWED,
@@ -12,11 +13,13 @@ import {
   editLevel,
   levelReason,
 } from "../exam/lifecycle";
-import { finalizeIfExpiredInTx } from "./attempt.service";
+import { finalizeAttemptInTx, finalizeIfExpiredInTx } from "./attempt.service";
 import type { QuestionType } from "@/shared/schemas/question";
 import {
   windowErrors,
   type ActionItem,
+  type AdminOverview,
+  type OversightItem,
   type AdminCloseInput,
   type MultiScoring,
   type RescoreInput,
@@ -45,11 +48,8 @@ export function computeReadiness(exam: ExamSummary): Readiness {
   for (const m of Object.values(wErrs)) blockers.push(m);
   if (!exam.endsInFuture)
     blockers.push("Exam end time is already in the past.");
-  if (exam.enrollmentCount < 1) {
-    warnings.push(
-      "No candidates are enrolled yet. You can publish now and enroll candidates before the window ends.",
-    );
-  }
+  // An exam nobody can sit is not publishable: enrol at least one candidate first.
+  if (exam.enrollmentCount < 1) blockers.push("Enroll at least 1 candidate.");
   return { ready: blockers.length === 0, blockers, warnings };
 }
 
@@ -124,7 +124,10 @@ export const examService = {
   /** Examiner dashboard: what needs attention now, what's live, what's next. Owner-scoped. */
   async overview(user: SessionUser): Promise<ExaminerOverview> {
     if (user.role !== "EXAMINER") throw Errors.forbidden();
-    const exams = await examRepo.overview(user.id);
+    const [exams, trend] = await Promise.all([
+      examRepo.overview(user.id),
+      examRepo.submissionTrend(30, user.id),
+    ]);
     const actions: ActionItem[] = [];
     const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
@@ -139,7 +142,11 @@ export const examService = {
           cta: "Grade",
           tab: "grading",
         });
-      } else if (e.phase === "COMPLETED" && e.submitted > 0 && !e.resultsPublished) {
+      } else if (
+        e.phase === "COMPLETED" &&
+        e.submitted > 0 &&
+        !e.resultsPublished
+      ) {
         actions.push({
           ...base,
           kind: "publish",
@@ -157,12 +164,19 @@ export const examService = {
         actions.push({
           ...base,
           kind: "draft",
-          title: missing.length ? `Draft needs ${missing.join(" and ")}` : "Draft ready to publish",
+          title: missing.length
+            ? `Draft needs ${missing.join(" and ")}`
+            : "Draft ready to publish",
           detail: missing.length
             ? "Finish setting it up before candidates can sit it."
             : "All requirements met. Review and publish when ready.",
           cta: missing.length ? "Continue" : "Review",
-          tab: e.questionCount === 0 ? "questions" : e.enrolled === 0 ? "enrollments" : "review",
+          tab:
+            e.questionCount === 0
+              ? "questions"
+              : e.enrolled === 0
+                ? "enrollments"
+                : "review",
         });
       } else if (e.phase === "UPCOMING" && e.enrolled === 0) {
         actions.push({
@@ -175,7 +189,12 @@ export const examService = {
         });
       }
     }
-    const order: Record<ActionItem["kind"], number> = { grade: 0, publish: 1, enroll: 2, draft: 3 };
+    const order: Record<ActionItem["kind"], number> = {
+      grade: 0,
+      publish: 1,
+      enroll: 2,
+      draft: 3,
+    };
     actions.sort((a, b) => order[a.kind] - order[b.kind]);
 
     return {
@@ -187,6 +206,50 @@ export const examService = {
         submitted: exams.reduce((n, e) => n + e.submitted, 0),
         awaitingGrading: exams.reduce((n, e) => n + e.needsReview, 0),
       },
+      trend,
+    };
+  },
+
+  /** Admin dashboard: platform-wide oversight (read-only). */
+  async adminOverview(user: SessionUser): Promise<AdminOverview> {
+    if (user.role !== "ADMIN") throw Errors.forbidden();
+    const [exams, trend] = await Promise.all([
+      examRepo.overview(),
+      examRepo.submissionTrend(30),
+    ]);
+    const attention: OversightItem[] = [];
+    for (const e of exams) {
+      const base = { examId: e.id, examTitle: e.title, ownerName: e.ownerName };
+      if (e.needsReview > 0)
+        attention.push({
+          ...base,
+          kind: "grading",
+          title: `${e.needsReview} attempt${e.needsReview === 1 ? "" : "s"} awaiting grading`,
+        });
+      else if (
+        e.phase === "COMPLETED" &&
+        e.submitted > 0 &&
+        !e.resultsPublished
+      )
+        attention.push({
+          ...base,
+          kind: "unpublished",
+          title: "Results not yet published",
+        });
+      if (e.phase === "UPCOMING" && e.enrolled === 0)
+        attention.push({
+          ...base,
+          kind: "no-candidates",
+          title: "Published with no candidates",
+        });
+    }
+    const live = exams.filter((e) => e.phase === "ONGOING");
+    return {
+      attention,
+      live,
+      upcoming: exams.filter((e) => e.phase === "UPCOMING").slice(0, 5),
+      sitting: live.reduce((n, e) => n + e.active, 0),
+      trend,
     };
   },
 
@@ -284,7 +347,10 @@ export const examService = {
         c,
         ex.id,
         Object.fromEntries(
-          keys.map((k) => [FIELD_COLUMN[k], (fields as Record<string, unknown>)[k]]),
+          keys.map((k) => [
+            FIELD_COLUMN[k],
+            (fields as Record<string, unknown>)[k],
+          ]),
         ),
         { contentChanged: ex.status !== "DRAFT" && level === "FULL" },
       );
@@ -320,10 +386,14 @@ export const examService = {
       }
       const ids = input.items.map((x) => x.questionId);
       if (new Set(ids).size !== ids.length) {
-        throw Errors.badRequest("Each question can only appear once in an exam.");
+        throw Errors.badRequest(
+          "Each question can only appear once in an exam.",
+        );
       }
       if (ex.status !== "DRAFT" && input.items.length < 1) {
-        throw Errors.conflict("A published exam must keep at least 1 question.");
+        throw Errors.conflict(
+          "A published exam must keep at least 1 question.",
+        );
       }
       const ownedCount = await examRepo.countOwnedOrAssignedQuestions(
         c,
@@ -341,16 +411,21 @@ export const examService = {
         marks: q.marks,
       }));
       await examRepo.replaceQuestions(c, ex.id, input.items);
-      await examRepo.patchInTx(c, ex.id, {}, {
-        contentChanged: ex.status !== "DRAFT",
-      });
+      await examRepo.patchInTx(
+        c,
+        ex.id,
+        {},
+        {
+          contentChanged: ex.status !== "DRAFT",
+        },
+      );
       if (ex.status !== "DRAFT") {
         await audit(c, user, {
           action: "EXAM_QUESTIONS_CHANGED",
           examId: ex.id,
           targetType: "exam",
           targetId: ex.id,
-          summary: `Changed question set of \"${ex.title}\" (${before.length} â†’ ${input.items.length} questions)`,
+          summary: `Changed question set of \"${ex.title}\" (${before.length} → ${input.items.length} questions)`,
           details: { before, after: input.items },
         });
       }
@@ -371,6 +446,7 @@ export const examService = {
         throw Errors.conflict(r.blockers[0] ?? "Exam is not ready to publish.");
       }
       await examRepo.patchInTx(c, existing.id, { status: "PUBLISHED" });
+      await notifyExamAvailable(c, existing.id, "EXAM_PUBLISHED");
       await audit(c, user, {
         action: "EXAM_PUBLISHED",
         examId: existing.id,
@@ -399,12 +475,27 @@ export const examService = {
         status: "CLOSED",
         closed_by: user.id,
       });
+      const inProgress = await c.query<{ id: string }>(
+        `SELECT id FROM real_attempts
+         WHERE exam_id = $1 AND status = 'IN_PROGRESS'
+         ORDER BY id`,
+        [existing.id],
+      );
+      let finalizedAttempts = 0;
+      for (const row of inProgress.rows) {
+        const a = await attemptRepo.findByIdForUpdate(c, row.id);
+        if (a && a.status === "IN_PROGRESS") {
+          await finalizeAttemptInTx(c, a, "EXAMINER");
+          finalizedAttempts++;
+        }
+      }
       await audit(c, user, {
         action: "EXAM_CLOSED",
         examId: existing.id,
         targetType: "exam",
         targetId: existing.id,
         summary: `Closed \"${existing.title}\" early`,
+        details: { finalizedAttempts },
       });
       return existing.id;
     });
@@ -422,7 +513,9 @@ export const examService = {
       const ex = await lockAny(c, id);
       if (ex.status === "CLOSED") {
         throw Errors.conflict(
-          ex.cancelled ? "This exam is already cancelled." : "This exam is already closed.",
+          ex.cancelled
+            ? "This exam is already cancelled."
+            : "This exam is already closed.",
         );
       }
       if (input.action === "CLOSE" && ex.status !== "PUBLISHED") {
@@ -436,7 +529,34 @@ export const examService = {
         close_reason: input.reason,
         closed_by: user.id,
         cancelled: cancel,
+        ...(cancel ? { results_published_at: null } : {}),
       });
+      const inProgress = await c.query<{ id: string }>(
+        `SELECT id FROM real_attempts
+         WHERE exam_id = $1 AND status = 'IN_PROGRESS'
+         ORDER BY id`,
+        [ex.id],
+      );
+      let finalizedAttempts = 0;
+      for (const row of inProgress.rows) {
+        const a = await attemptRepo.findByIdForUpdate(c, row.id);
+        if (a && a.status === "IN_PROGRESS") {
+          await finalizeAttemptInTx(c, a, "EXAMINER");
+          finalizedAttempts++;
+        }
+      }
+      let revokedCertificates = 0;
+      if (cancel) {
+        await notifyExamCancelled(c, ex.id, input.reason);
+        const rev = await c.query(
+          `UPDATE report_verifications rv
+           SET revoked = true
+           FROM attempts a
+           WHERE rv.attempt_id = a.id AND a.exam_id = $1 AND NOT rv.revoked`,
+          [ex.id],
+        );
+        revokedCertificates = rev.rowCount ?? 0;
+      }
       await audit(c, user, {
         action: cancel ? "EXAM_CANCELLED" : "EXAM_CLOSED",
         examId: ex.id,
@@ -448,6 +568,8 @@ export const examService = {
           previousStatus: ex.status,
           phase: ex.phase,
           startedAttempts: ex.startedAttempts,
+          finalizedAttempts,
+          revokedCertificates,
           ownerId: ex.ownerId,
         },
       });
@@ -468,10 +590,14 @@ export const examService = {
       if (input.ownerId === ex.ownerId) {
         throw Errors.conflict("That examiner already owns this exam.");
       }
-      const t = await c.query<{ id: string; name: string; role: string; is_active: boolean }>(
-        "SELECT id, name, role, is_active FROM users WHERE id = $1",
-        [input.ownerId],
-      );
+      const t = await c.query<{
+        id: string;
+        name: string;
+        role: string;
+        is_active: boolean;
+      }>("SELECT id, name, role, is_active FROM users WHERE id = $1", [
+        input.ownerId,
+      ]);
       const target = t.rows[0];
       if (!target || target.role !== "EXAMINER" || !target.is_active) {
         throw Errors.badRequest("The new owner must be an active examiner.", {
@@ -536,7 +662,8 @@ export const examService = {
         "SELECT 1 FROM exam_questions WHERE exam_id = $1 AND question_id = $2",
         [ex.id, input.questionId],
       );
-      if (inExam.rowCount === 0) throw Errors.notFound("Question not in this exam");
+      if (inExam.rowCount === 0)
+        throw Errors.notFound("Question not in this exam");
 
       const rows = await c.query<{
         id: string;
@@ -568,9 +695,12 @@ export const examService = {
       }
       const newIds = [...new Set(input.correctOptionIds)].sort((a, b) => a - b);
       if (first.type === "MCQ_SINGLE" && newIds.length !== 1) {
-        throw Errors.badRequest("A single-choice question has exactly one correct option.", {
-          correctOptionIds: "Pick exactly one",
-        });
+        throw Errors.badRequest(
+          "A single-choice question has exactly one correct option.",
+          {
+            correctOptionIds: "Pick exactly one",
+          },
+        );
       }
       const oldIds = first.options
         .filter((o) => o.isCorrect)
@@ -605,11 +735,14 @@ export const examService = {
           ...o,
           isCorrect: newIds.includes(o.id),
         }));
-        await c.query("UPDATE attempt_questions SET options = $2::jsonb WHERE id = $1", [
-          aq.id,
-          JSON.stringify(newOptions),
-        ]);
-        const ans = await c.query<{ selected: number[]; old_score: number | null }>(
+        await c.query(
+          "UPDATE attempt_questions SET options = $2::jsonb WHERE id = $1",
+          [aq.id, JSON.stringify(newOptions)],
+        );
+        const ans = await c.query<{
+          selected: number[];
+          old_score: number | null;
+        }>(
           `SELECT selected_option_ids AS selected, score AS old_score
            FROM answers WHERE attempt_question_id = $1 FOR UPDATE`,
           [aq.id],
@@ -626,33 +759,45 @@ export const examService = {
         const oldScore =
           ans.rows[0].old_score === null ? null : Number(ans.rows[0].old_score);
         if (newScore === oldScore) continue;
-        await c.query("UPDATE answers SET score = $2 WHERE attempt_question_id = $1", [
-          aq.id,
-          newScore,
-        ]);
-        const oldTotal = aq.total_score === null ? null : Number(aq.total_score);
-        const newTotal = await attemptRepo.recomputeTotalScore(c, aq.attempt_id);
+        await c.query(
+          "UPDATE answers SET score = $2 WHERE attempt_question_id = $1",
+          [aq.id, newScore],
+        );
+        const oldTotal =
+          aq.total_score === null ? null : Number(aq.total_score);
+        const newTotal = await attemptRepo.recomputeTotalScore(
+          c,
+          aq.attempt_id,
+        );
         await c.query(
           `INSERT INTO answer_rescores
              (rescore_id, attempt_id, attempt_question_id, old_score, new_score,
               old_total_score, new_total_score)
            VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [rescoreId, aq.attempt_id, aq.id, oldScore, newScore, oldTotal, newTotal],
+          [
+            rescoreId,
+            aq.attempt_id,
+            aq.id,
+            oldScore,
+            newScore,
+            oldTotal,
+            newTotal,
+          ],
         );
         touched.add(aq.attempt_id);
         changed++;
       }
-      await c.query("UPDATE exam_rescores SET attempts_affected = $2 WHERE id = $1", [
-        rescoreId,
-        touched.size,
-      ]);
+      await c.query(
+        "UPDATE exam_rescores SET attempts_affected = $2 WHERE id = $1",
+        [rescoreId, touched.size],
+      );
       await examRepo.patchInTx(c, ex.id, {});
       await audit(c, user, {
         action: "EXAM_RESCORED",
         examId: ex.id,
         targetType: "question",
         targetId: input.questionId,
-        summary: `Rescored \"${ex.title}\": key ${oldIds.join(",")} â†’ ${newIds.join(",")}, ${changed} answer(s) changed`,
+        summary: `Rescored \"${ex.title}\": key ${oldIds.join(",")} → ${newIds.join(",")}, ${changed} answer(s) changed`,
         details: {
           rescoreId,
           reason: input.reason,

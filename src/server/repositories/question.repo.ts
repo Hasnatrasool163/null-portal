@@ -58,17 +58,26 @@ async function writeOptions(
   await c.query("DELETE FROM question_options WHERE question_id = $1", [
     questionId,
   ]);
-  for (const [i, o] of options.entries()) {
-    await c.query(
-      "INSERT INTO question_options (question_id, body, is_correct, position) VALUES ($1,$2,$3,$4)",
-      [questionId, o.body, o.isCorrect, i],
-    );
-  }
+  if (options.length === 0) return;
+  await c.query(
+    `INSERT INTO question_options (question_id, body, is_correct, position)
+     SELECT $1, body, is_correct, position
+     FROM unnest($2::text[], $3::boolean[], $4::int[]) AS t(body, is_correct, position)`,
+    [
+      questionId,
+      options.map((o) => o.body),
+      options.map((o) => o.isCorrect),
+      options.map((_, i) => i),
+    ],
+  );
 }
 
 export const questionRepo = {
   async list(ownerId: string, q: QuestionListQuery) {
-    const where = ["q.owner_id = $1", q.status === "archived" ? "q.archived" : "NOT q.archived"];
+    const where = [
+      "q.owner_id = $1",
+      q.status === "archived" ? "q.archived" : "NOT q.archived",
+    ];
     const params: unknown[] = [ownerId];
     const add = (sql: string, v: unknown) => {
       params.push(v);
@@ -89,6 +98,37 @@ export const questionRepo = {
       [...params, q.pageSize, (q.page - 1) * q.pageSize],
     );
     return { items: rows.map(toItem), total: n };
+  },
+
+  /** Random active questions matching one blueprint rule, skipping `excludeIds`. */
+  async draw(
+    ownerId: string,
+    rule: {
+      count: number;
+      topicId?: string;
+      difficulty?: string;
+      type?: string;
+    },
+    excludeIds: string[],
+  ) {
+    const where = [
+      "q.owner_id = $1",
+      "NOT q.archived",
+      "NOT (q.id = ANY($2::uuid[]))",
+    ];
+    const params: unknown[] = [ownerId, excludeIds];
+    const add = (sql: string, v: unknown) => {
+      params.push(v);
+      where.push(sql.replace("?", `$${params.length}`));
+    };
+    if (rule.topicId) add("q.topic_id = ?", rule.topicId);
+    if (rule.difficulty) add("q.difficulty = ?", rule.difficulty);
+    if (rule.type) add("q.type = ?", rule.type);
+    const rows = await query<Row>(
+      `${SELECT} WHERE ${where.join(" AND ")} ORDER BY random() LIMIT $${params.length + 1}`,
+      [...params, rule.count],
+    );
+    return rows.map(toItem);
   },
 
   async findOwned(ownerId: string, id: string): Promise<QuestionDetail | null> {
@@ -125,6 +165,60 @@ export const questionRepo = {
     );
     await writeOptions(c, r.rows[0].id, f.options);
     return r.rows[0].id;
+  },
+
+  /** Bulk insert questions + options in 2 SQL statements (preserving input order). */
+  async insertMany(
+    c: PoolClient,
+    ownerId: string,
+    rows: Fields[],
+  ): Promise<string[]> {
+    if (rows.length === 0) return [];
+    const inserted = (
+      await c.query<{ id: string }>(
+        `INSERT INTO questions (owner_id, topic_id, type, difficulty, body, default_marks)
+         SELECT $1, topic_id, type, difficulty, body, default_marks
+         FROM unnest(
+           $2::uuid[], $3::text[], $4::text[], $5::text[], $6::numeric[]
+         ) WITH ORDINALITY AS t(topic_id, type, difficulty, body, default_marks, ord)
+         ORDER BY ord
+         RETURNING id`,
+        [
+          ownerId,
+          rows.map((r) => r.topicId),
+          rows.map((r) => r.type),
+          rows.map((r) => r.difficulty),
+          rows.map((r) => r.body),
+          rows.map((r) => r.defaultMarks),
+        ],
+      )
+    ).rows;
+    const ids = inserted.map((r) => r.id);
+
+    const qIds: string[] = [];
+    const bodies: string[] = [];
+    const corrects: boolean[] = [];
+    const positions: number[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const qId = ids[i];
+      for (let pos = 0; pos < rows[i].options.length; pos++) {
+        const opt = rows[i].options[pos];
+        qIds.push(qId);
+        bodies.push(opt.body);
+        corrects.push(opt.isCorrect);
+        positions.push(pos);
+      }
+    }
+    if (qIds.length > 0) {
+      await c.query(
+        `INSERT INTO question_options (question_id, body, is_correct, position)
+         SELECT question_id, body, is_correct, position
+         FROM unnest($1::uuid[], $2::text[], $3::boolean[], $4::int[])
+           AS t(question_id, body, is_correct, position)`,
+        [qIds, bodies, corrects, positions],
+      );
+    }
+    return ids;
   },
 
   async update(c: PoolClient, id: string, f: Fields) {

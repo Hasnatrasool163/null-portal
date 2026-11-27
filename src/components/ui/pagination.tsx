@@ -3,15 +3,21 @@ import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/**
+ * Compact page list: "1 2 … current … last". A gap of a single page shows that
+ * page instead of "…" (an ellipsis standing in for one number saves nothing).
+ */
 function pageList(page: number, pages: number): (number | "…")[] {
-  if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
-  const out: (number | "…")[] = [1];
-  const start = Math.max(2, page - 1);
-  const end = Math.min(pages - 1, page + 1);
-  if (start > 2) out.push("…");
-  for (let i = start; i <= end; i++) out.push(i);
-  if (end < pages - 1) out.push("…");
-  out.push(pages);
+  const keep = [...new Set([1, 2, page, pages])]
+    .filter((p) => p >= 1 && p <= pages)
+    .sort((a, b) => a - b);
+  const out: (number | "…")[] = [];
+  keep.forEach((p, i) => {
+    const prev = keep[i - 1];
+    if (prev !== undefined && p - prev === 2) out.push(prev + 1);
+    else if (prev !== undefined && p - prev > 2) out.push("…");
+    out.push(p);
+  });
   return out;
 }
 
@@ -47,7 +53,10 @@ export function Pagination({
       )}
     >
       <p className="text-muted-foreground tabular-nums">
-        Showing <span className="text-foreground font-medium">{from}–{to}</span>{" "}
+        Showing{" "}
+        <span className="text-foreground font-medium">
+          {from}–{to}
+        </span>{" "}
         of <span className="text-foreground font-medium">{total}</span> {noun}
       </p>
       <div className="flex items-center gap-1">

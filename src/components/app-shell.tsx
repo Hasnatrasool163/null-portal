@@ -4,13 +4,16 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import * as D from "@radix-ui/react-dialog";
 import {
+  Bell,
   BookOpen,
   ChevronLeft,
   ClipboardList,
   LayoutDashboard,
   LogOut,
   Menu,
+  Scale,
   Settings2,
+  ScrollText,
   ShieldCheck,
   Users,
   X,
@@ -22,18 +25,30 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { SessionBlocked, useSessionGuard } from "@/components/session-guard";
+import { NotificationBell, UnreadBadge } from "@/components/notification-bell";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
 // Per-role navigation (one place).
-const HOME: NavItem = { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard };
-const VERIFY: NavItem = { href: "/verify", label: "Verify a report", icon: ShieldCheck };
+const HOME: NavItem = {
+  href: "/dashboard",
+  label: "Dashboard",
+  icon: LayoutDashboard,
+};
+const VERIFY: NavItem = {
+  href: "/verify",
+  label: "Verify a report",
+  icon: ShieldCheck,
+};
 const NAV: Record<Role, NavItem[]> = {
   ADMIN: [
     HOME,
     { href: "/admin/users", label: "Users & roles", icon: Users },
     { href: "/exams", label: "Exams", icon: ClipboardList },
+    { href: "/admin/disputes", label: "Disputes", icon: Scale },
+    { href: "/admin/audit", label: "Audit log", icon: ScrollText },
     VERIFY,
   ],
   EXAMINER: [
@@ -47,7 +62,7 @@ const NAV: Record<Role, NavItem[]> = {
 const CONSOLE: Record<Role, string> = {
   ADMIN: "Admin console",
   EXAMINER: "Examiner console",
-  CANDIDATE: "Candidate portal",
+  CANDIDATE: "Candidate console",
 };
 
 // Collapsed state is a cookie (not localStorage) so the SERVER renders the sidebar
@@ -72,7 +87,13 @@ const row =
   "group/row flex h-10 w-full items-center gap-3 rounded-md px-[15px] text-sm font-medium whitespace-nowrap transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none";
 const icon = "h-[18px] w-[18px] shrink-0";
 
-function Label({ collapsed, children }: { collapsed: boolean; children: React.ReactNode }) {
+function Label({
+  collapsed,
+  children,
+}: {
+  collapsed: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <span
       className={cn(
@@ -85,7 +106,13 @@ function Label({ collapsed, children }: { collapsed: boolean; children: React.Re
   );
 }
 
-function Brand({ role, collapsed = false }: { role: Role; collapsed?: boolean }) {
+function Brand({
+  role,
+  collapsed = false,
+}: {
+  role: Role;
+  collapsed?: boolean;
+}) {
   return (
     <Link
       href="/dashboard"
@@ -99,8 +126,10 @@ function Brand({ role, collapsed = false }: { role: Role; collapsed?: boolean })
           collapsed ? "opacity-0" : "opacity-100 delay-75",
         )}
       >
-        <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.name}</span>
-        <span className="text-muted-foreground block truncate text-[10px] font-medium tracking-[0.12em] uppercase">
+        <span className="block truncate text-sm font-semibold tracking-tight">
+          {BRAND.name}
+        </span>
+        <span className="text-muted-foreground block truncate text-[10px] font-medium">
           {CONSOLE[role]}
         </span>
       </span>
@@ -125,7 +154,10 @@ function SidebarBody({
 
   return (
     <>
-      <nav className="flex-1 overflow-x-hidden overflow-y-auto px-3 py-3" aria-label="Main">
+      <nav
+        className="flex-1 overflow-x-hidden overflow-y-auto px-3 py-3"
+        aria-label="Main"
+      >
         <ul className="space-y-1">
           {NAV[user.role].map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -139,7 +171,9 @@ function SidebarBody({
                     aria-label={collapsed ? label : undefined}
                     className={cn(
                       row,
-                      active ? "bg-primary text-primary-foreground shadow-elev-1" : muted,
+                      active
+                        ? "bg-primary text-primary-foreground shadow-elev-1"
+                        : muted,
                     )}
                   >
                     <Icon className={icon} aria-hidden="true" />
@@ -153,6 +187,24 @@ function SidebarBody({
       </nav>
 
       <div className="space-y-1 overflow-x-hidden border-t px-3 py-3">
+        <NotificationBell
+          side="right"
+          trigger={(unread) => (
+            <button
+              type="button"
+              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+              className={cn(row, muted, "relative")}
+            >
+              <Bell className={icon} aria-hidden="true" />
+              {collapsed && (
+                <UnreadBadge count={unread} className="absolute top-1 left-7" />
+              )}
+              <Label collapsed={collapsed}>Notifications</Label>
+              {!collapsed && <UnreadBadge count={unread} className="ml-auto" />}
+            </button>
+          )}
+        />
+
         <Tooltip content="Settings" side="right" disabled={!collapsed}>
           <Link
             href="/settings"
@@ -161,7 +213,9 @@ function SidebarBody({
             aria-label={collapsed ? "Settings" : undefined}
             className={cn(
               row,
-              settingsActive ? "bg-primary text-primary-foreground shadow-elev-1" : muted,
+              settingsActive
+                ? "bg-primary text-primary-foreground shadow-elev-1"
+                : muted,
             )}
           >
             <Settings2 className={icon} aria-hidden="true" />
@@ -195,8 +249,12 @@ function SidebarBody({
                 collapsed ? "opacity-0" : "opacity-100 delay-75",
               )}
             >
-              <span className="block truncate text-sm font-medium">{user.name}</span>
-              <span className="text-muted-foreground block truncate text-xs">{user.email}</span>
+              <span className="block truncate text-sm font-medium">
+                {user.name}
+              </span>
+              <span className="text-muted-foreground block truncate text-xs">
+                {user.email}
+              </span>
             </span>
           </div>
         </Tooltip>
@@ -206,7 +264,10 @@ function SidebarBody({
             type="button"
             onClick={onLogout}
             aria-label={collapsed ? "Log out" : undefined}
-            className={cn(row, "text-muted-foreground hover:bg-destructive/10 hover:text-destructive")}
+            className={cn(
+              row,
+              "text-muted-foreground hover:bg-destructive/10 hover:text-destructive",
+            )}
           >
             <LogOut className={icon} aria-hidden="true" />
             <Label collapsed={collapsed}>Log out</Label>
@@ -231,6 +292,7 @@ export function AppShell({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const tab = useSessionGuard(user.id);
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -248,9 +310,14 @@ export function AppShell({
     }
   }
 
+  // A second tab of the same session: show why, render nothing of the app.
+  if (tab === "blocked") return <SessionBlocked />;
+
   // Focus mode: a live exam attempt gets the whole screen, no navigation.
   if (/^\/attempts\/[^/]+$/.test(pathname)) {
-    return <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6">{children}</main>;
+    return (
+      <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6">{children}</main>
+    );
   }
 
   return (
@@ -267,7 +334,10 @@ export function AppShell({
         </div>
 
         {/* Edge toggle: same spot in both states, so nothing jumps. */}
-        <Tooltip content={collapsed ? "Expand sidebar" : "Collapse sidebar"} side="right">
+        <Tooltip
+          content={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          side="right"
+        >
           <button
             type="button"
             onClick={toggleCollapsed}
@@ -290,36 +360,55 @@ export function AppShell({
       {/* Mobile top bar + drawer */}
       <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
         <Brand role={user.role} />
-        <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
-          <D.Trigger
-            className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
-            aria-label="Open navigation"
-          >
-            <Menu className="h-5 w-5" />
-          </D.Trigger>
-          <D.Portal>
-            <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/35 backdrop-blur-sm" />
-            <D.Content className="bg-sidebar data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r duration-200 focus:outline-none">
-              <D.Title className="sr-only">Navigation</D.Title>
-              <D.Description className="sr-only">Main navigation and account</D.Description>
-              <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
-                <Brand role={user.role} />
-                <D.Close
-                  className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md"
-                  aria-label="Close navigation"
-                >
-                  <X className="h-4 w-4" />
-                </D.Close>
-              </div>
-              <SidebarBody
-                user={user}
-                collapsed={false}
-                onNavigate={() => setMobileOpen(false)}
-                onLogout={logout}
-              />
-            </D.Content>
-          </D.Portal>
-        </D.Root>
+        <div className="flex items-center gap-1">
+          <NotificationBell
+            trigger={(unread) => (
+              <button
+                type="button"
+                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+                className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <Bell className="h-5 w-5" />
+                <UnreadBadge
+                  count={unread}
+                  className="absolute top-1 right-1"
+                />
+              </button>
+            )}
+          />
+          <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
+            <D.Trigger
+              className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              aria-label="Open navigation"
+            >
+              <Menu className="h-5 w-5" />
+            </D.Trigger>
+            <D.Portal>
+              <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/35 backdrop-blur-sm" />
+              <D.Content className="bg-sidebar data-[state=open]:animate-in data-[state=open]:slide-in-from-left data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r duration-200 focus:outline-none">
+                <D.Title className="sr-only">Navigation</D.Title>
+                <D.Description className="sr-only">
+                  Main navigation and account
+                </D.Description>
+                <div className="flex h-14 shrink-0 items-center justify-between border-b px-4">
+                  <Brand role={user.role} />
+                  <D.Close
+                    className="hover:bg-muted flex h-8 w-8 items-center justify-center rounded-md"
+                    aria-label="Close navigation"
+                  >
+                    <X className="h-4 w-4" />
+                  </D.Close>
+                </div>
+                <SidebarBody
+                  user={user}
+                  collapsed={false}
+                  onNavigate={() => setMobileOpen(false)}
+                  onLogout={logout}
+                />
+              </D.Content>
+            </D.Portal>
+          </D.Root>
+        </div>
       </header>
 
       <div

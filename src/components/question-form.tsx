@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClass } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/misc";
@@ -42,8 +42,9 @@ export function QuestionForm({
     setError,
     setValue,
     watch,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<QuestionInput>({
+    mode: "onTouched",
     resolver: zodResolver(questionInputSchema),
     defaultValues: initial ?? {
       topicId: topics[0]?.id ?? "",
@@ -107,8 +108,7 @@ export function QuestionForm({
               onChange: (e) => {
                 const t = e.target.value;
                 if (t === "WRITTEN") setValue("options", []);
-                else if (options.length < 2)
-                  setValue("options", BLANK_OPTIONS);
+                else if (options.length < 2) setValue("options", BLANK_OPTIONS);
                 else if (t === "MCQ_SINGLE") {
                   // keep at most one correct answer when narrowing to single choice
                   let seen = false;
@@ -162,7 +162,7 @@ export function QuestionForm({
           id="q-body"
           rows={3}
           aria-invalid={!!errors.body}
-          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+          className={`${fieldClass} min-h-24`}
           {...register("body")}
         />
       </Field>
@@ -236,7 +236,15 @@ export function QuestionForm({
         <Button type="button" variant="outline" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting || topics.length === 0}>
+        <Button
+          type="submit"
+          disabled={
+            isSubmitting ||
+            topics.length === 0 ||
+            !isValid ||
+            (!!initial && !isDirty)
+          }
+        >
           {isSubmitting && <Spinner />}
           Save question
         </Button>

@@ -2,7 +2,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CheckCircle2, ClipboardCheck, Download, Send } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Download,
+  Send,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Pagination, usePaged } from "@/components/ui/pagination";
@@ -194,6 +200,15 @@ export function ExamGradingTab({
   const hasWritten = data.attempts.some(
     (a) => a.status === "SUBMITTED" && a.answers.some((x) => x.type === "WRITTEN"),
   );
+  const nextToGrade = data.attempts.find(
+    (a) => a.status === "SUBMITTED" && a.gradingStatus === "NEEDS_REVIEW",
+  );
+  const publishWarnings = [
+    data.notAttemptedCount > 0 &&
+      `${data.notAttemptedCount} enrolled candidate(s) have not attempted this exam.`,
+    data.examWindowOpen &&
+      "The exam window is still open: candidates who start later will see their results as soon as they submit.",
+  ].filter((w): w is string => Boolean(w));
   const activeAttempt: GradingAttemptSummary | undefined = data.attempts.find(
     (a) => a.attemptId === activeId,
   );
@@ -209,7 +224,25 @@ export function ExamGradingTab({
               {format(new Date(data.resultsPublishedAt), "PP p")}.
             </p>
           ) : data.publishBlockedReason ? (
-            <p className="text-muted-foreground">{data.publishBlockedReason}</p>
+            <div
+              role="alert"
+              className="border-warning/40 bg-warning/10 flex items-start gap-2.5 rounded-md border px-3 py-2"
+            >
+              <AlertTriangle
+                className="text-warning mt-0.5 h-4 w-4 shrink-0"
+                aria-hidden="true"
+              />
+              <div className="space-y-1.5">
+                <p className="font-medium">Results can&apos;t be published yet</p>
+                <p className="text-muted-foreground">{data.publishBlockedReason}</p>
+                {!readOnly && nextToGrade && (
+                  <Button size="sm" onClick={() => setActiveId(nextToGrade.attemptId)}>
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                    Grade next ({nextToGrade.candidateName})
+                  </Button>
+                )}
+              </div>
+            </div>
           ) : (
             <p className="font-medium">
               All submitted attempts are graded and ready to publish.
@@ -475,8 +508,24 @@ export function ExamGradingTab({
       <Dialog open={confirmPublish} onOpenChange={setConfirmPublish}>
         <DialogContent
           title="Publish exam results?"
-          description="Enrolled candidates with submitted attempts will be able to see their score and feedback (plus the answer key if enabled)."
+          description="Enrolled candidates with submitted attempts will be able to see their score and feedback (plus the answer key if enabled). This cannot be undone."
         >
+          {publishWarnings.length > 0 && (
+            <ul
+              role="alert"
+              className="border-warning/40 bg-warning/10 mb-4 space-y-1.5 rounded-md border p-3 text-sm"
+            >
+              {publishWarnings.map((w) => (
+                <li key={w} className="flex items-start gap-2">
+                  <AlertTriangle
+                    className="text-warning mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  {w}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setConfirmPublish(false)}>
               Cancel

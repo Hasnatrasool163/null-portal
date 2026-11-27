@@ -26,7 +26,13 @@ export const topicNameSchema = z
     "Topic name cannot start with =, +, -, @ (spreadsheet formula characters)",
   );
 export const topicSchema = z.object({ name: topicNameSchema });
-export type Topic = { id: string; name: string; questionCount: number };
+/** questionCount = active questions; archivedCount also blocks deletion (past exams may use them). */
+export type Topic = {
+  id: string;
+  name: string;
+  questionCount: number;
+  archivedCount: number;
+};
 
 const optionSchema = z.object({
   body: z
@@ -104,6 +110,24 @@ export const questionListQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
 });
 export type QuestionListQuery = z.infer<typeof questionListQuerySchema>;
+
+/**
+ * Blueprint draw (innovation 5.2): pick questions at random by rules, e.g.
+ * "5 easy + 3 hard from Topic A". Each rule draws from the active bank, never
+ * repeating a question already in the exam or drawn by an earlier rule.
+ */
+export const drawRuleSchema = z.object({
+  count: z.coerce.number().int().min(1, "At least 1").max(50, "At most 50"),
+  topicId: z.uuid().optional(),
+  difficulty: z.enum(DIFFICULTIES).optional(),
+  type: z.enum(QUESTION_TYPES).optional(),
+});
+export const drawRequestSchema = z.object({
+  rules: z.array(drawRuleSchema).min(1).max(10),
+  excludeIds: z.array(z.uuid()).max(500).default([]),
+});
+export type DrawRule = z.infer<typeof drawRuleSchema>;
+export type DrawRequest = z.infer<typeof drawRequestSchema>;
 
 export const importPayloadSchema = z.object({
   format: z.enum(["csv", "json"]),

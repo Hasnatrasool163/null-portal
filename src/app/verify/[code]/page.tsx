@@ -1,20 +1,33 @@
 import { format } from "date-fns";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  ShieldAlert,
-  ShieldCheck,
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/misc";
+import { AlertTriangle, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { secondaryService } from "@/server/services/secondary.service";
 import { VerifyLookup } from "@/components/verify-lookup";
-import { BRAND } from "@/lib/brand";
 import { VerifyFrame } from "@/components/verify-frame";
+import {
+  VerifyStatusLabel,
+  type VerifyStatus,
+} from "@/components/verify-status";
 import { BackButton } from "@/components/ui/back-button";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Verify Report" };
+export const metadata = { title: "Verify a report" };
+
+const HEADLINE: Record<VerifyStatus, { title: string; text: string }> = {
+  VALID: {
+    title: "Report verified",
+    text: "This report is genuine and matches the current result.",
+  },
+  SUPERSEDED: {
+    title: "Report superseded",
+    text: "Genuine, but the grade was updated after this PDF was issued. Ask the candidate for the latest report.",
+  },
+  REVOKED: {
+    title: "Report revoked",
+    text: "This report was withdrawn by the institution and is no longer valid.",
+  },
+};
 
 export default async function VerifyReportPage({
   params,
@@ -28,105 +41,97 @@ export default async function VerifyReportPage({
   } catch {
     data = null;
   }
+  const status = data?.status as VerifyStatus | undefined;
+  const Icon = !data
+    ? AlertTriangle
+    : status === "VALID"
+      ? ShieldCheck
+      : ShieldAlert;
+  const iconTone = !data
+    ? "bg-destructive/10 text-destructive"
+    : status === "VALID"
+      ? "bg-success/10 text-success"
+      : "bg-warning/10 text-warning";
 
   return (
     <VerifyFrame>
-      <div className="mx-auto w-full max-w-xl space-y-4">
-        <BackButton href="/verify" label="Verify another code" />
-        <Card className="animate-page-in">
-          <CardHeader>
-            <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
-              {BRAND.name} · Result verification
-            </p>
-            <CardTitle className="mt-1 flex items-center gap-2 text-xl">
-              {data ? (
-                data.status === "VALID" ? (
-                  <ShieldCheck className="text-success h-6 w-6" />
-                ) : (
-                  <ShieldAlert className="text-warning h-6 w-6" />
-                )
-              ) : (
-                <AlertTriangle className="text-destructive h-6 w-6" />
-              )}
-              {data ? "Examination Result Verification" : "Code Not Found"}
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-4 text-sm">
-            {!data ? (
-              <p className="text-muted-foreground">
-                No issued result report matches verification code{" "}
-                <code className="bg-muted rounded px-1.5 py-0.5 font-mono">
-                  {code}
-                </code>
-                . Check the code and try again.
-              </p>
-            ) : (
-              <>
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <span className="text-muted-foreground">Status</span>
-                  <Badge
-                    className={
-                      data.status === "VALID"
-                        ? "bg-success/15 text-success"
-                        : data.status === "SUPERSEDED"
-                          ? "bg-warning/15 text-warning"
-                          : "bg-destructive/15 text-destructive"
-                    }
-                  >
-                    {data.status === "VALID" && (
-                      <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                    )}
-                    {data.status}
-                  </Badge>
-                </div>
-
-                {data.status === "SUPERSEDED" && (
-                  <p className="bg-warning/10 text-warning rounded-md p-3 text-xs">
-                    This report was superseded because the candidate&apos;s
-                    grade was updated after this PDF was issued. Ask for the
-                    latest PDF.
-                  </p>
+      <div className="flex min-h-[calc(100dvh-10rem)] items-center justify-center">
+        <div className="animate-page-in w-full max-w-lg space-y-4">
+          <BackButton href="/verify" label="Verify another code" />
+          <Card className="p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <span
+                className={cn(
+                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+                  iconTone,
                 )}
-
-                <dl className="divide-y rounded-md border">
-                  <div className="flex justify-between gap-4 px-3 py-2.5">
-                    <dt className="text-muted-foreground">Exam</dt>
-                    <dd className="text-right font-medium">{data.examTitle}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4 px-3 py-2.5">
-                    <dt className="text-muted-foreground">
-                      Candidate (masked)
-                    </dt>
-                    <dd className="font-medium">{data.maskedCandidateName}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4 px-3 py-2.5">
-                    <dt className="text-muted-foreground">Score</dt>
-                    <dd className="font-medium">
-                      {data.score} / {data.totalMarks} ({data.percentage}% ·{" "}
-                      {data.scoreBand})
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-4 px-3 py-2.5">
-                    <dt className="text-muted-foreground">Issued</dt>
-                    <dd>{format(new Date(data.issuedAt), "PP p")}</dd>
-                  </div>
-                  <div className="flex justify-between gap-4 px-3 py-2.5">
-                    <dt className="text-muted-foreground">Verification code</dt>
-                    <dd className="font-mono text-xs">{data.code}</dd>
-                  </div>
-                </dl>
-
-                <p className="text-muted-foreground text-xs">
-                  For candidate privacy, email addresses and internal IDs are
-                  never exposed on public verification pages.
+              >
+                <Icon className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="space-y-1">
+                <h1 className="text-xl font-semibold tracking-tight">
+                  {data && status ? HEADLINE[status].title : "Code not found"}
+                </h1>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {data && status ? (
+                    HEADLINE[status].text
+                  ) : (
+                    <>
+                      No issued report matches{" "}
+                      <code className="bg-muted text-foreground rounded px-1.5 py-0.5 font-mono text-xs">
+                        {code}
+                      </code>
+                      . Check the code and try again.
+                    </>
+                  )}
                 </p>
-              </>
-            )}
+              </div>
+            </div>
 
-            {!data && <VerifyLookup initial={code} />}
-          </CardContent>
-        </Card>
+            {data && status ? (
+              <dl className="mt-6 divide-y border-t text-sm">
+                {[
+                  ["Status", <VerifyStatusLabel key="s" status={status} />],
+                  ["Exam", data.examTitle],
+                  ["Candidate", data.maskedCandidateName],
+                  [
+                    "Score",
+                    <span key="sc" className="tabular-nums">
+                      {data.score} / {data.totalMarks}
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {data.percentage}% · {data.scoreBand}
+                      </span>
+                    </span>,
+                  ],
+                  ["Issued", format(new Date(data.issuedAt), "PP, p")],
+                  [
+                    "Code",
+                    <span key="c" className="font-mono text-xs tracking-wider">
+                      {data.code}
+                    </span>,
+                  ],
+                ].map(([k, v]) => (
+                  <div
+                    key={String(k)}
+                    className="grid grid-cols-[7rem_1fr] items-center gap-4 py-3"
+                  >
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="min-w-0 font-medium break-words">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="mt-6 border-t pt-6">
+                <VerifyLookup initial={code} />
+              </div>
+            )}
+          </Card>
+          <p className="text-muted-foreground px-1 text-center text-xs">
+            Only the exam, score and masked initials are shown. Never emails or
+            answers.
+          </p>
+        </div>
       </div>
     </VerifyFrame>
   );

@@ -3,18 +3,25 @@ import type { PoolClient } from "pg";
 import { query } from "../db";
 import type { Topic } from "@/shared/schemas/question";
 
-type Row = { id: string; name: string; question_count: number };
+type Row = {
+  id: string;
+  name: string;
+  question_count: number;
+  archived_count: number;
+};
 const toTopic = (r: Row): Topic => ({
   id: r.id,
   name: r.name,
   questionCount: r.question_count,
+  archivedCount: r.archived_count,
 });
 
 export const topicRepo = {
   async list(ownerId: string): Promise<Topic[]> {
     const rows = await query<Row>(
       `SELECT t.id, t.name,
-              count(q.id) FILTER (WHERE NOT q.archived)::int AS question_count
+              count(q.id) FILTER (WHERE NOT q.archived)::int AS question_count,
+              count(q.id) FILTER (WHERE q.archived)::int AS archived_count
        FROM topics t LEFT JOIN questions q ON q.topic_id = t.id
        WHERE t.owner_id = $1
        GROUP BY t.id ORDER BY lower(t.name)`,
@@ -41,7 +48,7 @@ export const topicRepo = {
       "INSERT INTO topics (owner_id, name) VALUES ($1, $2) RETURNING id, name",
       [ownerId, name],
     );
-    return { ...rows[0], questionCount: 0 };
+    return { ...rows[0], questionCount: 0, archivedCount: 0 };
   },
   async rename(id: string, name: string) {
     await query("UPDATE topics SET name = $2 WHERE id = $1", [id, name]);
@@ -65,5 +72,36 @@ export const topicRepo = {
       [ownerId, name],
     );
     return r.rows[0].id;
+  },
+
+  /** Bulk find-or-create by case-insensitive name in 2 queries (returns Map<lowerName, id>). */
+  async ensureManyByNames(
+    c: PoolClient,
+    ownerId: string,
+    names: string[],
+  ): Promise<Map<string, string>> {
+    const dedup = new Map<string, string>();
+    for (const n of names) {
+      const k = n.toLowerCase();
+      if (!dedup.has(k)) dedup.set(k, n);
+    }
+    const uniqueNames = [...dedup.values()];
+    const uniqueLower = [...dedup.keys()];
+    if (uniqueNames.length === 0) return new Map();
+
+    await c.query(
+      `INSERT INTO topics (owner_id, name)
+       SELECT $1, n FROM unnest($2::text[]) AS t(n)
+       ON CONFLICT (owner_id, (lower(name))) DO NOTHING`,
+      [ownerId, uniqueNames],
+    );
+    const rows = (
+      await c.query<{ id: string; key: string }>(
+        `SELECT id, lower(name) AS key FROM topics
+         WHERE owner_id = $1 AND lower(name) = ANY($2::text[])`,
+        [ownerId, uniqueLower],
+      )
+    ).rows;
+    return new Map(rows.map((r) => [r.key, r.id]));
   },
 };

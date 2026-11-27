@@ -5,10 +5,15 @@ import { readSession } from "./session";
 import { userRepo } from "../repositories/user.repo";
 import type { Role, SessionUser } from "@/shared/schemas/auth";
 
-/** Who is logged in? Always re-read from DB and verify session_version so logout/deactivation revoke immediately. */
+/**
+ * Who is logged in? Always re-read from DB and verify session_version + the active session id,
+ * so logout/deactivation revoke immediately and only one session per account is ever valid.
+ */
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const sess = await readSession();
-  return sess ? userRepo.findById(sess.userId, sess.sessionVersion) : null;
+  return sess
+    ? userRepo.findById(sess.userId, sess.sessionVersion, sess.sessionId)
+    : null;
 });
 
 /** Page-level guard: not logged in -> /login, wrong role -> 404 (the page "does not exist" for them). */

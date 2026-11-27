@@ -19,6 +19,8 @@ type Row = {
 };
 const COLS =
   "id, name, email, role, password_hash, is_active, session_version, created_at";
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const toUser = ({ id, name, email, role }: Row): SessionUser => ({
   id,
   name,
@@ -35,21 +37,75 @@ const toAdminUser = (r: Row): AdminUser => ({
 });
 
 export const userRepo = {
-  /** Active users with matching session_version only: logout & deactivation revoke immediately. */
+  /**
+   * Active users whose session_version AND active session id match only: logout, deactivation
+   * and a replaced session revoke immediately. Also refreshes session_seen_at (throttled to
+   * one write per 15s) so the session counts as alive.
+   */
   async findById(
     id: string,
     sessionVersion: number,
+    sessionId: string,
   ): Promise<SessionUser | null> {
+    if (!UUID_RE.test(sessionId)) return null;
     const rows = await query<Row>(
-      `SELECT ${COLS} FROM users WHERE id = $1 AND is_active AND session_version = $2`,
-      [id, sessionVersion],
+      `WITH u AS (
+         SELECT ${COLS} FROM users
+         WHERE id = $1 AND is_active AND session_version = $2 AND active_session_id = $3
+       ), touch AS (
+         UPDATE users SET session_seen_at = now()
+         WHERE id IN (SELECT id FROM u)
+           AND (session_seen_at IS NULL OR session_seen_at < now() - interval '15 seconds')
+       )
+       SELECT * FROM u`,
+      [id, sessionVersion, sessionId],
     );
     return rows[0] ? toUser(rows[0]) : null;
   },
-  async bumpSessionVersion(id: string): Promise<void> {
+
+  /**
+   * Atomically makes `newSessionId` the account's only session, unless another session is
+   * still alive. Allowed when: no session, the caller already holds the active session
+   * (`currentSessionId`), or the active one has been idle longer than `idleSeconds`.
+   * Returns the session_version to sign into the cookie, or null if blocked.
+   */
+  async claimSession(
+    id: string,
+    newSessionId: string,
+    currentSessionId: string | null,
+    idleSeconds: number,
+  ): Promise<number | null> {
+    const rows = await query<{ session_version: number }>(
+      `UPDATE users SET active_session_id = $2, session_seen_at = now()
+       WHERE id = $1 AND (
+         active_session_id IS NULL
+         OR active_session_id = $3
+         OR session_seen_at IS NULL
+         OR session_seen_at < now() - ($4 || ' seconds')::interval
+       )
+       RETURNING session_version`,
+      [
+        id,
+        newSessionId,
+        currentSessionId && UUID_RE.test(currentSessionId) ? currentSessionId : null,
+        idleSeconds,
+      ],
+    );
+    return rows[0]?.session_version ?? null;
+  },
+
+  /** Ends the given session only if it is still the active one (a stale cookie can't log out the live session). */
+  async releaseSession(
+    id: string,
+    sessionVersion: number,
+    sessionId: string,
+  ): Promise<void> {
+    if (!UUID_RE.test(sessionId)) return;
     await query(
-      "UPDATE users SET session_version = session_version + 1 WHERE id = $1",
-      [id],
+      `UPDATE users
+       SET session_version = session_version + 1, active_session_id = NULL, session_seen_at = NULL
+       WHERE id = $1 AND session_version = $2 AND active_session_id = $3`,
+      [id, sessionVersion, sessionId],
     );
   },
   async findAnyById(id: string): Promise<AdminUser | null> {
@@ -85,14 +141,15 @@ export const userRepo = {
         }
       : null;
   },
-  /** Replaces password hash and increments session_version atomically to revoke all active sessions. */
+  /** Replaces password hash, increments session_version and frees the session slot (revokes all sessions). */
   async updatePasswordAndBumpSession(
     id: string,
     passwordHash: string,
   ): Promise<number | null> {
     const rows = await query<{ session_version: number }>(
       `UPDATE users
-       SET password_hash = $2, session_version = session_version + 1
+       SET password_hash = $2, session_version = session_version + 1,
+           active_session_id = NULL, session_seen_at = NULL
        WHERE id = $1
        RETURNING session_version`,
       [id, passwordHash],
@@ -141,7 +198,8 @@ export const userRepo = {
 
   async update(id: string, patch: { role?: Role; isActive?: boolean }) {
     const rows = await query<Row>(
-      `UPDATE users SET role = COALESCE($2, role), is_active = COALESCE($3, is_active)
+      `UPDATE users SET role = COALESCE($2, role), is_active = COALESCE($3, is_active),
+         active_session_id = CASE WHEN $3::boolean IS FALSE THEN NULL ELSE active_session_id END
        WHERE id = $1 RETURNING ${COLS}`,
       [id, patch.role ?? null, patch.isActive ?? null],
     );
