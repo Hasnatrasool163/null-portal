@@ -121,6 +121,146 @@ try {
     }
     console.log(`seeded question bank for ${email}`);
   }
+
+  // ---- Exams (relative to NOW; only seeded when examiner1 has no exams yet) ----
+  const ex1Id = (
+    await client.query("SELECT id FROM users WHERE lower(email) = 'examiner1@demo.test'")
+  ).rows[0].id;
+  const candRows = (
+    await client.query(
+      "SELECT id, email FROM users WHERE role = 'CANDIDATE' ORDER BY email",
+    )
+  ).rows;
+  const ex1Questions = (
+    await client.query(
+      "SELECT id, type, default_marks FROM questions WHERE owner_id = $1 AND NOT archived ORDER BY created_at, id",
+      [ex1Id],
+    )
+  ).rows;
+  const examCount = (
+    await client.query("SELECT count(*)::int AS n FROM exams WHERE owner_id = $1", [ex1Id])
+  ).rows[0].n;
+
+  if (examCount === 0 && ex1Questions.length >= 10) {
+    const now = Date.now();
+    const hr = 60 * 60 * 1000;
+    const day = 24 * hr;
+    const DEMO_EXAMS = [
+      {
+        title: "CS Midterm Draft",
+        instructions: "Draft exam ready for review and publishing.",
+        startsAt: new Date(now + 2 * day),
+        endsAt: new Date(now + 9 * day),
+        duration: 45,
+        status: "DRAFT",
+        shuffleQ: true,
+        shuffleO: true,
+        multi: "PARTIAL",
+        neg: 0.25,
+        showAns: true,
+        qs: ex1Questions.slice(0, 6),
+        cands: candRows.slice(0, 5),
+      },
+      {
+        title: "General Science Quiz (Upcoming)",
+        instructions: "Starts tomorrow. Answer all questions before the timer expires.",
+        startsAt: new Date(now + 24 * hr),
+        endsAt: new Date(now + 4 * day),
+        duration: 30,
+        status: "PUBLISHED",
+        shuffleQ: true,
+        shuffleO: false,
+        multi: "PARTIAL",
+        neg: 0,
+        showAns: true,
+        qs: ex1Questions.slice(10, 16),
+        cands: candRows.slice(0, 8),
+      },
+      {
+        title: "Computer Science Assessment (Live)",
+        instructions:
+          "Read each question carefully. Single-choice wrong answers deduct 25%. Written answers are graded manually.",
+        startsAt: new Date(now - 1 * hr),
+        endsAt: new Date(now + 7 * day),
+        duration: 20,
+        status: "PUBLISHED",
+        shuffleQ: true,
+        shuffleO: true,
+        multi: "PARTIAL",
+        neg: 0.25,
+        showAns: true,
+        qs: ex1Questions.slice(0, 10),
+        cands: candRows.slice(0, 8),
+      },
+      {
+        title: "Timer Demo (3 Minutes)",
+        instructions: "Short 3-minute live exam for demonstrating real-time countdown and server-enforced timeout.",
+        startsAt: new Date(now - 1 * hr),
+        endsAt: new Date(now + 7 * day),
+        duration: 3,
+        status: "PUBLISHED",
+        shuffleQ: false,
+        shuffleO: false,
+        multi: "ALL_OR_NOTHING",
+        neg: 0,
+        showAns: true,
+        qs: ex1Questions.slice(0, 4),
+        cands: candRows.slice(0, 8),
+      },
+      {
+        title: "Mathematics Diagnostic (Completed)",
+        instructions: "Completed diagnostic assessment with published results.",
+        startsAt: new Date(now - 5 * day),
+        endsAt: new Date(now - 2 * day),
+        duration: 30,
+        status: "CLOSED",
+        shuffleQ: true,
+        shuffleO: true,
+        multi: "PARTIAL",
+        neg: 0,
+        showAns: true,
+        qs: ex1Questions.slice(20, 30),
+        cands: candRows.slice(0, 8),
+      },
+    ];
+
+    for (const ex of DEMO_EXAMS) {
+      const r = await client.query(
+        `INSERT INTO exams (
+           owner_id, title, instructions, starts_at, ends_at, duration_minutes, status,
+           shuffle_questions, shuffle_options, multi_scoring, negative_marking, show_answers
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [
+          ex1Id,
+          ex.title,
+          ex.instructions,
+          ex.startsAt.toISOString(),
+          ex.endsAt.toISOString(),
+          ex.duration,
+          ex.status,
+          ex.shuffleQ,
+          ex.shuffleO,
+          ex.multi,
+          ex.neg,
+          ex.showAns,
+        ],
+      );
+      const examId = r.rows[0].id;
+      for (const [pos, q] of ex.qs.entries()) {
+        await client.query(
+          "INSERT INTO exam_questions (exam_id, question_id, position, marks) VALUES ($1,$2,$3,$4)",
+          [examId, q.id, pos, q.default_marks],
+        );
+      }
+      for (const c of ex.cands) {
+        await client.query(
+          "INSERT INTO enrollments (exam_id, candidate_id) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+          [examId, c.id],
+        );
+      }
+    }
+    console.log(`seeded ${DEMO_EXAMS.length} demo exams`);
+  }
 } finally {
   await client.end();
 }

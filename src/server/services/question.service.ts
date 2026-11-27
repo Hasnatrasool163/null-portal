@@ -43,7 +43,12 @@ export const questionService = {
   },
 
   async update(user: SessionUser, id: string, input: QuestionInput) {
-    await ownedQuestion(user, id);
+    const existing = await ownedQuestion(user, id);
+    if (existing.locked) {
+      throw Errors.conflict(
+        "This question is used by a published or closed exam and cannot be edited. Use Duplicate instead.",
+      );
+    }
     await assertOwnTopic(user, input.topicId);
     await tx((c) => questionRepo.update(c, id, input));
     return ownedQuestion(user, id);

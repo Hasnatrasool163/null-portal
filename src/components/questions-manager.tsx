@@ -7,7 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { Copy, FileUp, Pencil, Plus, Archive, Tags } from "lucide-react";
+import { Copy, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -241,6 +241,12 @@ export function QuestionsManager() {
               <TR key={it.id}>
                 <TD className="max-w-sm">
                   <p className="line-clamp-2 font-medium">{it.body}</p>
+                  {it.locked && (
+                    <span className="text-muted-foreground mt-0.5 inline-flex items-center gap-1 text-xs">
+                      <Lock className="h-3 w-3" /> In published exam (duplicate
+                      to edit)
+                    </span>
+                  )}
                 </TD>
                 <TD>{it.topicName}</TD>
                 <TD>
@@ -252,7 +258,17 @@ export function QuestionsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    aria-label="Edit question"
+                    aria-label={
+                      it.locked
+                        ? "Locked (used in published exam)"
+                        : "Edit question"
+                    }
+                    title={
+                      it.locked
+                        ? "Used in a published exam. Duplicate to edit."
+                        : "Edit question"
+                    }
+                    disabled={it.locked}
                     onClick={() => setEditing(it.id)}
                   >
                     <Pencil className="h-4 w-4" />

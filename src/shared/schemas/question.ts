@@ -109,6 +109,7 @@ export type QuestionListItem = {
   difficulty: Difficulty;
   body: string;
   defaultMarks: number;
+  locked: boolean;
   updatedAt: string;
 };
 export type QuestionDetail = QuestionListItem & {

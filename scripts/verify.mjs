@@ -191,9 +191,96 @@ async function slice1() {
   check("empty topic can be deleted", (await ex1.del(`/api/topics/${empty.data.id}`)).status === 200);
 }
 
+async function slice2() {
+  console.log("S2 exams, lifecycle, enrollment");
+  const admin = await login("admin@demo.test");
+  const ex1 = await login("examiner1@demo.test");
+  const ex2 = await login("examiner2@demo.test");
+  const cand = await login("candidate1@demo.test");
+
+  check("candidate cannot list examiner exams (403)", (await cand.get("/api/exams")).status === 403);
+  const adminExams = await admin.get("/api/exams");
+  check("admin has read-only list of exams", adminExams.status === 200 && adminExams.data.length >= 5);
+
+  const now = Date.now();
+  const baseExam = {
+    title: `Verify Exam ${now}`,
+    instructions: "Read carefully.",
+    startsAt: new Date(now + 3600_000).toISOString(),
+    endsAt: new Date(now + 7200_000).toISOString(),
+    durationMinutes: 30,
+    shuffleQuestions: true,
+    shuffleOptions: true,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0.25,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  };
+  check("admin cannot create exam (403)", (await admin.post("/api/exams", baseExam)).status === 403);
+  check(
+    "invalid window (duration > window) -> 400",
+    (await ex1.post("/api/exams", { ...baseExam, durationMinutes: 90 })).status === 400,
+  );
+  const created = await ex1.post("/api/exams", baseExam);
+  check("examiner creates draft exam", created.status === 200 && created.data.phase === "DRAFT");
+  const examId = created.data.id;
+
+  check("examiner2 gets 404 on examiner1 exam", (await ex2.get(`/api/exams/${examId}`)).status === 404);
+  check("publish blocked with 0 questions (409)", (await ex1.post(`/api/exams/${examId}/publish`)).status === 409);
+
+  // Assign a fresh question to the exam so we can test locking after publish without polluting seeded questions.
+  const tId = (await ex1.get("/api/topics")).data[0].id;
+  const freshQ = await ex1.post("/api/questions", sampleQuestion(tId, { body: `Lock test question ${now}?` }));
+  const setQ = await ex1.put
+    ? null
+    : await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+        items: [{ questionId: freshQ.data.id, marks: 2.5 }],
+      });
+  check("assign questions computes totalMarks", setQ.status === 200 && setQ.data.totalMarks === 2.5);
+
+  const pub = await ex1.post(`/api/exams/${examId}/publish`);
+  check("publish succeeds with >=1 question (phase UPCOMING)", pub.status === 200 && pub.data.phase === "UPCOMING");
+  check(
+    "question in published exam is locked from edit (409)",
+    (await ex1.patch(`/api/questions/${freshQ.data.id}`, sampleQuestion(tId, { body: "Try edit locked" }))).status === 409,
+  );
+  check(
+    "questions cannot be changed after publish (409)",
+    (await ex1.req("PUT", `/api/exams/${examId}/questions`, { items: [] })).status === 409,
+  );
+  check(
+    "schedule cannot be changed after publish (409)",
+    (await ex1.patch(`/api/exams/${examId}`, { durationMinutes: 40 })).status === 409,
+  );
+  check(
+    "title/instructions remain editable after publish",
+    (await ex1.patch(`/api/exams/${examId}`, { title: `Verify Exam Updated ${now}` })).status === 200,
+  );
+
+  // Candidate CSV import preview + commit
+  const newCandEmail = `verify.cand.${now}@demo.test`;
+  const csv = [
+    "name,email",
+    `New Candidate,${newCandEmail}`,
+    "Existing Candidate,candidate1@demo.test",
+    "Bad Email,not-an-email",
+    "Wrong Role,examiner1@demo.test",
+  ].join("\n");
+  const pv = await ex1.post(`/api/exams/${examId}/candidates/import/validate`, { content: csv });
+  check("candidate import preview: 4 rows, 2 valid, 1 new", pv.status === 200 && pv.data.total === 4 && pv.data.valid === 2 && pv.data.newAccounts === 1);
+  const cm = await ex1.post(`/api/exams/${examId}/candidates/import/commit`, { content: csv });
+  check("candidate import commits and returns 1 temp password", cm.status === 200 && cm.data.enrolled === 2 && cm.data.created.length === 1);
+  const enrolled = await ex1.get(`/api/exams/${examId}/enrollments`);
+  check("enrollments list shows 2 candidates", enrolled.status === 200 && enrolled.data.length === 2);
+
+  const closed = await ex1.post(`/api/exams/${examId}/close`);
+  check("close transitions exam to COMPLETED", closed.status === 200 && closed.data.phase === "COMPLETED");
+}
+
 try {
   await slice0();
   await slice1();
+  await slice2();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

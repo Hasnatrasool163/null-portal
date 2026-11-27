@@ -1,7 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, LayoutDashboard, LogOut, Moon, Sun, Users } from "lucide-react";
+import {
+  BookOpen,
+  ClipboardList,
+  LayoutDashboard,
+  LogOut,
+  Moon,
+  Sun,
+  Users,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,9 +24,14 @@ const NAV: Record<
   Role,
   { href: string; label: string; icon: typeof LayoutDashboard }[]
 > = {
-  ADMIN: [HOME, { href: "/admin/users", label: "Users", icon: Users }],
+  ADMIN: [
+    HOME,
+    { href: "/admin/users", label: "Users", icon: Users },
+    { href: "/exams", label: "Exams", icon: ClipboardList },
+  ],
   EXAMINER: [
     HOME,
+    { href: "/exams", label: "Exams", icon: ClipboardList },
     { href: "/questions", label: "Question bank", icon: BookOpen },
   ],
   CANDIDATE: [HOME],
