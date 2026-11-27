@@ -191,9 +191,222 @@ async function slice1() {
   check("empty topic can be deleted", (await ex1.del(`/api/topics/${empty.data.id}`)).status === 200);
 }
 
+async function slice2() {
+  console.log("S2 exams, lifecycle, enrollment");
+  const admin = await login("admin@demo.test");
+  const ex1 = await login("examiner1@demo.test");
+  const ex2 = await login("examiner2@demo.test");
+  const cand = await login("candidate1@demo.test");
+
+  check("candidate cannot list examiner exams (403)", (await cand.get("/api/exams")).status === 403);
+  const adminExams = await admin.get("/api/exams");
+  check("admin has read-only list of exams", adminExams.status === 200 && adminExams.data.length >= 5);
+
+  const now = Date.now();
+  const baseExam = {
+    title: `Verify Exam ${now}`,
+    instructions: "Read carefully.",
+    startsAt: new Date(now + 3600_000).toISOString(),
+    endsAt: new Date(now + 7200_000).toISOString(),
+    durationMinutes: 30,
+    shuffleQuestions: true,
+    shuffleOptions: true,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0.25,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  };
+  check("admin cannot create exam (403)", (await admin.post("/api/exams", baseExam)).status === 403);
+  check(
+    "invalid window (duration > window) -> 400",
+    (await ex1.post("/api/exams", { ...baseExam, durationMinutes: 90 })).status === 400,
+  );
+  const created = await ex1.post("/api/exams", baseExam);
+  check("examiner creates draft exam", created.status === 200 && created.data.phase === "DRAFT");
+  const examId = created.data.id;
+
+  check("examiner2 gets 404 on examiner1 exam", (await ex2.get(`/api/exams/${examId}`)).status === 404);
+  check("publish blocked with 0 questions (409)", (await ex1.post(`/api/exams/${examId}/publish`)).status === 409);
+
+  // Assign a fresh question to the exam so we can test locking after publish without polluting seeded questions.
+  const tId = (await ex1.get("/api/topics")).data[0].id;
+  const freshQ = await ex1.post("/api/questions", sampleQuestion(tId, { body: `Lock test question ${now}?` }));
+  const setQ = await ex1.put
+    ? null
+    : await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+        items: [{ questionId: freshQ.data.id, marks: 2.5 }],
+      });
+  check("assign questions computes totalMarks", setQ.status === 200 && setQ.data.totalMarks === 2.5);
+
+  const pub = await ex1.post(`/api/exams/${examId}/publish`);
+  check("publish succeeds with >=1 question (phase UPCOMING)", pub.status === 200 && pub.data.phase === "UPCOMING");
+  check(
+    "question in published exam is locked from edit (409)",
+    (await ex1.patch(`/api/questions/${freshQ.data.id}`, sampleQuestion(tId, { body: "Try edit locked" }))).status === 409,
+  );
+  check(
+    "questions cannot be changed after publish (409)",
+    (await ex1.req("PUT", `/api/exams/${examId}/questions`, { items: [] })).status === 409,
+  );
+  check(
+    "schedule cannot be changed after publish (409)",
+    (await ex1.patch(`/api/exams/${examId}`, { durationMinutes: 40 })).status === 409,
+  );
+  check(
+    "title/instructions remain editable after publish",
+    (await ex1.patch(`/api/exams/${examId}`, { title: `Verify Exam Updated ${now}` })).status === 200,
+  );
+
+  // Candidate CSV import preview + commit
+  const newCandEmail = `verify.cand.${now}@demo.test`;
+  const csv = [
+    "name,email",
+    `New Candidate,${newCandEmail}`,
+    "Existing Candidate,candidate1@demo.test",
+    "Bad Email,not-an-email",
+    "Wrong Role,examiner1@demo.test",
+  ].join("\n");
+  const pv = await ex1.post(`/api/exams/${examId}/candidates/import/validate`, { content: csv });
+  check("candidate import preview: 4 rows, 2 valid, 1 new", pv.status === 200 && pv.data.total === 4 && pv.data.valid === 2 && pv.data.newAccounts === 1);
+  const cm = await ex1.post(`/api/exams/${examId}/candidates/import/commit`, { content: csv });
+  check("candidate import commits and returns 1 temp password", cm.status === 200 && cm.data.enrolled === 2 && cm.data.created.length === 1);
+  const enrolled = await ex1.get(`/api/exams/${examId}/enrollments`);
+  check("enrollments list shows 2 candidates", enrolled.status === 200 && enrolled.data.length === 2);
+
+  const closed = await ex1.post(`/api/exams/${examId}/close`);
+  check("close transitions exam to COMPLETED", closed.status === 200 && closed.data.phase === "COMPLETED");
+}
+
+async function slice3() {
+  console.log("S3 candidate exam engine");
+  const ex1 = await login("examiner1@demo.test");
+  const cand1 = await login("candidate1@demo.test");
+  const cand2 = await login("candidate2@demo.test");
+
+  const my = await cand1.get("/api/my/exams");
+  check("candidate1 sees enrolled exams", my.status === 200 && my.data.length >= 3);
+  const upcoming = my.data.find((e) => e.accessStatus === "UPCOMING");
+  check("start before window rejected (409)", !!upcoming && (await cand1.post(`/api/exams/${upcoming.examId}/start`)).status === 409);
+
+  // Create a dedicated live exam enrolled ONLY for candidate1 so verify is repeatable and clean.
+  const now = Date.now();
+  const qs = (await ex1.get("/api/questions?pageSize=50")).data.items;
+  const singleQ = qs.find((q) => q.type === "MCQ_SINGLE");
+  const multiQ = qs.find((q) => q.type === "MCQ_MULTI");
+  const writtenQ = qs.find((q) => q.type === "WRITTEN");
+  const ex = await ex1.post("/api/exams", {
+    title: `Verify Live ${now}`,
+    instructions: "Live verify exam",
+    startsAt: new Date(now - 60_000).toISOString(),
+    endsAt: new Date(now + 3600_000).toISOString(),
+    durationMinutes: 15,
+    shuffleQuestions: true,
+    shuffleOptions: true,
+    multiScoring: "PARTIAL",
+    negativeMarking: 0.25,
+    showAnswers: true,
+    recoveryWindowSeconds: 120,
+  });
+  const examId = ex.data.id;
+  await ex1.req("PUT", `/api/exams/${examId}/questions`, {
+    items: [
+      { questionId: singleQ.id, marks: 2 },
+      { questionId: multiQ.id, marks: 3 },
+      { questionId: writtenQ.id, marks: 5 },
+    ],
+  });
+  const c1Id = (await cand1.get("/api/auth/me")).data.id;
+  await ex1.post(`/api/exams/${examId}/enrollments`, { candidateIds: [c1Id] });
+  await ex1.post(`/api/exams/${examId}/publish`);
+
+  check("non-enrolled candidate2 rejected (404)", (await cand2.post(`/api/exams/${examId}/start`)).status === 404);
+
+  const start1 = await cand1.post(`/api/exams/${examId}/start`);
+  check("enrolled candidate starts exam", start1.status === 200 && start1.data.questions.length === 3);
+  const attemptId = start1.data.id;
+
+  const leaksKey = start1.data.questions.some((q) =>
+    q.options.some((o) => "isCorrect" in o || "is_correct" in o),
+  );
+  check("answer key never sent before publish", !leaksKey);
+
+  const start2 = await cand1.post(`/api/exams/${examId}/start`);
+  check(
+    "duplicate start returns same attempt and same order",
+    start2.status === 200 &&
+      start2.data.id === attemptId &&
+      start2.data.questions.map((q) => q.id).join(",") ===
+        start1.data.questions.map((q) => q.id).join(","),
+  );
+
+  check("candidate2 cannot fetch candidate1 attempt (404)", (await cand2.get(`/api/attempts/${attemptId}`)).status === 404);
+
+  const aqSingle = start1.data.questions.find((q) => q.type === "MCQ_SINGLE");
+  const aqWritten = start1.data.questions.find((q) => q.type === "WRITTEN");
+
+  const badOpt = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [999999999],
+    seq: 1,
+  });
+  check("invalid option id rejected (400)", badOpt.status === 400);
+
+  const twoOpts = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[0].id, aqSingle.options[1].id],
+    seq: 1,
+  });
+  check("MCQ_SINGLE with 2 options rejected (400)", twoOpts.status === 400);
+
+  const save1 = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[0].id],
+    markedForReview: true,
+    seq: 2,
+  });
+  check("autosave accepted", save1.status === 200 && save1.data.accepted === true);
+
+  const stale = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[1].id],
+    seq: 1,
+  });
+  check("stale seq ignored (idempotent)", stale.status === 200 && stale.data.stale === true);
+
+  await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqWritten.id,
+    textAnswer: "A process has its own address space; threads share it.",
+    seq: 1,
+  });
+
+  const resumed = await cand1.get(`/api/attempts/${attemptId}`);
+  const savedSingle = resumed.data.answers.find((a) => a.attemptQuestionId === aqSingle.id);
+  check(
+    "refresh/resume preserves saved answers and review flag",
+    savedSingle?.selectedOptionIds[0] === aqSingle.options[0].id && savedSingle?.markedForReview === true,
+  );
+
+  const sub1 = await cand1.post(`/api/attempts/${attemptId}/submit`);
+  check("submit succeeds and sets NEEDS_REVIEW (has written)", sub1.status === 200 && sub1.data.gradingStatus === "NEEDS_REVIEW");
+
+  const sub2 = await cand1.post(`/api/attempts/${attemptId}/submit`);
+  check("double submit is idempotent", sub2.status === 200 && sub2.data.submittedAt === sub1.data.submittedAt);
+
+  const afterClose = await cand1.req("PUT", `/api/attempts/${attemptId}/answers`, {
+    attemptQuestionId: aqSingle.id,
+    selectedOptionIds: [aqSingle.options[1].id],
+    seq: 99,
+  });
+  check("autosave after submit rejected with ATTEMPT_CLOSED (409)", afterClose.status === 409 && afterClose.error.code === "ATTEMPT_CLOSED");
+
+  check("cannot re-start submitted exam (409)", (await cand1.post(`/api/exams/${examId}/start`)).status === 409);
+}
+
 try {
   await slice0();
   await slice1();
+  await slice2();
+  await slice3();
 } catch (e) {
   failed++;
   console.log("  FAIL (exception)", e.message);

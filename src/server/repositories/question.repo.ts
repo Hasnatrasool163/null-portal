@@ -18,10 +18,16 @@ type Row = {
   difficulty: Difficulty;
   body: string;
   default_marks: number;
+  locked: boolean;
   updated_at: Date;
 };
 const SELECT = `SELECT q.id, q.topic_id, t.name AS topic_name, q.type, q.difficulty, q.body,
-                       q.default_marks, q.updated_at
+                       q.default_marks, q.updated_at,
+                       EXISTS (
+                         SELECT 1 FROM exam_questions eq
+                         JOIN exams e ON e.id = eq.exam_id
+                         WHERE eq.question_id = q.id AND e.status <> 'DRAFT'
+                       ) AS locked
                 FROM questions q JOIN topics t ON t.id = q.topic_id`;
 const toItem = (r: Row): QuestionListItem => ({
   id: r.id,
@@ -31,6 +37,7 @@ const toItem = (r: Row): QuestionListItem => ({
   difficulty: r.difficulty,
   body: r.body,
   defaultMarks: r.default_marks,
+  locked: r.locked,
   updatedAt: r.updated_at.toISOString(),
 });
 
