@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/misc";
 import { EmptyState } from "@/components/ui/blocks";
 import { Button } from "@/components/ui/button";
+import { AttemptAiSummaryCard } from "@/components/ai-summary-card";
 import {
   DisputeDialog,
   DisputeStatusBadge,
@@ -242,6 +243,9 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
           </div>
         </div>
       </Card>
+
+      {/* AI Quick Summary */}
+      <AttemptAiSummaryCard attemptId={r.attemptId} />
 
       {/* Breakdown */}
       <section className="space-y-4" aria-labelledby="breakdown-heading">
