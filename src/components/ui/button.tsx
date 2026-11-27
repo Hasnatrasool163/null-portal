@@ -2,6 +2,7 @@ import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { Tooltip } from "./tooltip";
 
 /**
  * One button for the whole app. Every variant shares the same motion:
@@ -47,6 +48,11 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
+  /**
+   * Tooltip content. Icon-only buttons get their aria-label as a tooltip
+   * automatically; pass `false` to opt out (e.g. when wrapped in a custom Tooltip).
+   */
+  tooltip?: React.ReactNode | false;
 }
 
 export function Button({
@@ -55,10 +61,11 @@ export function Button({
   size,
   asChild,
   type,
+  tooltip,
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
-  return (
+  const el = (
     <Comp
       // Default to type="button" so buttons inside forms never submit by accident.
       type={asChild ? undefined : (type ?? "button")}
@@ -66,6 +73,10 @@ export function Button({
       {...props}
     />
   );
+  const iconOnly = size === "icon" || size === "icon-sm";
+  const tip =
+    tooltip === false ? null : (tooltip ?? (iconOnly ? props["aria-label"] : null));
+  return tip ? <Tooltip content={tip}>{el}</Tooltip> : el;
 }
 
 export { buttonVariants };

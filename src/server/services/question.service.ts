@@ -60,6 +60,12 @@ export const questionService = {
     await questionRepo.archive(id);
   },
 
+  async restore(user: SessionUser, id: string) {
+    const ok = await questionRepo.restore(user.id, assertUuid(id, "Question"));
+    if (!ok) throw Errors.notFound("Archived question not found");
+    return ownedQuestion(user, id);
+  },
+
   async duplicate(user: SessionUser, id: string) {
     const q = await ownedQuestion(user, id);
     const newId = await tx((c) =>

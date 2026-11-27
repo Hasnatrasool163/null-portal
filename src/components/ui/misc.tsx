@@ -21,7 +21,7 @@ export const Badge = ({
 }: React.HTMLAttributes<HTMLSpanElement>) => (
   <span
     className={cn(
-      "bg-accent text-accent-foreground inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
+      "bg-accent text-accent-foreground inline-flex h-5 items-center gap-1 rounded-[5px] px-1.5 text-xs font-medium whitespace-nowrap",
       className,
     )}
     {...p}
