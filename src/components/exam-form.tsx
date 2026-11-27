@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClass } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/misc";
@@ -70,11 +70,19 @@ const formSchema = z
     const s = new Date(v.startsAt);
     const e = new Date(v.endsAt);
     if (Number.isNaN(s.getTime())) {
-      ctx.addIssue({ code: "custom", path: ["startsAt"], message: "Invalid start time" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["startsAt"],
+        message: "Invalid start time",
+      });
       return;
     }
     if (Number.isNaN(e.getTime())) {
-      ctx.addIssue({ code: "custom", path: ["endsAt"], message: "Invalid end time" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["endsAt"],
+        message: "Invalid end time",
+      });
       return;
     }
     for (const [path, message] of Object.entries(
@@ -113,8 +121,9 @@ export function ExamForm({
     register,
     handleSubmit,
     setError,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isValid, isDirty },
   } = useForm<FormValues>({
+    mode: "onTouched",
     resolver: zodResolver(formSchema),
     defaultValues: exam
       ? {
@@ -196,7 +205,7 @@ export function ExamForm({
           id="e-inst"
           rows={3}
           disabled={lock("instructions")}
-          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none disabled:opacity-60"
+          className={`${fieldClass} min-h-24`}
           {...register("instructions")}
         />
       </Field>
@@ -331,7 +340,10 @@ export function ExamForm({
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !isValid || (!!exam && !isDirty)}
+          >
             {isSubmitting && <Spinner />}
             {submitLabel ?? (exam ? "Save changes" : "Create exam")}
           </Button>

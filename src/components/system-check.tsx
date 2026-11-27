@@ -236,7 +236,7 @@ export function SystemCheckList({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold tracking-wide uppercase">
+        <p className="text-xs font-semibold">
           System check
         </p>
         <Button variant="ghost" size="sm" disabled={busy} onClick={rerun}>

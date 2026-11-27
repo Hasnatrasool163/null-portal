@@ -30,7 +30,7 @@ export const TH = ({
 }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
   <th
     className={cn(
-      "text-muted-foreground px-4 py-3 text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase",
+      "text-muted-foreground px-4 py-3 text-xs font-medium whitespace-nowrap",
       className,
     )}
     {...p}

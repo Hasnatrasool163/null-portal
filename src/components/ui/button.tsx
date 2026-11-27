@@ -45,7 +45,8 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   /**
@@ -75,8 +76,22 @@ export function Button({
   );
   const iconOnly = size === "icon" || size === "icon-sm";
   const tip =
-    tooltip === false ? null : (tooltip ?? (iconOnly ? props["aria-label"] : null));
-  return tip ? <Tooltip content={tip}>{el}</Tooltip> : el;
+    tooltip === false
+      ? null
+      : (tooltip ?? (iconOnly ? props["aria-label"] : null));
+  if (!tip) return el;
+  if (props.disabled)
+    return (
+      <Tooltip content={tip}>
+        <span
+          tabIndex={0}
+          className="focus-visible:ring-ring inline-flex rounded-md focus-visible:ring-2 focus-visible:outline-none"
+        >
+          {el}
+        </span>
+      </Tooltip>
+    );
+  return <Tooltip content={tip}>{el}</Tooltip>;
 }
 
 export { buttonVariants };

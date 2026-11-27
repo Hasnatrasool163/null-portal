@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Pagination } from "@/components/ui/pagination";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { EmptyState } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -44,7 +45,6 @@ export function AuditLogView({ examId }: { examId?: string }) {
     queryKey: ["audit", examId ?? "all", action, page],
     queryFn: () => api<AuditList>(`${base}?${params}`),
   });
-  const pages = Math.max(1, Math.ceil((list.data?.total ?? 0) / PAGE_SIZE));
 
   return (
     <div className="space-y-4">
@@ -128,31 +128,13 @@ export function AuditLogView({ examId }: { examId?: string }) {
         </Table>
       )}
 
-      {pages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            Page {page} of {pages} ({list.data?.total} entries)
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={list.data?.total ?? 0}
+        onPage={setPage}
+        noun="entries"
+      />
     </div>
   );
 }

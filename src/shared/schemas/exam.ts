@@ -222,6 +222,7 @@ export type CandidateImportResult = {
 export type OverviewExam = {
   id: string;
   title: string;
+  ownerName: string;
   phase: Phase;
   startsAt: string;
   endsAt: string;
@@ -247,9 +248,28 @@ export type ActionItem = {
   tab: "grading" | "questions" | "enrollments" | "review";
 };
 
+export type OversightItem = {
+  kind: "grading" | "unpublished" | "no-candidates";
+  examId: string;
+  examTitle: string;
+  ownerName: string;
+  title: string;
+};
+
+export type AdminOverview = {
+  attention: OversightItem[];
+  live: OverviewExam[];
+  upcoming: OverviewExam[];
+  sitting: number;
+  /** Submitted attempts per day, last 30 days, and the 30 days before that. */
+  trend: { series: { day: string; n: number }[]; previous: number };
+};
+
 export type ExaminerOverview = {
   actions: ActionItem[];
   live: OverviewExam[];
   upcoming: OverviewExam[];
   totals: { enrolled: number; submitted: number; awaitingGrading: number };
+  /** Submissions to this examiner's exams, last 30 days vs the 30 before. */
+  trend: { series: { day: string; n: number }[]; previous: number };
 };

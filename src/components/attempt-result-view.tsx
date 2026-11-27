@@ -17,6 +17,7 @@ import {
 import { CATEGORY_LABEL, type AttemptDisputes } from "@/shared/schemas/dispute";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import { UnderlineTabs } from "@/components/ui/underline-tabs";
 import { TYPE_LABEL } from "@/shared/schemas/question";
 import type {
   CandidateResultQuestion,
@@ -128,7 +129,7 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
 
         <div className="mt-6 grid gap-6 border-t pt-6 sm:grid-cols-[auto_1fr] sm:items-end sm:gap-10">
           <div>
-            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Score</p>
+            <p className="text-muted-foreground text-xs font-medium">Score</p>
             <p className="mt-1 leading-none">
               <span className="text-5xl font-semibold tracking-tight tabular-nums">{fmt(r.totalScore)}</span>
               <span className="text-muted-foreground text-xl tabular-nums"> / {fmt(r.totalMarks)}</span>
@@ -176,34 +177,21 @@ export function AttemptResultView({ attemptId }: { attemptId: string }) {
 
       {/* Breakdown */}
       <section className="space-y-4" aria-labelledby="breakdown-heading">
-        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2 border-b">
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
           <h2 id="breakdown-heading" className="pb-2.5 text-lg font-semibold tracking-tight">
             Question breakdown
           </h2>
-          <div className="-mb-px flex gap-1 overflow-x-auto" role="tablist" aria-label="Filter questions">
-            {FILTERS.filter((f) => f.key === "all" || tally(f.key as Outcome) > 0).map((f) => {
-              const on = filter === f.key;
-              const count = f.key === "all" ? r.questions.length : tally(f.key as Outcome);
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => setFilter(f.key)}
-                  className={cn(
-                    "border-b-2 px-3 pb-2.5 text-sm font-medium whitespace-nowrap transition-colors",
-                    on
-                      ? "border-primary text-foreground"
-                      : "text-muted-foreground hover:text-foreground border-transparent",
-                  )}
-                >
-                  {f.label} <span className="text-muted-foreground font-normal tabular-nums">{count}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
+        <UnderlineTabs
+          label="Filter questions"
+          value={filter}
+          onChange={setFilter}
+          tabs={FILTERS.filter((f) => f.key === "all" || tally(f.key as Outcome) > 0).map((f) => ({
+            id: f.key,
+            label: f.label,
+            count: f.key === "all" ? r.questions.length : tally(f.key as Outcome),
+          }))}
+        />
 
         <ol className="stagger space-y-3">
           {shown.map((q) => {
