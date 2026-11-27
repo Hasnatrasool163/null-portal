@@ -1,8 +1,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const field =
-  "w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 aria-[invalid=true]:border-destructive";
+// Filled field: soft fill at rest, border + glow only on focus/error.
+export const fieldClass =
+  "w-full rounded-md border border-transparent bg-muted/70 px-3 py-2 text-sm transition-[background-color,border-color,box-shadow] duration-150 placeholder:text-muted-foreground/80 hover:bg-muted focus-visible:border-primary/50 focus-visible:bg-card focus-visible:ring-[3px] focus-visible:ring-primary/15 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive/60 aria-[invalid=true]:bg-destructive/5";
+const field = fieldClass;
 
 // forwardRef so react-hook-form's register() works directly.
 export const Input = React.forwardRef<

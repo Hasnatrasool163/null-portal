@@ -6,9 +6,5 @@ export const metadata = { title: "Sign up" };
 
 export default async function Page() {
   if (await getCurrentUser()) redirect("/dashboard");
-  return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <AuthForm mode="register" />
-    </main>
-  );
+  return <AuthForm mode="register" />;
 }

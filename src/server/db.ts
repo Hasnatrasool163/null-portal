@@ -6,8 +6,9 @@ types.setTypeParser(1082, (v) => v);
 types.setTypeParser(1700, (v) => parseFloat(v));
 types.setTypeParser(20, (v) => parseInt(v, 10));
 
-const g = globalThis as unknown as { __pgPool?: Pool };
+const g = globalThis as unknown as { __pgPool?: Pool; __pgPoolKey?: string };
 
+/** USE_FALLBACK_DB=true prefers the hosted DATABASE_FALLBACK_URL (e.g. Aiven); otherwise DATABASE_URL. */
 function resolveDbConfig(): { connectionString: string; useSsl: boolean } {
   const preferFallback = process.env.USE_FALLBACK_DB === "true";
   const raw = preferFallback
@@ -42,7 +43,17 @@ function createPool(): Pool {
   });
 }
 
-export const pool = () => (g.__pgPool ??= createPool());
+// Cache survives dev hot reloads; rebuild it if the DB config changed.
+export const pool = () => {
+  const { connectionString, useSsl } = resolveDbConfig();
+  const key = `${connectionString}|${useSsl}`;
+  if (!g.__pgPool || g.__pgPoolKey !== key) {
+    void g.__pgPool?.end().catch(() => { });
+    g.__pgPool = createPool();
+    g.__pgPoolKey = key;
+  }
+  return g.__pgPool;
+};
 
 export async function query<T extends QueryResultRow>(
   text: string,

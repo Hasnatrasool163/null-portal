@@ -9,7 +9,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, Download } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { DownloadButton } from "@/components/ui/download-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton } from "@/components/ui/misc";
@@ -60,12 +61,13 @@ export function ExamAnalyticsTab({ examId }: { examId: string }) {
           Computed from <b>{data.submittedAttempts}</b> submitted real
           attempt(s). Sandbox attempts are excluded.
         </p>
-        <Button asChild size="sm" variant="outline">
-          <a href={`/api/exams/${examId}/report.pdf`} download>
-            <Download className="h-4 w-4" />
-            Download summary PDF
-          </a>
-        </Button>
+        <DownloadButton
+          size="sm"
+          href={`/api/exams/${examId}/report.pdf`}
+          fallbackName="exam-summary.pdf"
+        >
+          Download summary PDF
+        </DownloadButton>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

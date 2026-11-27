@@ -2,6 +2,7 @@ import "server-only";
 import { tx } from "../db";
 import { examRepo } from "../repositories/exam.repo";
 import { Errors, assertUuid } from "../http";
+import { audit } from "../audit";
 import {
   windowErrors,
   type ExamDetail,
@@ -18,14 +19,16 @@ export function computeReadiness(exam: ExamSummary): Readiness {
   const blockers: string[] = [];
   const warnings: string[] = [];
   if (exam.questionCount < 1) blockers.push("Add at least 1 question.");
-  if (exam.totalMarks <= 0) blockers.push("Total marks must be greater than 0.");
+  if (exam.totalMarks <= 0)
+    blockers.push("Total marks must be greater than 0.");
   const wErrs = windowErrors({
     startsAt: exam.startsAt,
     endsAt: exam.endsAt,
     durationMinutes: exam.durationMinutes,
   });
   for (const m of Object.values(wErrs)) blockers.push(m);
-  if (!exam.endsInFuture) blockers.push("Exam end time is already in the past.");
+  if (!exam.endsInFuture)
+    blockers.push("Exam end time is already in the past.");
   if (exam.enrollmentCount < 1) {
     warnings.push(
       "No candidates are enrolled yet. You can publish now and enroll candidates before the window ends.",
@@ -38,7 +41,10 @@ export function computeReadiness(exam: ExamSummary): Readiness {
  * Examiners see only their own exams; Admins have read-only oversight of all exams.
  * Missing or other examiners' exams return 404 so existence is not leaked.
  */
-async function readableExam(user: SessionUser, id: string): Promise<ExamSummary> {
+async function readableExam(
+  user: SessionUser,
+  id: string,
+): Promise<ExamSummary> {
   const uid = assertUuid(id, "Exam");
   const ownerId = user.role === "ADMIN" ? undefined : user.id;
   const exam = await examRepo.findById(uid, ownerId);
@@ -165,6 +171,18 @@ export const examService = {
       throw Errors.conflict(r.blockers[0] ?? "Exam is not ready to publish.");
     }
     await examRepo.setStatus(existing.id, "PUBLISHED");
+    await audit(null, user, {
+      action: "EXAM_PUBLISHED",
+      examId: existing.id,
+      targetType: "exam",
+      targetId: existing.id,
+      summary: `Published "${existing.title}" (${existing.questionCount} questions, ${existing.totalMarks} marks)`,
+      details: {
+        questionCount: existing.questionCount,
+        totalMarks: existing.totalMarks,
+        enrollmentCount: existing.enrollmentCount,
+      },
+    });
     return this.get(user, existing.id);
   },
 
@@ -174,6 +192,85 @@ export const examService = {
       throw Errors.conflict("Only published exams can be closed.");
     }
     await examRepo.setStatus(existing.id, "CLOSED");
+    await audit(null, user, {
+      action: "EXAM_CLOSED",
+      examId: existing.id,
+      targetType: "exam",
+      targetId: existing.id,
+      summary: `Closed "${existing.title}" early`,
+    });
     return this.get(user, existing.id);
+  },
+
+  /**
+   * Duplicate an exam as a new DRAFT: same settings and question set/marks, no enrollments,
+   * no attempts. A window that has already started is moved to tomorrow (same length) so the
+   * copy is immediately publishable. Archived bank questions are skipped and reported.
+   */
+  async clone(
+    user: SessionUser,
+    id: string,
+  ): Promise<ExamDetail & { skippedArchived: number }> {
+    const src = await ownedExam(user, id);
+    const questions = await examRepo.listQuestions(src.id);
+    const keep = questions.filter((q) => !q.archived);
+
+    const HOUR = 3_600_000;
+    const startMs = Date.parse(src.startsAt);
+    const windowMs = Date.parse(src.endsAt) - startMs;
+    const newStart =
+      startMs > Date.now() + HOUR
+        ? startMs
+        : Math.ceil((Date.now() + 24 * HOUR) / HOUR) * HOUR;
+    const suffix = " (copy)";
+    const title =
+      src.title.length + suffix.length <= 120
+        ? src.title + suffix
+        : src.title.slice(0, 120 - suffix.length) + suffix;
+
+    const newId = await tx(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `INSERT INTO exams (
+           owner_id, title, instructions, starts_at, ends_at, duration_minutes,
+           shuffle_questions, shuffle_options, multi_scoring, negative_marking,
+           show_answers, recovery_window_seconds
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [
+          user.id,
+          title,
+          src.instructions,
+          new Date(newStart).toISOString(),
+          new Date(newStart + windowMs).toISOString(),
+          src.durationMinutes,
+          src.shuffleQuestions,
+          src.shuffleOptions,
+          src.multiScoring,
+          src.negativeMarking,
+          src.showAnswers,
+          src.recoveryWindowSeconds,
+        ],
+      );
+      const cloneId = r.rows[0].id;
+      await examRepo.replaceQuestions(
+        c,
+        cloneId,
+        keep.map((q) => ({ questionId: q.questionId, marks: Number(q.marks) })),
+      );
+      await audit(c, user, {
+        action: "EXAM_CLONED",
+        examId: cloneId,
+        targetType: "exam",
+        targetId: cloneId,
+        summary: `Cloned "${src.title}" into a new draft (${keep.length} questions)`,
+        details: {
+          sourceExamId: src.id,
+          copiedQuestions: keep.length,
+          skippedArchived: questions.length - keep.length,
+        },
+      });
+      return cloneId;
+    });
+    const detail = await this.get(user, newId);
+    return { ...detail, skippedArchived: questions.length - keep.length };
   },
 };

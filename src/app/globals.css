@@ -1,52 +1,55 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
-/* Change the brand in ONE place: edit --primary below. */
+/* Change the brand in ONE place: edit --primary below.
+   Clean neutral surfaces + ONE accent (deep teal). Semantic colours are for status only. */
 :root {
-  /* Paper, ink and ONE accent (deep teal). Semantic colours are for status only. */
-  --background: #faf7f2;
-  --foreground: #1b2430;
-  --card: #fffdf9;
-  --card-foreground: #1b2430;
-  --primary: #1d5c63;
+  --background: #f6f7f9;
+  --foreground: #14171c;
+  --card: #ffffff;
+  --card-foreground: #14171c;
+  --primary: #0f6b6e;
   --primary-foreground: #ffffff;
-  --secondary: #efe9dd;
-  --secondary-foreground: #1b2430;
-  --muted: #f0ebe1;
-  --muted-foreground: #5a6270;
-  --accent: #e3eeed;
-  --accent-foreground: #124047;
-  --destructive: #b42318;
-  --success: #17673a;
-  --warning: #8a5a00;
-  --border: #e0d9ca;
-  --input: #d6cfbf;
-  --ring: #1d5c63;
+  --secondary: #eef0f3;
+  --secondary-foreground: #14171c;
+  --muted: #f0f2f5;
+  --muted-foreground: #5b6370;
+  --accent: #e8f2f1;
+  --accent-foreground: #0b4f51;
+  --destructive: #c0352b;
+  --success: #17744a;
+  --warning: #9a6400;
+  --border: #e4e7ec;
+  --input: #d5dae1;
+  --ring: #0f6b6e;
   --radius: 0.5rem;
+  --sidebar: #ffffff;
+  --shadow-color: 220 20% 20%;
 }
 
 .dark {
-  --background: #14181f;
-  --foreground: #e8e4dc;
-  --card: #1a1f28;
-  --card-foreground: #e8e4dc;
-  --primary: #5eb3bb;
-  --primary-foreground: #0d1417;
-  --secondary: #232a35;
-  --secondary-foreground: #e8e4dc;
-  --muted: #232a35;
-  --muted-foreground: #a3abb8;
-  --accent: #1f3a3e;
-  --accent-foreground: #bfe3e7;
+  --background: #0d0f13;
+  --foreground: #e6e8eb;
+  --card: #15181d;
+  --card-foreground: #e6e8eb;
+  --primary: #3fb7ae;
+  --primary-foreground: #06201e;
+  --secondary: #1c2027;
+  --secondary-foreground: #e6e8eb;
+  --muted: #1c2027;
+  --muted-foreground: #9aa3af;
+  --accent: #12302f;
+  --accent-foreground: #a6e3dc;
   --destructive: #f2776c;
-  --success: #62c68a;
+  --success: #5cc98d;
   --warning: #e0a93b;
-  --border: #2d3544;
-  --input: #3a4354;
-  --ring: #5eb3bb;
+  --border: #252a33;
+  --input: #303642;
+  --ring: #3fb7ae;
+  --sidebar: #111419;
+  --shadow-color: 220 40% 2%;
 }
 .high-contrast {
   --background: #ffffff;
@@ -67,6 +70,7 @@
   --border: #000000;
   --input: #000000;
   --ring: #003d4d;
+  --sidebar: #ffffff;
 }
 
 @theme inline {
@@ -88,6 +92,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -95,8 +100,96 @@
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
+/* Tailwind v4 defaults `border` to currentColor (near-black). Use the hairline token instead. */
+@layer base {
+  *,
+  ::before,
+  ::after,
+  ::backdrop {
+    border-color: var(--color-border);
+  }
+}
+
+/* Thin, theme-aware scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--foreground) 32%, transparent);
+  background-clip: padding-box;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+/* ---------- Elevation (one scale, used by Card / Button / menus) ---------- */
+:root {
+  --elev-1: 0 1px 2px hsl(var(--shadow-color) / 0.05);
+  --elev-2: 0 1px 2px hsl(var(--shadow-color) / 0.04),
+    0 4px 12px -2px hsl(var(--shadow-color) / 0.08);
+  --elev-3: 0 16px 40px -12px hsl(var(--shadow-color) / 0.25),
+    0 2px 6px hsl(var(--shadow-color) / 0.06);
+}
+.shadow-elev-1 { box-shadow: var(--elev-1); }
+.shadow-elev-2 { box-shadow: var(--elev-2); }
+.shadow-elev-3 { box-shadow: var(--elev-3); }
+
+::selection { background: color-mix(in srgb, var(--primary) 25%, transparent); }
+
+/* ---------- Motion ---------- */
+@keyframes caret-blink { 0%, 45% { opacity: 1; } 50%, 100% { opacity: 0; } }
+.animate-caret { animation: caret-blink 1s step-end infinite; }
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-page-in { animation: page-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 1; transform: none; }
+}
+/* Staggered entrance for grids/lists: add .stagger to the parent. */
+.stagger > * { animation: rise-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+@keyframes cell-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.55; }
+}
+.animate-cell { animation: cell-pulse 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
+
+/* Exam workspace text size: one variable drives question, options and answer box. */
+[data-qsize="sm"] { --q-size: 0.9375rem; }
+[data-qsize="md"] { --q-size: 1.0625rem; }
+[data-qsize="lg"] { --q-size: 1.25rem; }
+.q-text { font-size: var(--q-size, 1rem); line-height: 1.65; }

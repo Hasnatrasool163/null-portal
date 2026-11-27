@@ -20,6 +20,8 @@ export type GradingOption = {
 
 export type GradingAnswerItem = {
   attemptQuestionId: string;
+  /** Bank question id: the same across every candidate's snapshot (grade-by-question). */
+  questionId: string;
   position: number;
   type: QuestionType;
   body: string;

@@ -5,21 +5,24 @@ export const Table = ({
   className,
   ...p
 }: React.HTMLAttributes<HTMLTableElement>) => (
-  <div className="w-full overflow-x-auto rounded-lg border">
+  <div className="bg-card shadow-elev-1 w-full overflow-x-auto rounded-lg border">
     <table className={cn("w-full caption-bottom text-sm", className)} {...p} />
   </div>
 );
 export const THead = (p: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <thead className="bg-muted/50 text-left" {...p} />
+  <thead className="bg-muted/60 text-left" {...p} />
 );
 export const TBody = (p: React.HTMLAttributes<HTMLTableSectionElement>) => (
-  <tbody className="divide-y" {...p} />
+  <tbody className="stagger divide-y" {...p} />
 );
 export const TR = ({
   className,
   ...p
 }: React.HTMLAttributes<HTMLTableRowElement>) => (
-  <tr className={cn("hover:bg-muted/30", className)} {...p} />
+  <tr
+    className={cn("hover:bg-accent/40 transition-colors", className)}
+    {...p}
+  />
 );
 export const TH = ({
   className,
@@ -27,7 +30,7 @@ export const TH = ({
 }: React.ThHTMLAttributes<HTMLTableCellElement>) => (
   <th
     className={cn(
-      "text-muted-foreground px-4 py-3 text-xs font-medium",
+      "text-muted-foreground px-4 py-3 text-[11px] font-semibold tracking-wider whitespace-nowrap uppercase",
       className,
     )}
     {...p}
@@ -37,5 +40,5 @@ export const TD = ({
   className,
   ...p
 }: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-  <td className={cn("px-4 py-3 align-top", className)} {...p} />
+  <td className={cn("px-4 py-3 align-middle", className)} {...p} />
 );

@@ -1,8 +1,13 @@
 import "server-only";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
+import { audit } from "../audit";
+import { toCsv } from "../csv";
 import { examRepo } from "../repositories/exam.repo";
-import { attemptRepo, type AttemptQuestionRow } from "../repositories/attempt.repo";
+import {
+  attemptRepo,
+  type AttemptQuestionRow,
+} from "../repositories/attempt.repo";
 import { finalizeIfExpiredInTx } from "./attempt.service";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type {
@@ -11,7 +16,11 @@ import type {
   GradeAnswerInput,
   GradingAttemptSummary,
 } from "@/shared/schemas/grading";
-import type { AttemptStatus, GradingStatus, SubmitReason } from "@/shared/schemas/attempt";
+import type {
+  AttemptStatus,
+  GradingStatus,
+  SubmitReason,
+} from "@/shared/schemas/attempt";
 
 /** Lazily finalize all expired IN_PROGRESS real attempts for an exam. */
 export async function finalizeExpiredForExam(examId: string) {
@@ -107,9 +116,8 @@ export const gradingService = {
       const scored = qs.filter((q) => q.score !== null);
       const rawScoreSum =
         scored.length > 0
-          ? Math.round(
-              scored.reduce((s, q) => s + Number(q.score), 0) * 100,
-            ) / 100
+          ? Math.round(scored.reduce((s, q) => s + Number(q.score), 0) * 100) /
+            100
           : null;
 
       return {
@@ -130,6 +138,7 @@ export const gradingService = {
         lateSyncCount,
         answers: qs.map((q) => ({
           attemptQuestionId: q.id,
+          questionId: q.question_id,
           position: q.position,
           type: q.type,
           body: q.body,
@@ -183,21 +192,38 @@ export const gradingService = {
       if (!attempt || attempt.is_sandbox) {
         throw Errors.notFound("Attempt not found");
       }
-      const examCheck = await c.query<{ owner_id: string }>(
-        "SELECT owner_id FROM exams WHERE id = $1",
-        [attempt.exam_id],
-      );
+      const examCheck = await c.query<{
+        owner_id: string;
+        results_published_at: Date | null;
+      }>("SELECT owner_id, results_published_at FROM exams WHERE id = $1", [
+        attempt.exam_id,
+      ]);
       if (!examCheck.rows[0] || examCheck.rows[0].owner_id !== user.id) {
         throw Errors.notFound("Attempt not found");
       }
 
       const checked = await finalizeIfExpiredInTx(c, attempt);
       if (checked.status !== "SUBMITTED") {
-        throw Errors.conflict("Cannot grade an attempt that is still in progress.");
+        throw Errors.conflict(
+          "Cannot grade an attempt that is still in progress.",
+        );
       }
 
-      const aqRes = await c.query<{ id: string; type: string; marks: number }>(
-        "SELECT id, type, marks FROM attempt_questions WHERE id = $1 AND attempt_id = $2",
+      const aqRes = await c.query<{
+        id: string;
+        type: string;
+        marks: number;
+        position: number;
+        old_score: number | null;
+        candidate_name: string;
+      }>(
+        `SELECT aq.id, aq.type, aq.marks, aq.position, ans.score AS old_score,
+                u.name AS candidate_name
+         FROM attempt_questions aq
+         JOIN attempts a ON a.id = aq.attempt_id
+         JOIN users u ON u.id = a.candidate_id
+         LEFT JOIN answers ans ON ans.attempt_question_id = aq.id
+         WHERE aq.id = $1 AND aq.attempt_id = $2`,
         [aqId, attemptId],
       );
       const aq = aqRes.rows[0];
@@ -229,6 +255,29 @@ export const gradingService = {
       // Recompute attempt total in one SQL statement (clamped >= 0).
       const totalScore = await attemptRepo.recomputeTotalScore(c, attemptId);
 
+      const oldScore = aq.old_score !== null ? Number(aq.old_score) : null;
+      if (oldScore !== input.score) {
+        await audit(c, user, {
+          action: "GRADE_CHANGED",
+          examId: attempt.exam_id,
+          targetType: "attempt",
+          targetId: attemptId,
+          summary:
+            oldScore === null
+              ? `Graded Q${aq.position + 1} for ${aq.candidate_name}: ${input.score}/${maxMarks}`
+              : `Changed Q${aq.position + 1} for ${aq.candidate_name}: ${oldScore} → ${input.score}/${maxMarks}`,
+          details: {
+            attemptQuestionId: aq.id,
+            questionNumber: aq.position + 1,
+            from: oldScore,
+            to: input.score,
+            maxMarks,
+            afterResultsPublished:
+              examCheck.rows[0].results_published_at !== null,
+          },
+        });
+      }
+
       // Check if any written question in this attempt is still ungraded.
       const ungraded = (
         await c.query<{ n: number }>(
@@ -247,7 +296,13 @@ export const gradingService = {
         gradingStatus,
       ]);
 
-      return { attemptId, attemptQuestionId: aq.id, score: input.score, totalScore, gradingStatus };
+      return {
+        attemptId,
+        attemptQuestionId: aq.id,
+        score: input.score,
+        totalScore,
+        gradingStatus,
+      };
     });
   },
 
@@ -287,10 +342,94 @@ export const gradingService = {
          RETURNING results_published_at`,
         [exam.id],
       );
+      if (!exam.resultsPublishedAt) {
+        await audit(c, user, {
+          action: "RESULTS_PUBLISHED",
+          examId: exam.id,
+          targetType: "exam",
+          targetId: exam.id,
+          summary: `Published results for "${exam.title}" (${counts.submitted} attempt(s))`,
+          details: { submittedAttempts: counts.submitted },
+        });
+      }
       return {
         examId: exam.id,
         resultsPublishedAt: r.rows[0].results_published_at.toISOString(),
       };
+    });
+  },
+
+  /** Results spreadsheet (every enrolled candidate, sandbox excluded). Formula-safe CSV. */
+  async exportResultsCsv(user: SessionUser, examIdRaw: string) {
+    const examId = assertUuid(examIdRaw, "Exam");
+    const exam = await examRepo.findById(
+      examId,
+      user.role === "ADMIN" ? undefined : user.id,
+    );
+    if (!exam) throw Errors.notFound("Exam not found");
+    await finalizeExpiredForExam(exam.id);
+
+    const rows = await query<{
+      name: string;
+      email: string;
+      status: string | null;
+      grading_status: string | null;
+      total_score: number | null;
+      submitted_at: Date | null;
+      submit_reason: string | null;
+      receipt_code: string | null;
+    }>(
+      `SELECT u.name, u.email, a.status, a.grading_status, a.total_score,
+              a.submitted_at, a.submit_reason,
+              CASE WHEN a.status = 'SUBMITTED' THEN a.receipt_code END AS receipt_code
+       FROM enrollments en
+       JOIN users u ON u.id = en.candidate_id
+       LEFT JOIN real_attempts a ON a.exam_id = en.exam_id AND a.candidate_id = en.candidate_id
+       WHERE en.exam_id = $1
+       ORDER BY lower(u.name), u.email`,
+      [exam.id],
+    );
+    const total = Number(exam.totalMarks);
+    const csv = toCsv(
+      [
+        "Candidate",
+        "Email",
+        "Attempt status",
+        "Grading status",
+        "Score",
+        "Total marks",
+        "Percentage",
+        "Submitted at (UTC)",
+        "Submit reason",
+        "Receipt code",
+      ],
+      rows.map((r) => {
+        const score = r.total_score !== null ? Number(r.total_score) : null;
+        return [
+          r.name,
+          r.email,
+          r.status ?? "NOT_STARTED",
+          r.grading_status ?? "",
+          score,
+          total,
+          score !== null && total > 0
+            ? Math.round((score / total) * 10000) / 100
+            : null,
+          r.submitted_at ? r.submitted_at.toISOString() : "",
+          r.submit_reason ?? "",
+          r.receipt_code ?? "",
+        ];
+      }),
+    );
+    const safeName =
+      exam.title.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "exam";
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${safeName}-results.csv"`,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      },
     });
   },
 
@@ -339,7 +478,9 @@ export const gradingService = {
       throw Errors.conflict("This attempt has not been submitted yet.");
     }
     if (user.role === "CANDIDATE" && !a.results_published_at) {
-      throw Errors.forbidden("Results for this exam have not been published yet.");
+      throw Errors.forbidden(
+        "Results for this exam have not been published yet.",
+      );
     }
 
     const qs = await query<
@@ -387,7 +528,12 @@ export const gradingService = {
         marks: Number(q.marks),
         options: q.options.map((o) =>
           revealKey
-            ? { id: o.id, body: o.body, position: o.position, isCorrect: o.isCorrect }
+            ? {
+                id: o.id,
+                body: o.body,
+                position: o.position,
+                isCorrect: o.isCorrect,
+              }
             : { id: o.id, body: o.body, position: o.position },
         ),
         selectedOptionIds: q.selected_option_ids ?? [],

@@ -7,10 +7,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { Copy, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
+import { Copy, Eye, FileUp, Lock, Pencil, Plus, Archive, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination } from "@/components/ui/pagination";
 import { Select } from "@/components/ui/select";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -18,6 +19,7 @@ import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { QuestionForm } from "@/components/question-form";
 import { QuestionImportDialog } from "@/components/question-import-dialog";
+import { QuestionPreviewDialog } from "@/components/question-preview-dialog";
 import { TopicsDialog, useTopics } from "@/components/topics-dialog";
 import { api } from "@/lib/api-client";
 import {
@@ -45,6 +47,7 @@ export function QuestionsManager() {
   const [type, setType] = useState<QuestionType | "">("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [previewing, setPreviewing] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<QuestionListItem | null>(null);
   const [topicsOpen, setTopicsOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -111,7 +114,6 @@ export function QuestionsManager() {
   });
 
   const total = list.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = !!(q || topicId || difficulty || type);
 
   return (
@@ -138,15 +140,14 @@ export function QuestionsManager() {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="Search question text..."
-          aria-label="Search questions"
+        <SearchInput
+          label="Search questions"
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+          onChange={(v) => {
+            setSearch(v);
             setPage(1);
           }}
+          phrases={["binary search", "TCP handshake", "derivative of x²", "normalization"]}
         />
         <Select
           className="w-44"
@@ -258,6 +259,15 @@ export function QuestionsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
+                    aria-label="Preview question"
+                    title="Preview"
+                    onClick={() => setPreviewing(it.id)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     aria-label={
                       it.locked
                         ? "Locked (used in published exam)"
@@ -297,31 +307,13 @@ export function QuestionsManager() {
         </Table>
       )}
 
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            Page {page} of {pages} ({total} questions)
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPage={setPage}
+        noun="questions"
+      />
 
       <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
         <DialogContent
@@ -391,6 +383,7 @@ export function QuestionsManager() {
         </DialogContent>
       </Dialog>
 
+      <QuestionPreviewDialog questionId={previewing} onClose={() => setPreviewing(null)} />
       <TopicsDialog open={topicsOpen} onOpenChange={setTopicsOpen} />
       <QuestionImportDialog open={importOpen} onOpenChange={setImportOpen} />
     </>

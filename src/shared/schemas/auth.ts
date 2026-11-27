@@ -1,11 +1,18 @@
 import { z } from "zod";
 
+/** Leading characters a spreadsheet treats as a formula (CSV injection). */
+export const FORMULA_PREFIX = /^[=+\-@\t\r]/;
+
 // Shared by the browser forms AND the API routes: one source of truth for validation.
 export const nameSchema = z
   .string()
   .trim()
   .min(2, "Name must be at least 2 characters")
-  .max(60, "Name is too long");
+  .max(60, "Name is too long")
+  .refine(
+    (v) => !FORMULA_PREFIX.test(v),
+    "Name cannot start with =, +, -, @ (spreadsheet formula characters)",
+  );
 
 export const emailSchema = z
   .string()

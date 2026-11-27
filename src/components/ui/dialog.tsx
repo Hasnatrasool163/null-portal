@@ -20,14 +20,18 @@ export function DialogContent({
 }) {
   return (
     <D.Portal>
-      <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 fixed inset-0 z-40 bg-black/50" />
+      <D.Overlay className="data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 fixed inset-0 z-40 bg-black/40" />
       <D.Content
         className={cn(
-          "bg-card fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 shadow-lg focus:outline-none",
+          "bg-card shadow-elev-3 fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border p-6 focus:outline-none",
+          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-2",
+          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           className,
         )}
       >
-        <D.Title className="text-lg font-semibold">{title}</D.Title>
+        <D.Title className="pr-8 text-lg font-semibold tracking-tight">
+          {title}
+        </D.Title>
         <D.Description
           className={cn(
             "text-muted-foreground mt-1 text-sm",
@@ -38,7 +42,7 @@ export function DialogContent({
         </D.Description>
         <div className="mt-4">{children}</div>
         <D.Close
-          className="focus-visible:ring-ring absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus-visible:ring-2"
+          className="text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-ring absolute top-4 right-4 rounded-lg p-1.5 transition-colors focus-visible:ring-2 focus-visible:outline-none"
           aria-label="Close"
         >
           <X className="h-4 w-4" />

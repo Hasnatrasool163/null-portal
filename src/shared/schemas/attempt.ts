@@ -19,7 +19,11 @@ export type SubmitReason = (typeof SUBMIT_REASONS)[number];
 export const saveAnswerSchema = z.object({
   attemptQuestionId: z.uuid(),
   selectedOptionIds: z.array(z.number().int().positive()).max(8).optional(),
-  textAnswer: z.string().max(10_000, "Answer cannot exceed 10,000 characters").nullable().optional(),
+  textAnswer: z
+    .string()
+    .max(10_000, "Answer cannot exceed 10,000 characters")
+    .nullable()
+    .optional(),
   markedForReview: z.boolean().optional(),
   seq: z.number().int().min(1),
 });
@@ -65,16 +69,14 @@ export type AttemptState = {
   serverNow: string;
   recoveryWindowSeconds: number;
   scratchpad: string;
+  /** Confirmation code; only revealed once the attempt is SUBMITTED. */
+  receiptCode: string | null;
   questions: AttemptQuestionPublic[];
   answers: SavedAnswer[];
 };
 
 export type AccessStatus =
-  | "CAN_START"
-  | "IN_PROGRESS"
-  | "SUBMITTED"
-  | "UPCOMING"
-  | "MISSED";
+  "CAN_START" | "IN_PROGRESS" | "SUBMITTED" | "UPCOMING" | "MISSED";
 
 export type MyExamItem = {
   examId: string;
@@ -95,6 +97,7 @@ export type MyExamItem = {
   deadlineAt: string | null;
   submittedAt: string | null;
   totalScore: number | null;
+  receiptCode: string | null;
 };
 
 export type SubmitResult = {
@@ -105,4 +108,5 @@ export type SubmitResult = {
   submitReason: SubmitReason;
   answeredCount: number;
   totalQuestions: number;
+  receiptCode: string;
 };

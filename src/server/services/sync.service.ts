@@ -1,7 +1,11 @@
 import "server-only";
+import { audit } from "../audit";
 import { tx } from "../db";
 import { Errors, assertUuid } from "../http";
-import { attemptRepo, type AttemptQuestionRow } from "../repositories/attempt.repo";
+import {
+  attemptRepo,
+  type AttemptQuestionRow,
+} from "../repositories/attempt.repo";
 import { scoreObjectiveAnswer } from "../exam/scoring";
 import { finalizeIfExpiredInTx } from "./attempt.service";
 import type { SessionUser } from "@/shared/schemas/auth";
@@ -49,7 +53,8 @@ export const syncService = {
         !isNormalWindow &&
         attempt.recovery_window_seconds > 0 &&
         nowMs <= recoveryCutoffMs &&
-        (attempt.status === "IN_PROGRESS" || attempt.submit_reason === "TIMEOUT");
+        (attempt.status === "IN_PROGRESS" ||
+          attempt.submit_reason === "TIMEOUT");
 
       // Lazily finalize if past deadline so status is consistent.
       if (!isNormalWindow && attempt.status === "IN_PROGRESS") {
@@ -333,6 +338,17 @@ export const syncService = {
       );
 
       const totalScore = await attemptRepo.recomputeTotalScore(c, attemptId);
+      await audit(c, user, {
+        action: "LATE_ANSWER_DISCARDED",
+        examId: attempt.exam_id,
+        targetType: "attempt",
+        targetId: attemptId,
+        summary: `Discarded a late-synced answer (attempt total now ${totalScore})`,
+        details: {
+          answerId: ans.id,
+          attemptQuestionId: ans.attempt_question_id,
+        },
+      });
       if (ans.type === "WRITTEN" && attempt.status === "SUBMITTED") {
         const gradingStatus: GradingStatus = "NEEDS_REVIEW";
         await c.query("UPDATE attempts SET grading_status = $2 WHERE id = $1", [

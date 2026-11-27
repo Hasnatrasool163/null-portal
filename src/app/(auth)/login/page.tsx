@@ -6,9 +6,5 @@ export const metadata = { title: "Log in" };
 
 export default async function Page() {
   if (await getCurrentUser()) redirect("/dashboard");
-  return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <AuthForm mode="login" />
-    </main>
-  );
+  return <AuthForm mode="login" />;
 }

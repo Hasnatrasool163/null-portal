@@ -8,7 +8,8 @@ import { format } from "date-fns";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Badge, Skeleton } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
@@ -54,6 +55,8 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
     queryFn: () => api<ExamSummary[]>(`/api/exams?${params}`),
   });
 
+  const paged = usePaged(list.data ?? [], 8);
+
   const create = useMutation({
     mutationFn: (v: ExamValues) =>
       api<ExamDetail>("/api/exams", { method: "POST", body: v }),
@@ -85,18 +88,24 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
       />
 
       <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="Search exam title..."
-          aria-label="Search exams"
+        <SearchInput
+          label="Search exams"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(v) => {
+            setSearch(v);
+            paged.setPage(1);
+          }}
+          phrases={["Mathematics Diagnostic", "Computer Science", "Timer Demo", "final exam"]}
         />
         <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by phase">
           <Button
             size="sm"
-            variant={phase === "" ? "default" : "outline"}
-            onClick={() => setPhase("")}
+            variant="outline"
+            aria-pressed={phase === ""}
+            onClick={() => {
+              setPhase("");
+              paged.setPage(1);
+            }}
           >
             All
           </Button>
@@ -104,8 +113,12 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
             <Button
               key={p}
               size="sm"
-              variant={phase === p ? "default" : "outline"}
-              onClick={() => setPhase(p)}
+              variant="outline"
+              aria-pressed={phase === p}
+              onClick={() => {
+                setPhase(p);
+                paged.setPage(1);
+              }}
             >
               {PHASE_LABEL[p]}
             </Button>
@@ -155,7 +168,7 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
             </TR>
           </THead>
           <TBody>
-            {list.data.map((e) => (
+            {paged.slice.map((e) => (
               <TR key={e.id}>
                 <TD>
                   <Link
@@ -196,6 +209,14 @@ export function ExamsManager({ isAdmin }: { isAdmin: boolean }) {
           </TBody>
         </Table>
       )}
+
+      <Pagination
+        page={paged.page}
+        pageSize={paged.pageSize}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="exams"
+      />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent
