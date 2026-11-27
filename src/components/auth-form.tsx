@@ -136,8 +136,8 @@ function SaveStatusDemo() {
         <p className="truncate text-sm font-medium">{s.title}</p>
         <p className="text-muted-foreground truncate text-xs">{s.sub}</p>
       </div>
-      <span className="text-muted-foreground self-start font-mono text-[10px] tracking-wider uppercase">
-        preview
+      <span className="text-muted-foreground self-start font-mono text-[10px]">
+        Preview
       </span>
     </div>
   );

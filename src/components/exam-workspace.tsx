@@ -1325,7 +1325,7 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               className="paper-ruled shadow-elev-2 overflow-hidden rounded-lg border pl-10 sm:pl-14"
             >
               <header className="border-b border-dashed px-5 pt-6 pb-4 sm:px-6">
-                <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+                <p className="text-muted-foreground font-mono text-[11px]">
                   Answer sheet
                 </p>
                 <p className="font-semibold">{attempt.examTitle}</p>
@@ -1598,7 +1598,7 @@ function SubmissionReceipt({
           {isSandbox && " (Sandbox preview: not a real submission.)"}
         </p>
         <div className="rounded-md border-2 border-dashed p-4 text-center">
-          <p className="text-muted-foreground text-xs tracking-wide uppercase">
+          <p className="text-muted-foreground text-xs">
             Confirmation code
           </p>
           <p

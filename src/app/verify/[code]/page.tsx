@@ -35,7 +35,7 @@ export default async function VerifyReportPage({
         <BackButton href="/verify" label="Verify another code" />
         <Card className="animate-page-in">
           <CardHeader>
-            <p className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
+            <p className="text-muted-foreground text-xs font-medium">
               {BRAND.name} · Result verification
             </p>
             <CardTitle className="mt-1 flex items-center gap-2 text-xl">

@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, fieldClass } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/misc";
@@ -162,7 +162,7 @@ export function QuestionForm({
           id="q-body"
           rows={3}
           aria-invalid={!!errors.body}
-          className="border-input bg-background focus-visible:ring-ring w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+          className={`${fieldClass} min-h-24`}
           {...register("body")}
         />
       </Field>

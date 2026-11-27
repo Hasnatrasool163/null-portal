@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { BackButton } from "@/components/ui/back-button";
+import { UnderlineTabs, type UnderlineTab } from "@/components/ui/underline-tabs";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
@@ -674,16 +675,21 @@ export function ExamDetailView({
   }
 
   const exam = query.data;
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "review", label: "Review & Publish" },
+  const tabs: UnderlineTab<Tab>[] = [
+    { id: "review", label: "Review & publish" },
     { id: "settings", label: "Settings" },
-    { id: "questions", label: `Questions (${exam.questionCount})` },
-    { id: "enrollments", label: `Enrollments (${exam.enrollmentCount})` },
-    { id: "monitor", label: "Live Monitor" },
-    { id: "grading", label: "Grading & Results" },
+    { id: "questions", label: "Questions", count: exam.questionCount },
+    { id: "enrollments", label: "Enrollments", count: exam.enrollmentCount },
+    { id: "monitor", label: "Live monitor" },
+    { id: "grading", label: "Grading & results" },
     { id: "analytics", label: "Analytics" },
     { id: "audit", label: "Audit log" },
   ];
+  // Keep the tab in the URL (refresh + shareable links) without a navigation.
+  const openTab = (t: Tab) => {
+    setTab(t);
+    window.history.replaceState(null, "", `?tab=${t}`);
+  };
 
   return (
     <>
@@ -733,34 +739,13 @@ export function ExamDetailView({
         />
       </div>
 
-      <div
-        className="-mx-4 flex gap-1 overflow-x-auto overflow-y-hidden border-b px-4 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label="Exam sections"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={`relative shrink-0 rounded-t-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
-              tab === t.id
-                ? "text-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            <span
-              aria-hidden="true"
-              className={`bg-primary absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-transform duration-200 ${
-                tab === t.id ? "scale-x-100" : "scale-x-0"
-              }`}
-            />
-          </button>
-        ))}
-      </div>
+      <UnderlineTabs
+        tabs={tabs}
+        value={tab}
+        onChange={openTab}
+        label="Exam sections"
+        className="-mx-4 px-4 sm:mx-0 sm:px-0"
+      />
       <div key={tab} className="animate-page-in space-y-6">
 
       {tab === "review" && (
@@ -775,7 +760,7 @@ export function ExamDetailView({
               <button
                 key={st.label}
                 type="button"
-                onClick={() => setTab(st.tab)}
+                onClick={() => openTab(st.tab)}
                 className="hover:bg-muted/40 focus-visible:ring-ring px-5 py-4 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
               >
                 <p className="text-muted-foreground text-xs">{st.label}</p>

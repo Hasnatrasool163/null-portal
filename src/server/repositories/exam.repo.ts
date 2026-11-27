@@ -317,11 +317,12 @@ export const examRepo = {
     return r.n;
   },
 
-  /** One row per exam with the live counts the examiner dashboard needs (real attempts only). */
-  async overview(ownerId: string): Promise<OverviewExam[]> {
+  /** One row per exam with live counts for the dashboards (real attempts only). No ownerId = all exams (admin). */
+  async overview(ownerId?: string): Promise<OverviewExam[]> {
     const rows = await query<{
       id: string;
       title: string;
+      owner_name: string;
       phase: Phase;
       starts_at: Date;
       ends_at: Date;
@@ -334,7 +335,7 @@ export const examRepo = {
       incidents_24h: number;
       results_published_at: Date | null;
     }>(
-      `SELECT e.id, e.title, (${PHASE_SQL}) AS phase, e.starts_at, e.ends_at,
+      `SELECT e.id, e.title, ow.name AS owner_name, (${PHASE_SQL}) AS phase, e.starts_at, e.ends_at,
               e.duration_minutes, e.results_published_at,
               (SELECT count(*)::int FROM exam_questions q WHERE q.exam_id = e.id) AS question_count,
               (SELECT count(*)::int FROM enrollments en WHERE en.exam_id = e.id) AS enrolled,
@@ -346,15 +347,17 @@ export const examRepo = {
                 WHERE ra.exam_id = e.id AND i.type <> 'RECONNECT'
                   AND i.occurred_at > now() - interval '24 hours') AS incidents_24h
          FROM exams e
+         JOIN users ow ON ow.id = e.owner_id
          LEFT JOIN real_attempts a ON a.exam_id = e.id
-        WHERE e.owner_id = $1
-        GROUP BY e.id
+        ${ownerId ? "WHERE e.owner_id = $1" : ""}
+        GROUP BY e.id, ow.name
         ORDER BY e.starts_at`,
-      [ownerId],
+      ownerId ? [ownerId] : [],
     );
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
+      ownerName: r.owner_name,
       phase: r.phase,
       startsAt: r.starts_at.toISOString(),
       endsAt: r.ends_at.toISOString(),
@@ -367,6 +370,30 @@ export const examRepo = {
       incidents24h: r.incidents_24h,
       resultsPublished: r.results_published_at !== null,
     }));
+  },
+
+  /**
+   * Submitted real attempts per day for the last `days` days (zero-filled), plus the
+   * total for the equally long period before it, for a trend comparison.
+   */
+  async submissionTrend(days = 14): Promise<{ series: { day: string; n: number }[]; previous: number }> {
+    const series = await query<{ day: string; n: number }>(
+      `SELECT to_char(d, 'YYYY-MM-DD') AS day, count(a.id)::int AS n
+         FROM generate_series((now() - ($1::int - 1) * interval '1 day')::date, now()::date, interval '1 day') d
+         LEFT JOIN real_attempts a
+           ON a.status = 'SUBMITTED' AND a.submitted_at::date = d::date
+        GROUP BY d
+        ORDER BY d`,
+      [days],
+    );
+    const [{ n }] = await query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM real_attempts
+        WHERE status = 'SUBMITTED'
+          AND submitted_at >= now()::date - ($1::int * 2 - 1) * interval '1 day'
+          AND submitted_at <  now()::date - ($1::int - 1) * interval '1 day'`,
+      [days],
+    );
+    return { series, previous: n };
   },
 
   async phaseCounts(ownerId?: string): Promise<Record<Phase, number>> {

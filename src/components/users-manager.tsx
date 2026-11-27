@@ -9,7 +9,16 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useDebounce } from "use-debounce";
-import { Copy, Plus, UserCheck, UserX } from "lucide-react";
+import {
+  Copy,
+  GraduationCap,
+  Plus,
+  ShieldCheck,
+  UserCheck,
+  UserCog,
+  UserX,
+  type LucideIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
@@ -17,7 +26,9 @@ import { Pagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
-import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
+import { Skeleton, Spinner } from "@/components/ui/misc";
+import { RowMenu } from "@/components/ui/row-menu";
+import { Tooltip } from "@/components/ui/tooltip";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { EmptyState, PageHeader } from "@/components/ui/blocks";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -31,6 +42,26 @@ import {
 } from "@/shared/schemas/user";
 
 const PAGE_SIZE = 10;
+
+const ROLE_ICON: Record<Role, LucideIcon> = {
+  ADMIN: ShieldCheck,
+  EXAMINER: UserCog,
+  CANDIDATE: GraduationCap,
+};
+const ROLE_NOTE: Record<Role, string> = {
+  ADMIN: "Can manage users and oversee every exam. Cannot author or grade.",
+  EXAMINER: "Can build question banks, run exams and grade their own exams.",
+  CANDIDATE: "Can sit exams they are enrolled in and see published results.",
+};
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((x) => x[0]!.toUpperCase())
+    .join("");
+}
 
 function CreateUserForm({
   onDone,
@@ -111,6 +142,7 @@ export function UsersManager({ meId }: { meId: string }) {
     tempPassword: string;
   } | null>(null);
   const [toggling, setToggling] = useState<AdminUser | null>(null);
+  const [roleEdit, setRoleEdit] = useState<{ user: AdminUser; role: Role } | null>(null);
 
   const params = new URLSearchParams({
     page: String(page),
@@ -134,6 +166,7 @@ export function UsersManager({ meId }: { meId: string }) {
     onSuccess: () => {
       toast.success("User updated");
       setToggling(null);
+      setRoleEdit(null);
       qc.invalidateQueries({ queryKey: ["admin-users"] });
     },
     onError: (e) => {
@@ -215,63 +248,66 @@ export function UsersManager({ meId }: { meId: string }) {
           <TBody>
             {list.data.users.map((u) => {
               const isMe = u.id === meId;
+              const RoleIcon = ROLE_ICON[u.role];
               return (
                 <TR key={u.id}>
                   <TD>
-                    <p className="font-medium">
-                      {u.name}
-                      {isMe && (
-                        <span className="text-muted-foreground ml-2 text-xs">
-                          (you)
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-muted-foreground text-xs">{u.email}</p>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                          u.isActive ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {initials(u.name)}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {u.name}
+                          {isMe && <span className="text-muted-foreground ml-1.5 text-xs font-normal">(you)</span>}
+                        </p>
+                        <p className="text-muted-foreground truncate text-xs">{u.email}</p>
+                      </div>
+                    </div>
                   </TD>
                   <TD>
-                    <Select
-                      className="h-9 w-40"
-                      aria-label={`Role for ${u.name}`}
-                      value={u.role}
-                      disabled={isMe || patch.isPending}
-                      onChange={(e) =>
-                        patch.mutate({ id: u.id, role: e.target.value as Role })
-                      }
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {ROLE_LABEL[r]}
-                        </option>
-                      ))}
-                    </Select>
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <RoleIcon className="text-muted-foreground h-4 w-4" aria-hidden="true" />
+                      {ROLE_LABEL[u.role]}
+                    </span>
                   </TD>
                   <TD>
-                    {u.isActive ? (
-                      <Badge>Active</Badge>
-                    ) : (
-                      <Badge className="bg-destructive/10 text-destructive">
-                        Deactivated
-                      </Badge>
-                    )}
+                    <span className="inline-flex items-center gap-2 text-sm">
+                      <span
+                        className={`h-2 w-2 rounded-full ${u.isActive ? "bg-success" : "bg-destructive"}`}
+                        aria-hidden="true"
+                      />
+                      {u.isActive ? "Active" : "Deactivated"}
+                    </span>
                   </TD>
                   <TD className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={isMe}
-                      onClick={() =>
-                        u.isActive
-                          ? setToggling(u)
-                          : patch.mutate({ id: u.id, isActive: true })
-                      }
-                    >
-                      {u.isActive ? (
-                        <UserX className="h-4 w-4" />
-                      ) : (
-                        <UserCheck className="h-4 w-4" />
-                      )}
-                      {u.isActive ? "Deactivate" : "Reactivate"}
-                    </Button>
+                    {isMe ? (
+                      <Tooltip content="This is you. Another admin must change your account.">
+                        <span tabIndex={0} className="text-muted-foreground inline-flex h-8 items-center px-2 text-xs">
+                          —
+                        </span>
+                      </Tooltip>
+                    ) : (
+                      <RowMenu
+                        label={`Actions for ${u.name}`}
+                        items={[
+                          {
+                            label: "Change role…",
+                            icon: UserCog,
+                            onSelect: () => setRoleEdit({ user: u, role: u.role }),
+                          },
+                          "separator",
+                          u.isActive
+                            ? { label: "Deactivate", icon: UserX, destructive: true, onSelect: () => setToggling(u) }
+                            : { label: "Reactivate", icon: UserCheck, onSelect: () => patch.mutate({ id: u.id, isActive: true }) },
+                        ]}
+                      />
+                    )}
                   </TD>
                 </TR>
               );
@@ -336,6 +372,50 @@ export function UsersManager({ meId }: { meId: string }) {
             </div>
           )}
         </DialogContent>
+      </Dialog>
+
+      <Dialog open={roleEdit !== null} onOpenChange={(o) => !o && setRoleEdit(null)}>
+        {roleEdit && (
+          <DialogContent
+            title="Change role"
+            description={`${roleEdit.user.name} · ${roleEdit.user.email}`}
+          >
+            <div className="space-y-4 text-sm">
+              <div className="space-y-1.5">
+                <label htmlFor="role-edit" className="font-medium">
+                  Role
+                </label>
+                <Select
+                  id="role-edit"
+                  value={roleEdit.role}
+                  onChange={(e) => setRoleEdit({ ...roleEdit, role: e.target.value as Role })}
+                >
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-muted-foreground text-xs">{ROLE_NOTE[roleEdit.role]}</p>
+              </div>
+              <p className="bg-muted/60 rounded-md px-3 py-2.5 text-xs">
+                The change applies on their next request. It is recorded in the audit log.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setRoleEdit(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={roleEdit.role === roleEdit.user.role || patch.isPending}
+                  onClick={() => patch.mutate({ id: roleEdit.user.id, role: roleEdit.role })}
+                >
+                  {patch.isPending && <Spinner />}
+                  Save role
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        )}
       </Dialog>
 
       <Dialog open={toggling !== null} onOpenChange={(o) => !o && setToggling(null)}>

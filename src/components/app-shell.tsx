@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Settings2,
+  ScrollText,
   ShieldCheck,
   Users,
   X,
@@ -34,6 +35,7 @@ const NAV: Record<Role, NavItem[]> = {
     HOME,
     { href: "/admin/users", label: "Users & roles", icon: Users },
     { href: "/exams", label: "Exams", icon: ClipboardList },
+    { href: "/admin/audit", label: "Audit log", icon: ScrollText },
     VERIFY,
   ],
   EXAMINER: [
@@ -47,7 +49,7 @@ const NAV: Record<Role, NavItem[]> = {
 const CONSOLE: Record<Role, string> = {
   ADMIN: "Admin console",
   EXAMINER: "Examiner console",
-  CANDIDATE: "Candidate portal",
+  CANDIDATE: "Candidate console",
 };
 
 // Collapsed state is a cookie (not localStorage) so the SERVER renders the sidebar
@@ -100,7 +102,7 @@ function Brand({ role, collapsed = false }: { role: Role; collapsed?: boolean })
         )}
       >
         <span className="block truncate text-sm font-semibold tracking-tight">{BRAND.name}</span>
-        <span className="text-muted-foreground block truncate text-[10px] font-medium tracking-[0.12em] uppercase">
+        <span className="text-muted-foreground block truncate text-[10px] font-medium">
           {CONSOLE[role]}
         </span>
       </span>

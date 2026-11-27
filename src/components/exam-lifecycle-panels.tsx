@@ -343,7 +343,7 @@ export function RescorePanel({
 
       {history.data && history.data.length > 0 && (
         <div className="border-t">
-          <p className="text-muted-foreground px-5 pt-4 pb-2 text-xs font-medium tracking-wide uppercase">
+          <p className="text-muted-foreground px-5 pt-4 pb-2 text-xs font-medium">
             History
           </p>
           <ul className="divide-y">

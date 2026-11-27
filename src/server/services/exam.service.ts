@@ -17,6 +17,8 @@ import type { QuestionType } from "@/shared/schemas/question";
 import {
   windowErrors,
   type ActionItem,
+  type AdminOverview,
+  type OversightItem,
   type AdminCloseInput,
   type MultiScoring,
   type RescoreInput,
@@ -187,6 +189,30 @@ export const examService = {
         submitted: exams.reduce((n, e) => n + e.submitted, 0),
         awaitingGrading: exams.reduce((n, e) => n + e.needsReview, 0),
       },
+    };
+  },
+
+  /** Admin dashboard: platform-wide oversight (read-only). */
+  async adminOverview(user: SessionUser): Promise<AdminOverview> {
+    if (user.role !== "ADMIN") throw Errors.forbidden();
+    const [exams, trend] = await Promise.all([examRepo.overview(), examRepo.submissionTrend(14)]);
+    const attention: OversightItem[] = [];
+    for (const e of exams) {
+      const base = { examId: e.id, examTitle: e.title, ownerName: e.ownerName };
+      if (e.needsReview > 0)
+        attention.push({ ...base, kind: "grading", title: `${e.needsReview} attempt${e.needsReview === 1 ? "" : "s"} awaiting grading` });
+      else if (e.phase === "COMPLETED" && e.submitted > 0 && !e.resultsPublished)
+        attention.push({ ...base, kind: "unpublished", title: "Results not yet published" });
+      if (e.phase === "UPCOMING" && e.enrolled === 0)
+        attention.push({ ...base, kind: "no-candidates", title: "Published with no candidates" });
+    }
+    const live = exams.filter((e) => e.phase === "ONGOING");
+    return {
+      attention,
+      live,
+      upcoming: exams.filter((e) => e.phase === "UPCOMING").slice(0, 5),
+      sitting: live.reduce((n, e) => n + e.active, 0),
+      trend,
     };
   },
 
