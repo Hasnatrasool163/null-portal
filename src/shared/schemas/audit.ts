@@ -22,6 +22,10 @@ export const AUDIT_ACTIONS = [
   "ENROLLMENT_ADDED",
   "ENROLLMENT_REMOVED",
   "ANNOUNCEMENT_POSTED",
+  "DISPUTE_FILED",
+  "DISPUTE_RESOLVED",
+  "DISPUTE_ESCALATED",
+  "DISPUTE_DECIDED",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
@@ -47,6 +51,10 @@ export const AUDIT_ACTION_LABEL: Record<AuditAction, string> = {
   ENROLLMENT_ADDED: "Candidates enrolled",
   ENROLLMENT_REMOVED: "Candidate unenrolled",
   ANNOUNCEMENT_POSTED: "Announcement posted",
+  DISPUTE_FILED: "Dispute filed",
+  DISPUTE_RESOLVED: "Dispute resolved",
+  DISPUTE_ESCALATED: "Dispute escalated",
+  DISPUTE_DECIDED: "Dispute final decision",
 };
 
 export const auditListQuerySchema = z.object({

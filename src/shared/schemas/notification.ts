@@ -7,6 +7,9 @@ export const NOTIFICATION_TYPES = [
   "RESULTS_PUBLISHED",
   "EXAM_CANCELLED",
   "GRADING_PENDING",
+  "DISPUTE_FILED",
+  "DISPUTE_UPDATED",
+  "DISPUTE_ESCALATED",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

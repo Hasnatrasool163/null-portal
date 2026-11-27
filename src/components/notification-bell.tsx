@@ -7,6 +7,7 @@ import {
   Award,
   CalendarPlus,
   ClipboardCheck,
+  Scale,
   Clock,
   XCircle,
   type LucideIcon,
@@ -25,6 +26,9 @@ const ICON: Record<NotificationType, { icon: LucideIcon; tone: string }> = {
   RESULTS_PUBLISHED: { icon: Award, tone: "text-success" },
   EXAM_CANCELLED: { icon: XCircle, tone: "text-destructive" },
   GRADING_PENDING: { icon: ClipboardCheck, tone: "text-warning" },
+  DISPUTE_FILED: { icon: Scale, tone: "text-warning" },
+  DISPUTE_UPDATED: { icon: Scale, tone: "text-primary" },
+  DISPUTE_ESCALATED: { icon: Scale, tone: "text-destructive" },
 };
 
 const KEY = ["notifications"];
