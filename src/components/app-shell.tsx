@@ -1,20 +1,25 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, ListChecks, LogOut, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, LogOut, Moon, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
-import type { SessionUser } from "@/shared/schemas/auth";
+import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
 
-// TODO: edit the nav for the real theme (add/remove pages here, one place).
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/items", label: "Items", icon: ListChecks },
-];
+// Per-role navigation (one place). Later slices add pages here.
+const HOME = { href: "/dashboard", label: "Home", icon: LayoutDashboard };
+const NAV: Record<
+  Role,
+  { href: string; label: string; icon: typeof LayoutDashboard }[]
+> = {
+  ADMIN: [HOME, { href: "/admin/users", label: "Users", icon: Users }],
+  EXAMINER: [HOME],
+  CANDIDATE: [HOME],
+};
 
 export function AppShell({
   user,
@@ -45,10 +50,10 @@ export function AppShell({
             href="/dashboard"
             className="text-lg font-semibold tracking-tight"
           >
-            AppName {/* TODO: brand */}
+            null-portal
           </Link>
           <nav className="flex flex-1 items-center gap-1" aria-label="Main">
-            {NAV.map(({ href, label, icon: Icon }) => (
+            {NAV[user.role].map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -66,7 +71,7 @@ export function AppShell({
           </nav>
           <div className="flex items-center gap-2">
             <span className="hidden text-sm sm:inline">{user.name}</span>
-            <Badge>{user.role === "ADMIN" ? "Admin" : "User"}</Badge>
+            <Badge>{ROLE_LABEL[user.role]}</Badge>
             <Button
               variant="ghost"
               size="icon"

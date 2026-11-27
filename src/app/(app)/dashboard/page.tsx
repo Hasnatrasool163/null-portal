@@ -1,53 +1,57 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { PageHeader, StatCard } from "@/components/ui/blocks";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartExample } from "@/components/chart-example";
-import { getCurrentUser } from "@/server/auth/current-user";
-import { itemService } from "@/server/services/item.service";
-import { STATUS_LABEL, ITEM_STATUSES } from "@/shared/schemas/item";
+import { EmptyState, PageHeader, StatCard } from "@/components/ui/blocks";
+import { requireRole } from "@/server/auth/current-user";
+import { userService } from "@/server/services/user.service";
 
-export const metadata = { title: "Dashboard" };
+export const metadata = { title: "Home" };
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const user = (await getCurrentUser())!; // layout guarantees a user
-  const stats = await itemService.stats(user);
-  const total = ITEM_STATUSES.reduce((n, s) => n + (stats[s] ?? 0), 0);
+  const user = await requireRole(["ADMIN", "EXAMINER", "CANDIDATE"]);
+  const first = user.name.split(" ")[0];
+
+  if (user.role === "ADMIN") {
+    const s = await userService.stats();
+    return (
+      <>
+        <PageHeader
+          title={`Welcome, ${first}`}
+          subtitle="Platform oversight: users, roles and access."
+          actions={
+            <Button asChild>
+              <Link href="/admin/users">Manage users</Link>
+            </Button>
+          }
+        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard label="Administrators" value={s.admins} />
+          <StatCard label="Examiners" value={s.examiners} />
+          <StatCard label="Candidates" value={s.candidates} />
+          <StatCard label="Deactivated accounts" value={s.inactive} />
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <PageHeader
-        title={`Hello, ${user.name.split(" ")[0]}`}
+        title={`Welcome, ${first}`}
         subtitle={
-          user.role === "ADMIN"
-            ? "You are viewing everyone's data."
-            : "Here is your overview."
-        }
-        actions={
-          <Button asChild>
-            <Link href="/items">Manage items</Link>
-          </Button>
+          user.role === "EXAMINER"
+            ? "Your exams and grading queue will appear here."
+            : "Exams assigned to you will appear here."
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Total" value={total} />
-        {ITEM_STATUSES.map((s) => (
-          <StatCard key={s} label={STATUS_LABEL[s]} value={stats[s] ?? 0} />
-        ))}
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Items by status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ChartExample
-            data={ITEM_STATUSES.map((s) => ({
-              name: STATUS_LABEL[s],
-              value: stats[s] ?? 0,
-            }))}
-          />
-        </CardContent>
-      </Card>
+      <EmptyState
+        title={user.role === "EXAMINER" ? "No exams yet" : "No exams assigned"}
+        text={
+          user.role === "EXAMINER"
+            ? "Build your question bank, then create your first exam."
+            : "When an examiner enrolls you in an exam it will show up here."
+        }
+      />
     </>
   );
 }

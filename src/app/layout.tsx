@@ -5,8 +5,9 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "Web-e-Thon App", // TODO: rename
-  description: "Built at Technoverse 5.0 Web-e-Thon",
+  title: { default: "null-portal", template: "%s | null-portal" },
+  description:
+    "Secure examination management: create, conduct, monitor and evaluate online exams.",
 };
 
 export default function RootLayout({

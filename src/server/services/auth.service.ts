@@ -6,6 +6,7 @@ import { Errors } from "../http";
 import type { LoginInput, RegisterInput } from "@/shared/schemas/auth";
 
 export const authService = {
+  /** Public registration always creates a CANDIDATE (privileged roles are admin-created). */
   async register(input: RegisterInput) {
     if (await userRepo.findWithHashByEmail(input.email)) {
       throw Errors.conflict("This email is already registered", {
@@ -16,6 +17,7 @@ export const authService = {
       name: input.name,
       email: input.email,
       passwordHash: await hashPassword(input.password),
+      role: "CANDIDATE",
     });
     await createSession(user.id, user.role);
     return user;
@@ -26,6 +28,11 @@ export const authService = {
     // Same message for "no such user" and "wrong password" (no account enumeration).
     if (!found || !(await verifyPassword(input.password, found.passwordHash))) {
       throw Errors.unauthorized("Invalid email or password");
+    }
+    if (!found.isActive) {
+      throw Errors.forbidden(
+        "This account has been deactivated. Contact an administrator.",
+      );
     }
     await createSession(found.user.id, found.user.role);
     return found.user;

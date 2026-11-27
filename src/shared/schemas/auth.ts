@@ -1,18 +1,22 @@
 import { z } from "zod";
 
 // Shared by the browser forms AND the API routes: one source of truth for validation.
+export const nameSchema = z
+  .string()
+  .trim()
+  .min(2, "Name must be at least 2 characters")
+  .max(60, "Name is too long");
+
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("Enter a valid email address")
+  .max(120);
+
 export const registerSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Name must be at least 2 characters")
-    .max(60, "Name is too long"),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email("Enter a valid email address")
-    .max(120),
+  name: nameSchema,
+  email: emailSchema,
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -28,7 +32,14 @@ export const loginSchema = z.object({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
-export type Role = "ADMIN" | "USER";
+export const ROLES = ["ADMIN", "EXAMINER", "CANDIDATE"] as const;
+export type Role = (typeof ROLES)[number];
+export const ROLE_LABEL: Record<Role, string> = {
+  ADMIN: "Administrator",
+  EXAMINER: "Examiner",
+  CANDIDATE: "Candidate",
+};
+
 export type SessionUser = {
   id: string;
   name: string;

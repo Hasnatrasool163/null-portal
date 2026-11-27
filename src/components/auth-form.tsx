@@ -56,7 +56,9 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           {isRegister ? "Create your account" : "Welcome back"}
         </CardTitle>
         <CardDescription>
-          {isRegister ? "It only takes a minute." : "Log in to continue."}
+          {isRegister
+            ? "Registration creates a candidate account."
+            : "Log in to continue."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -118,7 +120,8 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         </p>
         {!isRegister && (
           <p className="bg-muted text-muted-foreground mt-3 rounded-md p-2 text-center text-xs">
-            Demo: user@demo.test / Demo1234
+            Demo: admin@demo.test, examiner1@demo.test, candidate1@demo.test /
+            Demo1234
           </p>
         )}
       </CardContent>
