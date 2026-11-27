@@ -28,7 +28,10 @@ const SIGN_IN_FAILED =
 const signInFailed = () => new ApiError(401, "SIGN_IN_FAILED", SIGN_IN_FAILED);
 const sessionActive = signInFailed;
 
-/** Claims the account's single session slot for a new cookie, or throws if another session is alive. */
+/**
+ * Starts a session for a new cookie. Candidates get one session slot and this throws if another
+ * session is alive; examiners and admins can be signed in on several devices.
+ */
 async function startSession(userId: string, role: SessionUser["role"]) {
   const current = await readSession();
   const sessionId = randomUUID();

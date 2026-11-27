@@ -1515,7 +1515,17 @@ async function passwordSlice() {
     const pw1 = created.data.tempPassword;
 
     const sA = await login(email, pw1);
-    const sB = role === "CANDIDATE" ? await login(email, pw1) : null;
+    let sB = null;
+    if (role === "CANDIDATE") {
+      // Candidates get one active session: a second sign-in elsewhere is refused while sA is alive.
+      const second = await new Client().post("/api/auth/login", { email, password: pw1 });
+      check(`${role}: second concurrent sign-in refused (single active session)`, second.status === 401);
+    } else {
+      // Examiners and admins may be signed in on several devices at once.
+      sB = await login(email, pw1);
+      check(`${role}: second concurrent sign-in allowed`, (await sB.get("/api/auth/me")).status === 200);
+      check(`${role}: first session still valid after second sign-in`, (await sA.get("/api/auth/me")).status === 200);
+    }
 
     check(`${role}: wrong currentPassword rejected (401)`, (await sA.post("/api/auth/change-password", { currentPassword: "WrongPassword1", newPassword: "NewPassword1" })).status === 401);
     check(`${role}: same password rejected (400)`, (await sA.post("/api/auth/change-password", { currentPassword: pw1, newPassword: pw1 })).status === 400);
