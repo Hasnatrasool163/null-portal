@@ -1,6 +1,6 @@
-import { CandidateHome } from "@/components/candidate-home";
-import { ExaminerDashboard } from "@/components/examiner-dashboard";
-import { AdminDashboard } from "@/components/admin-dashboard";
+import { CandidateHome } from "@/components/dashboard/candidate-home";
+import { ExaminerDashboard } from "@/components/dashboard/examiner-dashboard";
+import { AdminDashboard } from "@/components/dashboard/admin-dashboard";
 import { requireRole } from "@/server/auth/current-user";
 import { userService } from "@/server/services/user.service";
 import { examService } from "@/server/services/exam.service";
@@ -20,6 +20,7 @@ export default async function DashboardPage() {
     ]);
     return (
       <AdminDashboard
+        userId={user.id}
         firstName={first}
         users={users}
         phases={phases}
@@ -33,8 +34,8 @@ export default async function DashboardPage() {
       examService.phaseCounts(user),
       examService.overview(user),
     ]);
-    return <ExaminerDashboard firstName={first} phases={phases} overview={overview} />;
+    return <ExaminerDashboard userId={user.id} firstName={first} phases={phases} overview={overview} />;
   }
 
-  return <CandidateHome firstName={first} />;
+  return <CandidateHome userId={user.id} firstName={first} />;
 }

@@ -1,8 +1,9 @@
 import { QrCode, ScanLine, ShieldCheck } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { VerifyFrame } from "@/components/verify-frame";
-import { VerifyLookup } from "@/components/verify-lookup";
-import { VERIFY_STATUSES } from "@/components/verify-status";
+import { VerifyFrame } from "@/components/verify/verify-frame";
+import { VerifyLookup } from "@/components/verify/verify-lookup";
+import { VERIFY_STATUSES } from "@/components/verify/verify-status";
+import { VerifyPrivacyNote } from "@/components/verify/verify-privacy-note";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Verify a report" };
@@ -73,10 +74,7 @@ export default function VerifyLandingPage() {
               </section>
             </div>
           </Card>
-          <p className="text-muted-foreground px-1 text-center text-xs">
-            Only the exam, score and masked initials are shown. Never emails or
-            answers.
-          </p>
+          <VerifyPrivacyNote />
         </div>
       </div>
     </VerifyFrame>

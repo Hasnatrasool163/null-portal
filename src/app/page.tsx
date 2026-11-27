@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { PublicHeader } from "@/components/public-header";
-import { PaletteBackdrop } from "@/components/palette-backdrop";
-import { VerifyLookup } from "@/components/verify-lookup";
+import { PublicHeader } from "@/components/layout/public-header";
+import { PaletteBackdrop } from "@/components/layout/palette-backdrop";
+import { VerifyLookup } from "@/components/verify/verify-lookup";
 import { getCurrentUser } from "@/server/auth/current-user";
 
 const LANDING_COPY = {
