@@ -6,8 +6,10 @@ import { validateCandidateImport } from "../import/candidates-import";
 import { hashPassword } from "../auth/password";
 import { generateTempPassword } from "../auth/temp-password";
 import { Errors, assertUuid } from "../http";
+import { audit } from "../audit";
+import { editLevel } from "../exam/lifecycle";
 import type { SessionUser } from "@/shared/schemas/auth";
-import type { CandidateImportResult } from "@/shared/schemas/exam";
+import type { CandidateImportResult, ExamSummary } from "@/shared/schemas/exam";
 
 async function readableExam(user: SessionUser, examId: string) {
   const uid = assertUuid(examId, "Exam");
@@ -24,6 +26,15 @@ async function ownedExam(user: SessionUser, examId: string) {
   return exam;
 }
 
+/** New enrollments are allowed until the exam completes (draft, upcoming and ongoing). */
+function assertCanEnroll(exam: ExamSummary) {
+  if (editLevel(exam) === "TITLE_ONLY") {
+    throw Errors.conflict(
+      "Enrollment is closed: this exam has completed or been closed.",
+    );
+  }
+}
+
 export const enrollmentService = {
   async list(user: SessionUser, examId: string) {
     const exam = await readableExam(user, examId);
@@ -36,6 +47,7 @@ export const enrollmentService = {
 
   async enroll(user: SessionUser, examId: string, candidateIds: string[]) {
     const exam = await ownedExam(user, examId);
+    assertCanEnroll(exam);
     const unique = [...new Set(candidateIds)];
     const validIds = await enrollmentRepo.findActiveCandidatesByIds(unique);
     if (validIds.length !== unique.length) {
@@ -44,13 +56,38 @@ export const enrollmentService = {
       );
     }
     const added = await enrollmentRepo.enrollMany(exam.id, validIds);
+    if (exam.status !== "DRAFT" && added > 0) {
+      await audit(null, user, {
+        action: "ENROLLMENT_ADDED",
+        examId: exam.id,
+        targetType: "exam",
+        targetId: exam.id,
+        summary: `Enrolled ${added} candidate(s) in "${exam.title}" (${exam.phase.toLowerCase()})`,
+        details: { added, candidateIds: validIds },
+      });
+    }
     return { added, alreadyEnrolled: validIds.length - added };
   },
 
   async remove(user: SessionUser, examId: string, candidateId: string) {
     const exam = await ownedExam(user, examId);
+    if (editLevel(exam) !== "FULL") {
+      throw Errors.conflict(
+        "Candidates can be added but not removed once the exam is ongoing or completed.",
+      );
+    }
     const cid = assertUuid(candidateId, "Candidate");
     await enrollmentRepo.remove(exam.id, cid);
+    if (exam.status !== "DRAFT") {
+      await audit(null, user, {
+        action: "ENROLLMENT_REMOVED",
+        examId: exam.id,
+        targetType: "user",
+        targetId: cid,
+        summary: `Removed a candidate from "${exam.title}"`,
+        details: { candidateId: cid },
+      });
+    }
   },
 
   async importValidate(user: SessionUser, examId: string, content: string) {
@@ -64,6 +101,7 @@ export const enrollmentService = {
     content: string,
   ): Promise<CandidateImportResult> {
     const exam = await ownedExam(user, examId);
+    assertCanEnroll(exam);
     const { valid } = await validateCandidateImport(content);
     if (valid.length === 0) {
       throw Errors.badRequest("No valid candidate rows to import");
@@ -115,6 +153,16 @@ export const enrollmentService = {
       }
     });
 
+    if (exam.status !== "DRAFT" && enrolled > 0) {
+      await audit(null, user, {
+        action: "ENROLLMENT_ADDED",
+        examId: exam.id,
+        targetType: "exam",
+        targetId: exam.id,
+        summary: `Imported ${enrolled} candidate(s) into "${exam.title}" (${exam.phase.toLowerCase()})`,
+        details: { added: enrolled, newAccounts: created.length },
+      });
+    }
     return { enrolled, alreadyEnrolled, created };
   },
 };
