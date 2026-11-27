@@ -31,7 +31,7 @@ export function VerifyLookup({ initial = "" }: { initial?: string }) {
       <label htmlFor="verify-code" className="text-sm font-medium">
         Verification code
       </label>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 min-[420px]:flex-row">
         <div className="relative flex-1">
           <ScanLine
             className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2"
@@ -49,7 +49,7 @@ export function VerifyLookup({ initial = "" }: { initial?: string }) {
             className={cn(fieldClass, "h-11 pl-9 font-mono tracking-wider uppercase placeholder:font-sans placeholder:normal-case placeholder:tracking-normal")}
           />
         </div>
-        <Button type="submit" size="lg" disabled={pending}>
+        <Button type="submit" size="lg" disabled={pending} className="w-full min-[420px]:w-auto">
           {pending ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
           Verify
         </Button>

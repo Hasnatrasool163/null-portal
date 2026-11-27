@@ -7,7 +7,6 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowDown,
-  ArrowLeft,
   ArrowUp,
   CheckCircle2,
   CopyPlus,
@@ -21,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { BackButton } from "@/components/ui/back-button";
 import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
@@ -502,7 +502,7 @@ function EnrollmentsTab({
                     <label className="flex flex-1 cursor-pointer items-center gap-2">
                       <input
                         type="checkbox"
-                        className="accent-primary h-4 w-4"
+                        className="choice"
                         disabled={c.enrolled}
                         checked={c.enrolled || selected.has(c.id)}
                         onChange={(e) => {
@@ -672,14 +672,8 @@ export function ExamDetailView({
 
   return (
     <>
-      <div className="space-y-2">
-        <Link
-          href="/exams"
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          All exams
-        </Link>
+      <div className="space-y-4">
+        <BackButton href="/exams" label="All exams" />
         <PageHeader
           title={exam.title}
           subtitle={`${format(new Date(exam.startsAt), "PP p")} – ${format(new Date(exam.endsAt), "PP p")} · ${exam.durationMinutes} min`}

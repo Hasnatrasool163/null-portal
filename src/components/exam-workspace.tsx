@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -28,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/blocks";
 import {
   ScratchpadDrawer,
@@ -655,6 +655,9 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
       } else if ((e.key === "s" || e.key === "S") && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setScratchpadOpen((o) => !o);
+      } else if (e.key === "?") {
+        e.preventDefault();
+        setHelpOpen(true);
       } else if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         updateDraft(currentQuestion.id, (cur) => ({
@@ -745,7 +748,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     const d = drafts[q.id];
     if (!d) return null;
     return (
-      <Card id={`q-${i}`} data-qindex={i} className="scroll-mt-24">
+      <Card
+        id={`q-${i}`}
+        data-qindex={i}
+        className={
+          single
+            ? "scroll-mt-24"
+            : "scroll-mt-6 rounded-none border-0 bg-transparent shadow-none"
+        }
+      >
         <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 space-y-0">
           <div>
             <h2
@@ -818,16 +829,16 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                 return (
                   <label
                     key={opt.id}
-                    className={`q-text flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-[background-color,border-color,transform] duration-150 motion-safe:active:scale-[0.995] ${
+                    className={`q-text flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-[background-color,border-color,box-shadow,transform] duration-150 motion-safe:active:scale-[0.995] ${
                       checked
-                        ? "border-primary bg-accent/60"
-                        : "border-border hover:bg-muted/50"
+                        ? "border-primary/70 bg-accent/50 shadow-elev-1"
+                        : "border-border bg-card hover:border-primary/40 hover:bg-muted/40"
                     }`}
                   >
                     <input
                       type={q.type === "MCQ_SINGLE" ? "radio" : "checkbox"}
                       name={`q-${q.id}`}
-                      className="accent-primary mt-0.5 h-4 w-4"
+                      className="choice"
                       checked={checked}
                       onChange={() =>
                         updateDraft(q.id, (cur) => {
@@ -844,12 +855,15 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                         })
                       }
                     />
-                    <span className="flex-1">
-                      <span className="text-muted-foreground mr-2 font-mono text-xs">
-                        {optIdx + 1}.
-                      </span>
-                      {opt.body}
-                    </span>
+                    <span className="flex-1">{opt.body}</span>
+                    <kbd
+                      className={`hidden h-6 min-w-6 items-center justify-center rounded border px-1.5 font-mono text-[11px] sm:inline-flex ${
+                        checked ? "border-primary/40 text-primary" : "text-muted-foreground"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      {optIdx + 1}
+                    </kbd>
                   </label>
                 );
               })}
@@ -912,15 +926,51 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
     );
   };
 
+  // One visual language for question tiles (side panel, dialog and bottom bar).
+  const tileClass = (active: boolean, done: boolean) =>
+    `relative flex h-9 items-center justify-center rounded-md text-[13px] font-medium tabular-nums transition-[background-color,color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-safe:active:scale-95 ${
+      active
+        ? "bg-primary text-primary-foreground shadow-elev-1 ring-2 ring-primary/30 ring-offset-1 ring-offset-card"
+        : done
+          ? "bg-primary/12 text-primary hover:bg-primary/20"
+          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+    }`;
+  const flagDot = (
+    <span
+      aria-hidden="true"
+      className="bg-warning ring-card absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full ring-2"
+    />
+  );
+  const progressPct = Math.round(
+    (counts.answered / Math.max(1, attempt.questions.length)) * 100,
+  );
+
   const paletteList = (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium">Questions</span>
-        <span className="text-muted-foreground">
-          {counts.answered}/{attempt.questions.length} answered
-        </span>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-semibold">Questions</span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            <span className="text-foreground font-semibold">{counts.answered}</span>
+            /{attempt.questions.length} answered
+          </span>
+        </div>
+        <div
+          className="bg-muted h-1.5 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-valuenow={progressPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Answered"
+        >
+          <div
+            className="bg-primary h-full rounded-full transition-[width] duration-500 ease-out"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
       </div>
-      <div className="grid grid-cols-5 gap-1.5">
+
+      <div className="grid grid-cols-5 gap-2">
         {attempt.questions.map((q, i) => {
           const d = drafts[q.id];
           const done = isAnswered(d);
@@ -937,44 +987,33 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                 setPaletteOpen(false);
                 requestAnimationFrame(() => jumpTo(i));
               }}
-              className={`relative flex h-10 items-center justify-center gap-0.5 rounded-md border text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none ${
-                active
-                  ? "border-primary ring-primary/40 ring-2"
-                  : "border-border"
-              } ${
-                done
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-background text-foreground hover:bg-muted"
-              }`}
+              className={tileClass(active, done)}
             >
-              <span>{i + 1}</span>
-              {done && <Check className="h-3 w-3" aria-hidden="true" />}
-              {flagged && (
-                <Flag
-                  className="text-warning absolute -top-1 -right-1 h-3 w-3 fill-current"
-                  aria-hidden="true"
-                />
-              )}
+              {i + 1}
+              {flagged && flagDot}
             </button>
           );
         })}
       </div>
-      <div className="text-muted-foreground space-y-1 border-t pt-2 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="bg-primary text-primary-foreground inline-flex h-4 w-4 items-center justify-center rounded">
-            <Check className="h-2.5 w-2.5" />
-          </span>
-          Answered ({counts.answered})
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="border-border inline-block h-4 w-4 rounded border" />
-          Unanswered ({counts.unanswered})
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Flag className="text-warning h-3.5 w-3.5 fill-current" />
-          Flagged for review ({counts.flagged})
-        </div>
-      </div>
+
+      <ul className="text-muted-foreground grid grid-cols-2 gap-x-3 gap-y-1.5 border-t pt-3 text-xs">
+        <li className="flex items-center gap-2">
+          <span className="bg-primary/12 h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          Answered
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="bg-muted h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          Not answered
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="bg-primary h-3 w-3 rounded-[3px]" aria-hidden="true" />
+          Current
+        </li>
+        <li className="flex items-center gap-2">
+          <span className="bg-warning h-2 w-2 rounded-full" aria-hidden="true" />
+          Flagged ({counts.flagged})
+        </li>
+      </ul>
     </div>
   );
 
@@ -1110,59 +1149,68 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
             )}
           </div>
 
-          <Button
-            size="sm"
-            variant="outline"
-            aria-pressed={scratchpadOpen}
-            onClick={() => setScratchpadOpen((o) => !o)}
-          >
-            <NotebookPen className="h-4 w-4" />
-            <span className="hidden sm:inline">Scratchpad</span>
-          </Button>
+          <Tooltip content={<>Scratchpad <span className="opacity-60">· S</span></>} side="bottom">
+            <Button
+              size="sm"
+              variant="outline"
+              aria-pressed={scratchpadOpen}
+              onClick={() => setScratchpadOpen((o) => !o)}
+            >
+              <NotebookPen className="h-4 w-4" />
+              <span className="hidden sm:inline">Scratchpad</span>
+            </Button>
+          </Tooltip>
 
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
-            title={fullscreen ? "Exit full screen" : "Full screen"}
-            onClick={toggleFullscreen}
-          >
-            {fullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </Button>
+          <Tooltip content={fullscreen ? "Exit full screen" : "Full screen"} side="bottom">
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label={fullscreen ? "Exit full screen" : "Enter full screen"}
+              onClick={toggleFullscreen}
+            >
+              {fullscreen ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
+          </Tooltip>
 
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Workspace settings"
-            onClick={() => setPrefsOpen(true)}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </Button>
+          <Tooltip content="Workspace settings" side="bottom">
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Workspace settings"
+              onClick={() => setPrefsOpen(true)}
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </Button>
+          </Tooltip>
 
-          <Button
-            size="icon"
-            variant="outline"
-            className={
-              prefs.palettePosition === "side" ? "lg:hidden" : "hidden"
-            }
-            aria-label="Open question palette"
-            onClick={() => setPaletteOpen(true)}
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </Button>
+          <Tooltip content="Question navigator" side="bottom">
+            <Button
+              size="icon"
+              variant="outline"
+              className={
+                prefs.palettePosition === "side" ? "lg:hidden" : "hidden"
+              }
+              aria-label="Open question palette"
+              onClick={() => setPaletteOpen(true)}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+          </Tooltip>
 
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label="Keyboard shortcuts"
-            onClick={() => setHelpOpen(true)}
-          >
-            <HelpCircle className="h-4 w-4" />
-          </Button>
+          <Tooltip content={<>Keyboard shortcuts <span className="opacity-60">· ?</span></>} side="bottom" align="end">
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Keyboard shortcuts"
+              onClick={() => setHelpOpen(true)}
+            >
+              <HelpCircle className="h-4 w-4" />
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
@@ -1262,20 +1310,31 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               </CardContent>
             </Card>
           ) : prefs.layout === "scroll" ? (
-            <div className="space-y-4">
-              {attempt.questions.map((q, i) => (
-                <div key={q.id}>{renderQuestion(q, i, false)}</div>
-              ))}
-              <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
+            <article
+              aria-label="Exam paper"
+              className="paper-ruled shadow-elev-2 overflow-hidden rounded-lg border pl-10 sm:pl-14"
+            >
+              <header className="border-b border-dashed px-5 pt-6 pb-4 sm:px-6">
+                <p className="text-muted-foreground font-mono text-[11px] tracking-wider uppercase">
+                  Answer sheet
+                </p>
+                <p className="font-semibold">{attempt.examTitle}</p>
+              </header>
+              <div className="divide-y divide-dashed">
+                {attempt.questions.map((q, i) => (
+                  <div key={q.id}>{renderQuestion(q, i, false)}</div>
+                ))}
+              </div>
+              <footer className="bg-card/80 flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4 sm:px-6">
                 <p className="text-muted-foreground text-sm">
-                  {counts.answered} of {attempt.questions.length} answered
+                  End of paper · {counts.answered} of {attempt.questions.length} answered
                   {counts.flagged > 0 && ` · ${counts.flagged} flagged`}
                 </p>
                 <Button onClick={() => setReviewMode(true)}>
                   Review &amp; submit
                 </Button>
-              </Card>
-            </div>
+              </footer>
+            </article>
           ) : (
             currentQuestion && renderQuestion(currentQuestion, index, true)
           )}
@@ -1319,19 +1378,10 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
                       setReviewMode(false);
                       requestAnimationFrame(() => jumpTo(i));
                     }}
-                    className={`relative flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border px-2 text-xs font-medium transition-[transform,background-color] motion-safe:active:scale-90 ${
-                      active
-                        ? "ring-primary/50 border-primary ring-2"
-                        : "border-border"
-                    } ${done ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                    className={`${tileClass(active, done)} min-w-9 shrink-0 px-2`}
                   >
                     {i + 1}
-                    {d?.markedForReview && (
-                      <Flag
-                        className="text-warning absolute -top-1 -right-1 h-3 w-3 fill-current"
-                        aria-hidden="true"
-                      />
-                    )}
+                    {d?.markedForReview && flagDot}
                   </button>
                 );
               })}
@@ -1471,6 +1521,12 @@ function AttemptSession({ attempt }: { attempt: AttemptState }) {
               <span>Select option 1–9</span>
               <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
                 1 – 9
+              </code>
+            </li>
+            <li className="flex justify-between">
+              <span>Show this list</span>
+              <code className="bg-muted rounded px-1.5 py-0.5 font-mono text-xs">
+                ?
               </code>
             </li>
             <li className="flex justify-between">

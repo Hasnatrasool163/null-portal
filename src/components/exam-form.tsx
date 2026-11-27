@@ -286,7 +286,7 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
+            className="choice"
             disabled={readOnly || lockedSettings}
             {...register("shuffleQuestions")}
           />
@@ -295,7 +295,7 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
+            className="choice"
             disabled={readOnly || lockedSettings}
             {...register("shuffleOptions")}
           />
@@ -304,7 +304,7 @@ export function ExamForm({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="accent-primary h-4 w-4"
+            className="choice"
             disabled={readOnly || lockedSettings}
             {...register("showAnswers")}
           />

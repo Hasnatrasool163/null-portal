@@ -186,7 +186,7 @@ export function QuestionForm({
               <input
                 type="checkbox"
                 aria-label={`Option ${i + 1} is correct`}
-                className="accent-primary mt-3 h-4 w-4"
+                className="choice mt-3"
                 checked={options[i]?.isCorrect ?? false}
                 onChange={(e) => toggleCorrect(i, e.target.checked)}
               />

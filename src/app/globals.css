@@ -193,3 +193,58 @@ html { scroll-behavior: smooth; -webkit-tap-highlight-color: transparent; }
 [data-qsize="md"] { --q-size: 1.0625rem; }
 [data-qsize="lg"] { --q-size: 1.25rem; }
 .q-text { font-size: var(--q-size, 1rem); line-height: 1.65; }
+
+/* ---------- Choice controls (checkbox / radio) ----------
+   Compact 18px box, 5px corners, check mark springs in. Add class="choice" to a native input. */
+.choice {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-content: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0;
+  border: 1.5px solid color-mix(in srgb, var(--foreground) 28%, transparent);
+  border-radius: 5px;
+  background: var(--card);
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms, box-shadow 150ms, transform 120ms;
+}
+.choice[type="radio"] { border-radius: 999px; }
+.choice::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--primary-foreground);
+  transform: scale(0) rotate(-12deg);
+  transition: transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.choice[type="radio"]::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  -webkit-mask: none;
+  mask: none;
+}
+.choice:hover { border-color: var(--primary); }
+.choice:active { transform: scale(0.9); }
+.choice:checked { background: var(--primary); border-color: var(--primary); }
+.choice:checked::before { transform: scale(1) rotate(0deg); }
+.choice:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 25%, transparent);
+}
+.choice:disabled { cursor: not-allowed; opacity: 0.5; }
+
+/* ---------- Ruled exam paper (scrolling layout) ---------- */
+.paper-ruled {
+  --rule: color-mix(in srgb, var(--primary) 9%, transparent);
+  background-color: var(--card);
+  background-image:
+    linear-gradient(to right, transparent 3.25rem, color-mix(in srgb, var(--destructive) 22%, transparent) 3.25rem, color-mix(in srgb, var(--destructive) 22%, transparent) calc(3.25rem + 1px), transparent calc(3.25rem + 1px)),
+    repeating-linear-gradient(to bottom, transparent 0, transparent 31px, var(--rule) 31px, var(--rule) 32px);
+  background-position: 0 0, 0 1.25rem;
+}

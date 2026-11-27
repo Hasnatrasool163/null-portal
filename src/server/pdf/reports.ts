@@ -1,4 +1,5 @@
 import "server-only";
+import { BRAND } from "@/lib/brand";
 import { jsPDF } from "jspdf";
 import type {
   CandidateResultView,
@@ -6,7 +7,7 @@ import type {
 } from "@/shared/schemas/grading";
 import type { ExamAnalyticsResponse } from "@/shared/schemas/secondary";
 
-// Brand palette (matches null-portal emblem & warm-paper academic theme)
+// Brand palette (matches the ExamShield emblem & warm-paper academic theme)
 const NAVY: [number, number, number] = [19, 38, 66];
 const GOLD: [number, number, number] = [232, 157, 36];
 const INK: [number, number, number] = [27, 36, 48];
@@ -412,7 +413,7 @@ export function renderExamSummaryPdf(params: {
 
   drawFooters(
     doc,
-    `null-portal Examination Summary  |  ${analytics.examTitle}`,
+    `${BRAND.name} Examination Summary  |  ${analytics.examTitle}`,
   );
 
   return {

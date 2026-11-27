@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * One button for the whole app. Every variant shares the same motion:
- * hover lifts 1px, press scales down, focus shows the ring. `outline` inverts
- * on hover (ink fills the button), so secondary actions still feel responsive.
+ * hover lifts 1px, press scales down, focus shows the ring. `outline` gets a
+ * teal tint on hover; `aria-pressed` outline buttons fill with the accent (filters/toggles).
  */
 const buttonVariants = cva(
   [
@@ -25,7 +25,7 @@ const buttonVariants = cva(
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/70 hover:shadow-elev-1",
         outline:
-          "border border-border bg-card text-foreground shadow-elev-1 hover:border-foreground hover:bg-foreground hover:text-background hover:shadow-elev-2 aria-pressed:border-foreground aria-pressed:bg-foreground aria-pressed:text-background",
+          "border border-border bg-card text-foreground shadow-elev-1 hover:border-primary/50 hover:bg-accent hover:text-accent-foreground hover:shadow-elev-2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground",
         ghost:
           "text-foreground/80 hover:bg-accent hover:text-accent-foreground",
         destructive:
