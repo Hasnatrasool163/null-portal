@@ -2,7 +2,7 @@ import "server-only";
 import { userRepo } from "../repositories/user.repo";
 import { hashPassword } from "../auth/password";
 import { generateTempPassword } from "../auth/temp-password";
-import { Errors } from "../http";
+import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
 import type { SessionUser } from "@/shared/schemas/auth";
 import type {
@@ -83,5 +83,42 @@ export const userService = {
       });
     }
     return updated;
+  },
+
+  /**
+   * Admin-initiated password reset for any user (all roles).
+   * Generates a one-time temporary password (returned once, never stored or logged),
+   * revokes all active sessions of the target user, and writes an audit entry.
+   */
+  async resetPassword(actor: SessionUser, id: string) {
+    if (actor.role !== "ADMIN") throw Errors.forbidden();
+    const targetId = assertUuid(id, "User");
+    const target = await userRepo.findAnyById(targetId);
+    if (!target) throw Errors.notFound("User not found");
+
+    if (target.id === actor.id) {
+      throw Errors.conflict(
+        "Use change-password to update your own password.",
+      );
+    }
+
+    const tempPassword = generateTempPassword();
+    const hash = await hashPassword(tempPassword);
+    const nextVersion = await userRepo.updatePasswordAndBumpSession(
+      target.id,
+      hash,
+    );
+    if (nextVersion === null) throw Errors.notFound("User not found");
+
+    await audit(null, actor, {
+      action: "PASSWORD_RESET",
+      targetType: "user",
+      targetId: target.id,
+      summary: `Reset password for ${target.name} (${target.email})`,
+      details: { email: target.email, role: target.role },
+    });
+
+    // Returned once over HTTPS/JSON with Cache-Control: no-store; never stored in clear text.
+    return { user: target, tempPassword };
   },
 };
