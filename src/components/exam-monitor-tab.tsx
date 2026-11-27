@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
@@ -81,6 +82,8 @@ export function ExamMonitorTab({
     onError: (e) => toast.error(e.message),
   });
 
+  const paged = usePaged(monitor.data?.attempts ?? [], 10);
+
   if (monitor.isPending) return <Skeleton className="h-56 w-full" />;
   if (monitor.isError) {
     return (
@@ -130,7 +133,7 @@ export function ExamMonitorTab({
             </TR>
           </THead>
           <TBody>
-            {data.attempts.map((a) => (
+            {paged.slice.map((a) => (
               <TR key={a.attemptId}>
                 <TD>
                   <p className="font-medium">{a.candidateName}</p>
@@ -209,6 +212,14 @@ export function ExamMonitorTab({
           </TBody>
         </Table>
       )}
+
+      <Pagination
+        page={paged.page}
+        pageSize={paged.pageSize}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="attempts"
+      />
 
       {/* Announcements card */}
       <Card>

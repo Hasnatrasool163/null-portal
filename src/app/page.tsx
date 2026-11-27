@@ -1,8 +1,33 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  ArrowRight,
+  ClipboardList,
+  GraduationCap,
+  ShieldCheck,
+  UserCog,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 import { getCurrentUser } from "@/server/auth/current-user";
+
+const ROLES = [
+  {
+    icon: GraduationCap,
+    title: "Candidates",
+    text: "Sit timed exams with autosave that survives dropped connections, a private scratchpad and adjustable text size.",
+  },
+  {
+    icon: ClipboardList,
+    title: "Examiners",
+    text: "Build from a private question bank, preview as a candidate, watch attempts live, grade and publish.",
+  },
+  {
+    icon: UserCog,
+    title: "Administrators",
+    text: "Manage accounts and roles. Deactivated accounts lose access immediately.",
+  },
+];
 
 export default async function Home() {
   if (await getCurrentUser()) redirect("/dashboard");

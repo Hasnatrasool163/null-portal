@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Pagination, usePaged } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Badge, Skeleton, Spinner } from "@/components/ui/misc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -355,6 +356,8 @@ function EnrollmentsTab({
     enabled: addOpen,
   });
 
+  const paged = usePaged(list.data ?? [], 10);
+
   const enroll = useMutation({
     mutationFn: (ids: string[]) =>
       api<{ added: number }>(`/api/exams/${examId}/enrollments`, {
@@ -433,7 +436,7 @@ function EnrollmentsTab({
             </TR>
           </THead>
           <TBody>
-            {list.data.map((c) => (
+            {paged.slice.map((c) => (
               <TR key={c.id}>
                 <TD className="font-medium">{c.name}</TD>
                 <TD>{c.email}</TD>
@@ -458,6 +461,14 @@ function EnrollmentsTab({
           </TBody>
         </Table>
       )}
+
+      <Pagination
+        page={paged.page}
+        pageSize={paged.pageSize}
+        total={paged.total}
+        onPage={paged.setPage}
+        noun="candidates"
+      />
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent
@@ -689,26 +700,34 @@ export function ExamDetailView({
       </div>
 
       <div
-        className="flex flex-wrap gap-1 border-b"
+        className="-mx-4 flex gap-1 overflow-x-auto border-b px-4 sm:mx-0 sm:px-0"
         role="tablist"
         aria-label="Exam sections"
       >
         {tabs.map((t) => (
           <button
             key={t.id}
+            type="button"
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+            className={`relative shrink-0 rounded-t-lg px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors ${
               tab === t.id
-                ? "border-primary text-foreground"
-                : "text-muted-foreground hover:text-foreground border-transparent"
+                ? "text-foreground"
+                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             }`}
           >
             {t.label}
+            <span
+              aria-hidden="true"
+              className={`bg-primary absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-transform duration-200 ${
+                tab === t.id ? "scale-x-100" : "scale-x-0"
+              }`}
+            />
           </button>
         ))}
       </div>
+      <div key={tab} className="animate-page-in space-y-6">
 
       {tab === "review" && (
         <div className="space-y-6">
@@ -836,6 +855,7 @@ export function ExamDetailView({
       )}
 
       {tab === "analytics" && <ExamAnalyticsTab examId={exam.id} />}
+      </div>
 
       <Dialog
         open={confirmAction !== null}

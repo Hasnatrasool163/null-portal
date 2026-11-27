@@ -12,6 +12,8 @@ import { useDebounce } from "use-debounce";
 import { Copy, Plus, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SearchInput } from "@/components/ui/search-input";
+import { Pagination } from "@/components/ui/pagination";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/ui/field";
@@ -141,7 +143,6 @@ export function UsersManager({ meId }: { meId: string }) {
   });
 
   const total = list.data?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <>
@@ -157,15 +158,14 @@ export function UsersManager({ meId }: { meId: string }) {
       />
 
       <div className="flex flex-wrap gap-3">
-        <Input
-          className="max-w-xs"
-          placeholder="Search name or email..."
-          aria-label="Search users"
+        <SearchInput
+          label="Search users"
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
+          onChange={(v) => {
+            setSearch(v);
             setPage(1);
           }}
+          phrases={["candidate3", "examiner1@demo.test", "Ada", "admin"]}
         />
         <Select
           className="w-48"
@@ -280,31 +280,13 @@ export function UsersManager({ meId }: { meId: string }) {
         </Table>
       )}
 
-      {total > PAGE_SIZE && (
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">
-            Page {page} of {pages} ({total} users)
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage(page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= pages}
-              onClick={() => setPage(page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={total}
+        onPage={setPage}
+        noun="users"
+      />
 
       <Dialog open={creating} onOpenChange={setCreating}>
         <DialogContent title="New user">
