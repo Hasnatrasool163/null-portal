@@ -5,11 +5,13 @@ import { assertUuid, checkRateLimit, Errors } from "../http";
 import { audit } from "../audit";
 import { notifyUsers } from "../notifications";
 import { gradeWrittenInTx } from "./grading.service";
+import { runDisputeClock } from "../dispute-clock";
 import type { Role, SessionUser } from "@/shared/schemas/auth";
 import {
   CATEGORY_LABEL,
   DISPUTE_ESCALATION_DAYS,
   DISPUTE_FILING_DAYS,
+  DISPUTE_PATTERN_THRESHOLD,
   MAX_DISPUTES_PER_ATTEMPT,
   OUTCOME_LABEL,
   type AttemptDisputes,
@@ -159,21 +161,6 @@ async function addEvent(
     ],
   );
   return r.rows[0].id;
-}
-
-/** Resolutions not escalated within the window become final (lazily, no cron). */
-async function expireResolved() {
-  await tx(async (c) => {
-    const r = await c.query<{ id: string }>(
-      `UPDATE disputes SET status = 'CLOSED', updated_at = now()
-       WHERE status = 'RESOLVED' AND resolved_at < now() - make_interval(days => $1)
-       RETURNING id`,
-      [DISPUTE_ESCALATION_DAYS],
-    );
-    for (const { id } of r.rows) {
-      await addEvent(c, id, null, "ACCEPTED", "Escalation window ended; the examiner's resolution is final.");
-    }
-  });
 }
 
 async function adminIds(c: PoolClient) {
@@ -355,13 +342,38 @@ export const disputeService = {
         examId: st.a.exam_id,
         dedupeKey: `dispute:${id}:filed`,
       });
+
+      // Several candidates disputing the same question usually means the question is flawed.
+      if (input.attemptQuestionId) {
+        const p = await c.query<{ question_id: string; n: number }>(
+          `SELECT aq.question_id, count(DISTINCT d.candidate_id)::int AS n
+           FROM attempt_questions aq
+           JOIN attempt_questions other ON other.question_id = aq.question_id
+           JOIN disputes d ON d.attempt_question_id = other.id AND d.status <> 'WITHDRAWN'
+           WHERE aq.id = $1 AND d.exam_id = $2
+           GROUP BY aq.question_id`,
+          [input.attemptQuestionId, st.a.exam_id],
+        );
+        const hit = p.rows[0];
+        if (hit && hit.n >= DISPUTE_PATTERN_THRESHOLD) {
+          const n = {
+            type: "DISPUTE_PATTERN" as const,
+            title: `Possible flawed question: ${st.a.title}`,
+            body: `${hit.n} candidates have disputed the same question (Q${position! + 1} on ${user.name}'s paper). Check the question and its answer key; an answer-key rescore fixes it for everyone.`,
+            examId: st.a.exam_id,
+            dedupeKey: `dispute-pattern:${st.a.exam_id}:${hit.question_id}`,
+          };
+          await notifyUsers(c, await adminIds(c), { ...n, link: "/admin/disputes" });
+          await notifyUsers(c, [st.a.owner_id], { ...n, link: `/exams/${st.a.exam_id}?tab=disputes` });
+        }
+      }
       return { id };
     });
   },
 
   async listForAttempt(user: SessionUser, attemptIdRaw: string): Promise<AttemptDisputes> {
     const attemptId = assertUuid(attemptIdRaw, "Attempt");
-    await expireResolved();
+    await runDisputeClock();
     const owner = await query<{ candidate_id: string; owner_id: string; is_sandbox: boolean }>(
       `SELECT a.candidate_id, e.owner_id, a.is_sandbox FROM attempts a
        JOIN exams e ON e.id = a.exam_id WHERE a.id = $1`,
@@ -383,7 +395,7 @@ export const disputeService = {
   async listForExam(user: SessionUser, examIdRaw: string): Promise<DisputeSummary[]> {
     const examId = assertUuid(examIdRaw, "Exam");
     if (user.role === "CANDIDATE") throw Errors.forbidden();
-    await expireResolved();
+    await runDisputeClock();
     const ex = await query<{ owner_id: string }>("SELECT owner_id FROM exams WHERE id = $1", [examId]);
     if (!ex[0] || (user.role === "EXAMINER" && ex[0].owner_id !== user.id)) {
       throw Errors.notFound("Exam not found");
@@ -395,7 +407,7 @@ export const disputeService = {
   /** Admin queue: escalated first, then everything else most recent first. */
   async listAll(user: SessionUser, status?: DisputeStatus): Promise<DisputeSummary[]> {
     if (user.role !== "ADMIN") throw Errors.forbidden();
-    await expireResolved();
+    await runDisputeClock();
     const rows = await query<Row>(
       `${SELECT} WHERE ($1::text IS NULL OR d.status = $1)
        ORDER BY (d.status = 'ESCALATED') DESC, d.updated_at DESC LIMIT 200`,
@@ -406,7 +418,7 @@ export const disputeService = {
 
   async detail(user: SessionUser, idRaw: string): Promise<DisputeDetail> {
     const id = assertUuid(idRaw, "Dispute");
-    await expireResolved();
+    await runDisputeClock();
     const rows = await query<Row>(`${SELECT} WHERE d.id = $1`, [id]);
     const r = rows[0];
     if (!r || !canView(user, r)) throw Errors.notFound("Dispute not found");
@@ -501,7 +513,7 @@ export const disputeService = {
   /** Every state change goes through here, in one transaction with its events, audit and notifications. */
   async act(user: SessionUser, idRaw: string, input: DisputeActionInput) {
     const id = assertUuid(idRaw, "Dispute");
-    await expireResolved();
+    await runDisputeClock();
     return tx(async (c) => {
       const r = await loadForUpdate(c, id);
       if (!canView(user, r)) throw Errors.notFound("Dispute not found");

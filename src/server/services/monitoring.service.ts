@@ -1,5 +1,6 @@
 import "server-only";
 import { audit } from "../audit";
+import { notifyEnrolled, notifyUsers } from "../notifications";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { examRepo } from "../repositories/exam.repo";
@@ -124,6 +125,13 @@ export const monitoringService = {
         summary: `Posted announcement on "${exam.title}"`,
         details: { message: message.slice(0, 200) },
       });
+      await notifyEnrolled(null, exam.id, {
+        type: "ANNOUNCEMENT",
+        title: `Announcement: ${exam.title}`,
+        body: message,
+        link: "/dashboard",
+        dedupeKey: `announcement:${rows[0].id}`,
+      });
     }
     return {
       id: rows[0].id,
@@ -187,6 +195,14 @@ export const monitoringService = {
           reason: input.reason,
           newDeadlineAt: upd.rows[0].deadline_at.toISOString(),
         },
+      });
+      await notifyUsers(c, [attempt.candidate_id], {
+        type: "TIME_EXTENDED",
+        title: `Extra time: +${input.minutes} min`,
+        body: `The examiner gave you ${input.minutes} more minute(s). Your new deadline is ${upd.rows[0].deadline_at.toISOString().slice(11, 16)} UTC. Reason: ${input.reason}`,
+        link: `/attempts/${attemptId}`,
+        examId: attempt.exam_id,
+        dedupeKey: `extension:${ext.rows[0].id}`,
       });
       return {
         id: ext.rows[0].id,

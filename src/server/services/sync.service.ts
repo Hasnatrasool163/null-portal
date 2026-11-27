@@ -1,5 +1,6 @@
 import "server-only";
 import { audit } from "../audit";
+import { notifyScoreChanged } from "../notifications";
 import { tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import {
@@ -349,7 +350,13 @@ export const syncService = {
         [ans.id, resetScore],
       );
 
+      const prevTotal = attempt.total_score;
       const totalScore = await attemptRepo.recomputeTotalScore(c, attemptId);
+      await notifyScoreChanged(c, attemptId, {
+        from: prevTotal === null ? null : Number(prevTotal),
+        to: Number(totalScore),
+        reason: "a late-synced answer was discarded",
+      });
       await audit(c, user, {
         action: "LATE_ANSWER_DISCARDED",
         examId: attempt.exam_id,
