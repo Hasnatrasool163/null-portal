@@ -15,6 +15,7 @@ import {
   KeyRound,
   Lock,
   Mail,
+  MonitorX,
   QrCode,
   RefreshCw,
   ShieldCheck,
@@ -31,7 +32,7 @@ import { PaletteBackdrop } from "@/components/palette-backdrop";
 import { BrandLogo } from "@/components/brand-logo";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
-import { api, applyFieldErrors } from "@/lib/api-client";
+import { api, ApiClientError, applyFieldErrors } from "@/lib/api-client";
 import { loginSchema, type LoginInput } from "@/shared/schemas/auth";
 
 type RoleKey = "candidate" | "examiner" | "admin";
@@ -270,6 +271,7 @@ export function AuthForm() {
   const [role, setRole] = useState<RoleKey>("candidate");
   const [showPw, setShowPw] = useState(false);
   const [capsLock, setCapsLock] = useState(false);
+  const [sessionActive, setSessionActive] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -280,11 +282,16 @@ export function AuthForm() {
   const tab = ROLE_TABS.find((t) => t.key === role)!;
 
   async function onSubmit(values: LoginInput) {
+    setSessionActive(null);
     try {
       await api("/api/auth/login", { method: "POST", body: values });
       router.replace("/dashboard");
       router.refresh();
     } catch (e) {
+      if (e instanceof ApiClientError && e.code === "SESSION_ACTIVE") {
+        setSessionActive(e.message);
+        return;
+      }
       if (!applyFieldErrors(e, setError))
         toast.error(e instanceof Error ? e.message : "Something went wrong");
     }
@@ -404,6 +411,24 @@ export function AuthForm() {
                   </p>
                 )}
               </div>
+
+              {sessionActive && (
+                <div
+                  role="alert"
+                  className="animate-page-in border-warning/40 bg-warning/10 flex gap-2.5 rounded-md border p-3 text-sm"
+                >
+                  <MonitorX
+                    className="text-warning mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <div className="space-y-0.5">
+                    <p className="font-medium">Already signed in elsewhere</p>
+                    <p className="text-muted-foreground text-xs leading-relaxed">
+                      {sessionActive}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting && <Spinner />}

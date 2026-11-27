@@ -60,6 +60,14 @@ export type ExamGradingResponse = {
   resultsPublishedAt: string | null;
   canPublishResults: boolean;
   publishBlockedReason: string | null;
+  /** Submitted attempts with written answers still ungraded (blocks publishing). */
+  pendingGradingCount: number;
+  /** Attempts still being taken (blocks publishing). */
+  inProgressCount: number;
+  /** Enrolled candidates with no attempt at all (warning only). */
+  notAttemptedCount: number;
+  /** The exam window has not ended yet, so more candidates may still start (warning only). */
+  examWindowOpen: boolean;
   attempts: GradingAttemptSummary[];
 };
 

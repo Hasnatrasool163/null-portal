@@ -1,8 +1,14 @@
 import "server-only";
 import { userRepo } from "../repositories/user.repo";
 import { hashPassword, verifyPassword } from "../auth/password";
-import { createSession, destroySession, readSession } from "../auth/session";
-import { checkRateLimit, Errors } from "../http";
+import { randomUUID } from "node:crypto";
+import {
+  createSession,
+  destroySession,
+  readSession,
+  SESSION_IDLE_SECONDS,
+} from "../auth/session";
+import { ApiError, checkRateLimit, Errors } from "../http";
 import { audit } from "../audit";
 import type {
   ChangePasswordInput,
@@ -10,6 +16,28 @@ import type {
   RegisterInput,
   SessionUser,
 } from "@/shared/schemas/auth";
+
+/** Distinct code so the login screen can explain it (not a generic conflict toast). */
+const sessionActive = () =>
+  new ApiError(
+    409,
+    "SESSION_ACTIVE",
+    "This account is already signed in on another device, browser or tab. Sign out there first, or wait 2 minutes after closing it, then try again.",
+  );
+
+/** Claims the account's single session slot for a new cookie, or throws if another session is alive. */
+async function startSession(userId: string, role: SessionUser["role"]) {
+  const current = await readSession();
+  const sessionId = randomUUID();
+  const version = await userRepo.claimSession(
+    userId,
+    sessionId,
+    current?.userId === userId ? current.sessionId : null,
+    SESSION_IDLE_SECONDS,
+  );
+  if (version === null) throw sessionActive();
+  await createSession(userId, role, version, sessionId);
+}
 
 export const authService = {
   /** Public registration always creates a CANDIDATE (privileged roles are admin-created). */
@@ -25,7 +53,7 @@ export const authService = {
       passwordHash: await hashPassword(input.password),
       role: "CANDIDATE",
     });
-    await createSession(user.id, user.role, 1);
+    await startSession(user.id, user.role);
     return user;
   },
 
@@ -43,15 +71,20 @@ export const authService = {
         "This account has been deactivated. Contact an administrator.",
       );
     }
-    await createSession(found.user.id, found.user.role, found.sessionVersion);
+    // Checked only after the password, so this never leaks to someone without credentials.
+    await startSession(found.user.id, found.user.role);
     return found.user;
   },
 
-  /** Revokes the user's session server-side (bumps session_version) and clears the cookie. */
+  /** Revokes the session server-side (bumps session_version, frees the slot) and clears the cookie. */
   async logout() {
     const sess = await readSession();
     if (sess) {
-      await userRepo.bumpSessionVersion(sess.userId);
+      await userRepo.releaseSession(
+        sess.userId,
+        sess.sessionVersion,
+        sess.sessionId,
+      );
     }
     await destroySession();
   },
@@ -79,7 +112,8 @@ export const authService = {
     );
     if (nextVersion === null) throw Errors.notFound("User not found");
 
-    await createSession(user.id, user.role, nextVersion);
+    // The slot was just freed by the password change, so this always succeeds for the caller.
+    await startSession(user.id, user.role);
     await audit(null, user, {
       action: "PASSWORD_CHANGED",
       targetType: "user",

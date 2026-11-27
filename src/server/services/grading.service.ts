@@ -2,6 +2,7 @@ import "server-only";
 import { query, tx } from "../db";
 import { Errors, assertUuid } from "../http";
 import { audit } from "../audit";
+import { notifyResultsPublished } from "../notifications";
 import { toCsv } from "../csv";
 import { examRepo } from "../repositories/exam.repo";
 import {
@@ -159,11 +160,16 @@ export const gradingService = {
       (a) => a.gradingStatus === "NEEDS_REVIEW",
     );
 
+    const inProgress = attempts.filter((a) => a.status === "IN_PROGRESS");
+    const notAttempted = Math.max(0, exam.enrollmentCount - attempts.length);
+
     let publishBlockedReason: string | null = null;
     if (submitted.length === 0) {
       publishBlockedReason = "No submitted attempts to publish yet.";
     } else if (needsReview.length > 0) {
-      publishBlockedReason = `${needsReview.length} submitted attempt(s) still have ungraded written answers.`;
+      publishBlockedReason = `${needsReview.length} submitted attempt(s) still have ungraded written answers. Grade them before publishing results.`;
+    } else if (inProgress.length > 0) {
+      publishBlockedReason = `${inProgress.length} candidate(s) are still taking the exam. Wait for them to submit (or close the exam) before publishing results.`;
     }
 
     return {
@@ -172,6 +178,10 @@ export const gradingService = {
       resultsPublishedAt: exam.resultsPublishedAt,
       canPublishResults: publishBlockedReason === null,
       publishBlockedReason,
+      pendingGradingCount: needsReview.length,
+      inProgressCount: inProgress.length,
+      notAttemptedCount: notAttempted,
+      examWindowOpen: exam.phase !== "COMPLETED",
       attempts,
     };
   },
@@ -320,9 +330,10 @@ export const gradingService = {
 
     return tx(async (c) => {
       const counts = (
-        await c.query<{ submitted: number; pending: number }>(
+        await c.query<{ submitted: number; pending: number; in_progress: number }>(
           `SELECT count(*) FILTER (WHERE status = 'SUBMITTED')::int AS submitted,
-                  count(*) FILTER (WHERE status = 'SUBMITTED' AND grading_status = 'NEEDS_REVIEW')::int AS pending
+                  count(*) FILTER (WHERE status = 'SUBMITTED' AND grading_status = 'NEEDS_REVIEW')::int AS pending,
+                  count(*) FILTER (WHERE status = 'IN_PROGRESS')::int AS in_progress
            FROM real_attempts
            WHERE exam_id = $1`,
           [exam.id],
@@ -337,6 +348,11 @@ export const gradingService = {
           `${counts.pending} submitted attempt(s) still require written grading before publishing results.`,
         );
       }
+      if (counts.in_progress > 0) {
+        throw Errors.conflict(
+          `${counts.in_progress} candidate(s) are still taking the exam. Wait for them to submit (or close the exam) before publishing results.`,
+        );
+      }
 
       const r = await c.query<{ results_published_at: Date }>(
         `UPDATE exams
@@ -346,6 +362,7 @@ export const gradingService = {
         [exam.id],
       );
       if (!exam.resultsPublishedAt) {
+        await notifyResultsPublished(c, exam.id);
         await audit(c, user, {
           action: "RESULTS_PUBLISHED",
           examId: exam.id,

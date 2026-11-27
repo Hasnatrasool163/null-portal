@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import * as D from "@radix-ui/react-dialog";
 import {
+  Bell,
   BookOpen,
   ChevronLeft,
   ClipboardList,
@@ -22,6 +23,8 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { BRAND } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
+import { SessionBlocked, useSessionGuard } from "@/components/session-guard";
+import { NotificationBell, UnreadBadge } from "@/components/notification-bell";
 import { ROLE_LABEL, type Role, type SessionUser } from "@/shared/schemas/auth";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
@@ -153,6 +156,22 @@ function SidebarBody({
       </nav>
 
       <div className="space-y-1 overflow-x-hidden border-t px-3 py-3">
+        <NotificationBell
+          side="right"
+          trigger={(unread) => (
+            <button
+              type="button"
+              aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+              className={cn(row, muted, "relative")}
+            >
+              <Bell className={icon} aria-hidden="true" />
+              {collapsed && <UnreadBadge count={unread} className="absolute top-1 left-7" />}
+              <Label collapsed={collapsed}>Notifications</Label>
+              {!collapsed && <UnreadBadge count={unread} className="ml-auto" />}
+            </button>
+          )}
+        />
+
         <Tooltip content="Settings" side="right" disabled={!collapsed}>
           <Link
             href="/settings"
@@ -231,6 +250,7 @@ export function AppShell({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const tab = useSessionGuard(user.id);
 
   function toggleCollapsed() {
     const next = !collapsed;
@@ -247,6 +267,9 @@ export function AppShell({
       toast.error("Could not log out");
     }
   }
+
+  // A second tab of the same session: show why, render nothing of the app.
+  if (tab === "blocked") return <SessionBlocked />;
 
   // Focus mode: a live exam attempt gets the whole screen, no navigation.
   if (/^\/attempts\/[^/]+$/.test(pathname)) {
@@ -290,6 +313,19 @@ export function AppShell({
       {/* Mobile top bar + drawer */}
       <header className="bg-background/95 sticky top-0 z-30 flex h-14 items-center justify-between border-b px-4 lg:hidden">
         <Brand role={user.role} />
+        <div className="flex items-center gap-1">
+          <NotificationBell
+            trigger={(unread) => (
+              <button
+                type="button"
+                aria-label={`Notifications${unread ? ` (${unread} unread)` : ""}`}
+                className="hover:bg-muted focus-visible:ring-ring relative flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <Bell className="h-5 w-5" />
+                <UnreadBadge count={unread} className="absolute top-1 right-1" />
+              </button>
+            )}
+          />
         <D.Root open={mobileOpen} onOpenChange={setMobileOpen}>
           <D.Trigger
             className="hover:bg-muted focus-visible:ring-ring flex h-10 w-10 items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:outline-none"
@@ -320,6 +356,7 @@ export function AppShell({
             </D.Content>
           </D.Portal>
         </D.Root>
+        </div>
       </header>
 
       <div
